@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { BOARD, HOMES, isOnBoard, MODELS, ROAD_CELLS, worldPoint, type Cell, type ModelId } from './config';
+import { BOARD, HOMES, isOnBoard, ROAD_CELLS, worldPoint, type Cell, type ModelId } from './config';
 import { store } from './state';
 
 interface Car {
