@@ -1,0 +1,23 @@
+{
+  "name": "model-loop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A hand-drawn miniature town roguelite built with Phaser 4, TypeScript and Vite.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --config vite/config.dev.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build --config vite/config.prod.mjs",
+    "check": "npm run typecheck && npm run build",
+    "preview": "vite preview --config vite/config.prod.mjs"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.2",
+    "vite": "^6.3.1"
+  },
+  "dependencies": {
+    "phaser": "4.0.0",
+    "terser": "^5.39.0"
+  }
+}
