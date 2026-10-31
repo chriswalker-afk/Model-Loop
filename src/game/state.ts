@@ -93,7 +93,7 @@ export class GameStore {
     return active.reduce((total, resident) => total + resident.irritation, 0) / active.length;
   }
   get community(): number { return Math.round(this.occupiedHomes / HOMES.length * 100); }
-  get safety(): number { return Math.round(clamp(100 - this.averageIrritation(), 0, 100)); }
+  get safety(): number { return Math.round(clamp(100 - this.averageIrritation, 0, 100)); }
 
   getModel(id: ModelId) { return MODELS.find((model) => model.id === id)!; }
   selectModel(id: ModelId): void {
