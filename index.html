@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111515">
+  <meta name="description" content="Model Loop: a hand-drawn miniature town-building roguelite.">
+  <title>Model Loop | Vintage Workshop</title>
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-kicker">THE FAMILY WORKSHOP PRESENTS</div>
+      <div class="brand-name">MODEL <span>LOOP</span></div>
+      <div class="brand-sub">Small roads. A lasting legacy.</div>
+    </div>
+    <div class="era-mark">
+      <span class="eyebrow">CHAPTER I &middot; ERA</span>
+      <strong>VINTAGE</strong>
+      <span class="era-year">1908 &ndash; The first little town</span>
+    </div>
+    <div class="meters" id="meters" aria-label="Town conditions"></div>
+    <div class="top-controls">
+      <div class="balances"><span class="coin-icon" aria-hidden="true">&#9679;</span>
+        <b id="coins">145</b> <span class="balances-label">COINS</span></div>
+      <button type="button" class="utility-button" data-action="pause" id="pause">Pause</button>
+      <button type="button" class="utility-button" data-action="speed" id="speed">1x</button>
+      <button type="button" class="utility-button utility-outline" data-action="workshop">Workshop</button>
+    </div>
+  </header>
+  <main class="main-content">
+    <section class="world-frame" aria-label="The miniature town">
+      <div id="game-container" aria-label="Interactive town board with a looping road"></div>
+      <aside id="tile-panel" class="tile-panel" aria-live="polite"></aside>
+      <div class="board-stamp">NO. 001 &mdash; HANDCRAFTED TOWNS</div>
+    </section>
+    <section class="shop-section" aria-label="Miniature model shop">
+      <div class="shop-topline">
+        <div><span class="eyebrow">THE MINIATURE COLLECTION</span>
+          <h2>Choose a model for the town</h2></div>
+        <p>Select a box, then click an empty grid square beside the road.</p>
+      </div>
+      <div class="shop-track" id="shop"></div>
+    </section>
+    <footer class="footer">
+      <span class="live-dot" aria-hidden="true"></span>
+      <p id="notice" aria-live="polite">The workshop is open.</p>
+      <span class="footer-mark">A STORY MADE ONE MODEL AT A TIME</span>
+    </footer>
+  </main>
+  <div id="modal" class="modal" hidden></div>
+</div>
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>
