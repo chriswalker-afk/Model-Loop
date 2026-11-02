@@ -74,7 +74,8 @@ test('normal driving can hit a real left-side miniature, but overtaking never do
   const store=make();
   expect(store.place(site.model,'lamp')).toBe(true);
   const original=store.money;
-  store.accidents.rng.next=()=>0;
+  let draws=0;
+  store.accidents.rng.next=()=>++draws===1?0:.5; // force an impact, not a severe break
   expect(store.considerRoadsideAccident(0,site.road,110,'passing')).toBeNull();
   expect(store.considerRoadsideAccident(0,site.road,110,'left',true)).toBeNull();
   expect(store.considerRoadsideAccident(0,site.road,0,'left')).toBeNull();
