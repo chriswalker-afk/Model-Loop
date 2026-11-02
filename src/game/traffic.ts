@@ -1,6 +1,6 @@
 import { SeededRandom } from './environment';
 import { VINTAGE_BALANCE } from './balance';
-import type { Cell } from './config';
+import { BOARD, ROAD_CELLS, worldPoint, type Cell } from './config';
 
 export type CarPhase = 'driving' | 'returning' | 'at-home' | 'departing';
 export const HOME_TRAVEL_SECONDS = 0.7;
@@ -49,6 +49,7 @@ export function stepCarCycle(
 }
 
 export const TRAFFIC_MIN_GAP = 38; // World pixels, a little longer than a vintage car.
+export const TRAFFIC_LEFT_LANE_OFFSET = 8; // The normal running position, in world pixels.
 export const TRAFFIC_MERGE_GAP = 58;
 export const TRAFFIC_HEADWAY = 0.55; // Seconds of following space above the bumper gap.
 export const TRAFFIC_STOP_COOLDOWN = VINTAGE_BALANCE.stopPersonalCooldownSeconds;
@@ -72,6 +73,85 @@ export interface RoadMovement {
   delaySeconds: number;
 }
 const normalise = (x: number, length: number): number => ((x % length) + length) % length;
+
+type RoadPoint = { x: number; y: number };
+export interface RoadPose extends RoadPoint { rotation: number; }
+const ROAD_CENTRES = ROAD_CELLS.map(worldPoint);
+
+/**
+ * Offsetting each segment independently would make a car jump sideways at a
+ * bend. Intersect the incoming and outgoing offset lines at every road vertex
+ * instead, then interpolate between the resulting joins. Distance and lap
+ * accounting remain measured along the original centreline.
+ */
+function pointOnRoadLane(distance: number, offset: number): RoadPoint {
+  const count = ROAD_CENTRES.length;
+  const wrapped = normalise(distance, count * BOARD.tile);
+  const index = Math.floor(wrapped / BOARD.tile);
+  const fraction = (wrapped - index * BOARD.tile) / BOARD.tile;
+  const previous = ROAD_CENTRES[(index - 1 + count) % count];
+  const start = ROAD_CENTRES[index];
+  const end = ROAD_CENTRES[(index + 1) % count];
+  const following = ROAD_CENTRES[(index + 2) % count];
+
+  const shiftedVertex = (before: RoadPoint, at: RoadPoint, after: RoadPoint): RoadPoint => {
+    const inX = (at.x - before.x) / BOARD.tile;
+    const inY = (at.y - before.y) / BOARD.tile;
+    const outX = (after.x - at.x) / BOARD.tile;
+    const outY = (after.y - at.y) / BOARD.tile;
+    const denominator = 1 + inX * outX + inY * outY;
+    // The laid-out circuit has no U-turns; the fallback keeps the helper safe
+    // if a future era introduces one.
+    const shift = denominator > 0.01 ? offset / denominator : 0;
+    return {
+      x: at.x + (inY + outY) * shift + (denominator <= 0.01 ? outY * offset : 0),
+      y: at.y - (inX + outX) * shift - (denominator <= 0.01 ? outX * offset : 0)
+    };
+  };
+  const from = shiftedVertex(previous, start, end);
+  const to = shiftedVertex(start, end, following);
+  return {
+    x: from.x + (to.x - from.x) * fraction,
+    y: from.y + (to.y - from.y) * fraction
+  };
+}
+
+/** Smoothly oriented, continuous left-hand driving along the full road loop. */
+export function roadPoseAt(distance: number, offset = TRAFFIC_LEFT_LANE_OFFSET): RoadPose {
+  const position = pointOnRoadLane(distance, offset);
+  // A short look ahead/behind smoothly turns the car's nose at corners.
+  const look = BOARD.tile * 0.2;
+  const behind = pointOnRoadLane(distance - look, offset);
+  const ahead = pointOnRoadLane(distance + look, offset);
+  return {
+    ...position,
+    rotation: Math.atan2(ahead.y - behind.y, ahead.x - behind.x)
+  };
+}
+
+/**
+ * A roadside display or discarded packaging may encroach on the left edge.
+ * Ease toward the road centre while passing it, and return left once clear.
+ * Cars never cross/overtake a stopped vehicle: longitudinal following and
+ * driveway gap reservations still control all physical traffic movement.
+ */
+export function preferredRoadLaneOffset(distance: number, leftEdgeObstructions: readonly Cell[]): number {
+  if (leftEdgeObstructions.length === 0) return TRAFFIC_LEFT_LANE_OFFSET;
+  const centre = roadPoseAt(distance, 0);
+  const forwardX = Math.cos(centre.rotation);
+  const forwardY = Math.sin(centre.rotation);
+  const blocked = leftEdgeObstructions.some(cell => {
+    const obstacle = worldPoint(cell);
+    const dx = obstacle.x - centre.x;
+    const dy = obstacle.y - centre.y;
+    const ahead = dx * forwardX + dy * forwardY;
+    const left = dx * forwardY - dy * forwardX;
+    return ahead > -BOARD.tile * 0.7 && ahead < BOARD.tile * 1.5 &&
+      left > BOARD.tile * 0.3 && left < BOARD.tile * 1.45;
+  });
+  return blocked ? 0 : TRAFFIC_LEFT_LANE_OFFSET;
+}
+
 
 /**
  * Simultaneous, deterministic following along the *entire circular road*.
