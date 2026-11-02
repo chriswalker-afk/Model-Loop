@@ -83,8 +83,23 @@ export class TownScene extends Scene {
   }
 
   private pointerCell(pointer: Phaser.Input.Pointer): Cell | null {
-    const x = Math.floor((pointer.worldX - BOARD.left) / BOARD.tile);
-    const y = Math.floor((pointer.worldY - BOARD.top) / BOARD.tile);
+    // Phaser's cached canvas bounds are not updated by CSS overflow scrolling.
+    // Use live browser coordinates so the right-hand end of the town remains
+    // interactive after swiping horizontally across a phone screen.
+    const event = pointer.event as MouseEvent | TouchEvent | undefined;
+    const touch = event && 'changedTouches' in event
+      ? (event.changedTouches[0] || event.touches[0]) : undefined;
+    const clientX = touch?.clientX ?? (event as MouseEvent | undefined)?.clientX;
+    const clientY = touch?.clientY ?? (event as MouseEvent | undefined)?.clientY;
+    const rect = this.game.canvas.getBoundingClientRect();
+    const worldX = Number.isFinite(clientX) && rect.width > 0
+      ? ((clientX as number) - rect.left) / rect.width * BOARD.width
+      : pointer.worldX;
+    const worldY = Number.isFinite(clientY) && rect.height > 0
+      ? ((clientY as number) - rect.top) / rect.height * BOARD.height
+      : pointer.worldY;
+    const x = Math.floor((worldX - BOARD.left) / BOARD.tile);
+    const y = Math.floor((worldY - BOARD.top) / BOARD.tile);
     return isOnBoard(x, y) ? { x, y } : null;
   }
 
