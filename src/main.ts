@@ -794,7 +794,8 @@ document.addEventListener('keydown', (event) => {
     store.cancelModel();
     return;
   }
-  if (!store.activeModel || store.phase !== 'playing' || store.paused ||
+  // Arrow/Enter inspection must remain available even without a lifted model.
+  if (store.phase !== 'playing' || store.paused ||
       store.workshopOpen || document.activeElement !== byId('game-container')) return;
   const movement: Record<string, [number,number]> = {
     ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0]
