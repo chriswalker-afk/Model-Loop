@@ -35,7 +35,7 @@ npm run preview
 1. Vintage, 1908: a complex road loop on a 24 x 12 square grid.
 2. Six old-fashioned cars tied to six named households.
 3. Traffic earns coins and Progress, but irritation accumulates during journeys.
-4. Five boxed models with illustrated transparent windows, costs and environmental effects.
+4. Six boxed models with illustrated transparent windows, costs and environmental effects.
 5. Buy a model by selecting its box and placing it on an empty square next to the road.
 6. Inspect square Beauty, Noise and Crime values on hover or selection.
 7. Three home closures end the run; filling Progress completes the Vintage chapter.
@@ -81,6 +81,29 @@ The Phaser canvas uses FIT scaling and an observed viewport size so clicks,
 tap positions and placement previews continue to match visible squares after
 the browser is resized or the device rotated. No manual zoom or settings
 change is required.
+
+## The six household habits (Driver Behaviour Pass 4)
+
+The Finches, Bells, Millers, Marshes, Hales and Wards now each have a
+*helpful* and a *troublesome* roadside action. Mood and maintained model
+placement influence the chance of each, but neither outcome is guaranteed.
+
+Residents can now give way, plant flowers, mend tyre damage, tidy litter,
+restore old roadside details and guide traffic. They might also skid,
+admire something long enough to delay cars, discard packaging, stop for
+a chat, set up a display that slows passing cars, or hesitate before
+continuing. These actions affect the actual environment, car speeds,
+household irritation and Safety. They are visible on the board as
+small chalk-and-miniature traces, not merely changes to a meter.
+
+Open a household to see its two ordinary habits and latest action.
+During model placement, the optional **How this miniature changes driver
+habits** preview explains which families are likely to be helped or
+inconvenienced. Care level reduces these influences, giving each purchased
+model another meaningful long-term trade-off.
+
+See [Living Environment](docs/LIVING_ENVIRONMENT.md) for the full
+twelve-action table, odds, mitigations and reproducible test hooks.
 
 ## Living traffic & real queues (Driver Behaviour Pass 3)
 

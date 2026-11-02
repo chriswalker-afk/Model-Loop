@@ -8,6 +8,11 @@ import {
   binCollectionInterval, collectionCost, withinBinCatchment
 } from './bins';
 import { RoadTraffic, type QueuedRoadCar } from './traffic';
+import {
+  BEHAVIOUR_MAX_HISTORY, HouseholdBehaviourEngine, householdActionPair,
+  previewBehaviourInfluence, type BehaviourReport, type BehaviourPreviewRow,
+  type HouseholdAction, type HouseholdActionId
+} from './behaviors';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -23,8 +28,6 @@ export interface Resident {
   seenModels: Record<string, number>;
   lastEventLap: number;
   nextEventOffset: number;
-  lastTrafficAttemptLap: number;
-  nextTrafficOffset: number;
   trafficDelay: number; // Total seconds lost behind other road users.
 }
 export interface JourneyReaction {
@@ -61,6 +64,7 @@ export interface PlacementPreview {
   affectedHouseholds: number;
   irritationChangePerLap: number;
   householdEffects: HouseholdEffect[];
+  behaviourEffects: BehaviourPreviewRow[];
 }
 
 const KEY = 'model-loop-legacy-v1';
@@ -108,6 +112,8 @@ export class GameStore {
   environment = new LivingEnvironment(1);
   lastEnvironmentEvent: EnvironmentalEvent | null = null;
   traffic = new RoadTraffic(1);
+  behaviour = new HouseholdBehaviourEngine(1);
+  behaviourHistory: BehaviourReport[] = [];
   private lastCongestionNoticeAt = -Infinity;
 
   get elapsedSeconds(): number { return this.clockSeconds; }
@@ -189,6 +195,8 @@ export class GameStore {
     const runSeed = seed ?? (Date.now() >>> 0);
     this.environment = new LivingEnvironment(runSeed);
     this.traffic = new RoadTraffic(runSeed);
+    this.behaviour = new HouseholdBehaviourEngine(runSeed);
+    this.behaviourHistory = [];
     this.lastCongestionNoticeAt = -Infinity;
     this.lastEnvironmentEvent = null;
     this.phase = 'playing';
@@ -220,9 +228,7 @@ export class GameStore {
       lastRemark: householdProfile(home.id).firstRemark,
       seenModels: {},
       lastEventLap: -1,
-      nextEventOffset: this.environment.opportunityOffset(ROAD_CELLS.length),
-      lastTrafficAttemptLap: -1,
-      nextTrafficOffset: this.traffic.opportunityOffset(ROAD_CELLS.length),
+      nextEventOffset: this.behaviour.opportunityOffset(ROAD_CELLS.length),
       trafficDelay: 0
     }));
     this.notice = 'The year is 1908. Keep the neighbourhood happy as the cars circle.';
@@ -375,7 +381,7 @@ export class GameStore {
       if (placed.id !== 'limit' || manhattanDistance(placed, tile) > EFFECT_RADIUS) continue;
       multiplier = Math.min(multiplier, modelEffects(placed.id, normalizedCare(placed.care)).speedMultiplier);
     }
-    return multiplier;
+    return Math.min(multiplier, this.environment.slowdownAt(tile));
   }
   selectResident(id: number | null): void {
     this.selectedResident = this.selectedResident === id ? null : id;
@@ -504,6 +510,9 @@ export class GameStore {
       manhattanDistance(road, cell) <= (id === 'bin' ? BIN_CATCH_RADIUS : EFFECT_RADIUS)).length;
 
     const householdEffects = canPlace ? this.projectedHouseholdEffects(cell, id) : [];
+    const behaviourEffects = canPlace
+      ? previewBehaviourInfluence(cell, id, this.placements, this.residents)
+      : [];
     const averageChange = householdEffects.length
       ? householdEffects.reduce((sum, effect) => sum + effect.irritationChangePerLap, 0) / householdEffects.length
       : 0;
@@ -512,7 +521,7 @@ export class GameStore {
       before, after, affectedRoadTiles,
       affectedHouseholds: this.occupiedHomes,
       irritationChangePerLap: Math.round(averageChange * 10) / 10,
-      householdEffects
+      householdEffects, behaviourEffects
     };
   }
 
@@ -553,37 +562,15 @@ export class GameStore {
     const home = HOMES.find(home => home.id === id)!;
     const startIndex = ROAD_CELLS.findIndex(road => manhattanDistance(road, home) === 1);
     const tileIndex = ROAD_CELLS.findIndex(road => road.x === tile.x && road.y === tile.y);
-    if (tileIndex >= 0 && startIndex >= 0 && resident.lastEventLap !== resident.laps) {
-      const journeyOffset = (tileIndex - startIndex + ROAD_CELLS.length) % ROAD_CELLS.length;
-      if (journeyOffset >= resident.nextEventOffset) {
-        resident.lastEventLap = resident.laps;
-        resident.nextEventOffset = this.environment.opportunityOffset(ROAD_CELLS.length);
-        const event = this.environment.attempt(
-          id, resident.irritation, tile, this.clockSeconds, this.placements,
-          road => this.interceptLitter(road)
-        );
-        if (event) this.recordEnvironmentEvent(event);
-      }
-    }
-    // One seeded possibility per journey. A pause is an actual physical
-    // blocker on the road, so following cars will have to brake or queue.
     if (tileIndex >= 0 && startIndex >= 0 &&
-      resident.lastTrafficAttemptLap !== resident.laps) {
+      resident.lastEventLap !== resident.laps) {
       const offset = (tileIndex - startIndex + ROAD_CELLS.length) % ROAD_CELLS.length;
-      if (offset >= resident.nextTrafficOffset) {
-        resident.lastTrafficAttemptLap = resident.laps;
-        resident.nextTrafficOffset = this.traffic.opportunityOffset(ROAD_CELLS.length);
-        const nearSign = this.placements.some(item => item.id === 'limit'
-          && manhattanDistance(item, tile) <= EFFECT_RADIUS);
-        const stop = this.traffic.attempt(id, resident.irritation, tile,
-          this.clockSeconds, nearSign);
-        if (stop) {
-          resident.lastRemark = id === 1
-            ? 'There was something rather lovely by the roadside.'
-            : 'Better to check the road before going on.';
-          this.notice = stop.message;
-          this.notify();
-        }
+      if (offset >= resident.nextEventOffset) {
+        resident.lastEventLap = resident.laps;
+        resident.nextEventOffset = this.behaviour.opportunityOffset(ROAD_CELLS.length);
+        const action = this.behaviour.choose(id, resident.irritation,
+          tile, this.clockSeconds, this.placements);
+        if (action) this.performHouseholdAction(id, action, tile);
       }
     }
     let reaction: JourneyReaction | null = null;
@@ -619,6 +606,95 @@ export class GameStore {
     return reaction;
   }
 
+  /** A single, attributable activity for every family on a given circuit. */
+  private performHouseholdAction(
+    residentId: number, action: HouseholdAction, road: Cell, naturally = true
+  ): boolean {
+    const resident = this.residents[residentId];
+    if (!resident?.occupied || !isRoad(road.x, road.y) || this.phase !== 'playing') return false;
+    let message = action.message;
+    let effectCell = road;
+    if (action.mechanic === 'stop') {
+      // Another driver could already be stopped; unsuccessful actions do not
+      // create duplicate pop-ups or generate more income.
+      const stop = this.traffic.requestStop(residentId, road, this.clockSeconds);
+      if (!stop) return false;
+      message = stop.message;
+    } else {
+      const kind = action.environmentKind;
+      if (!kind) return false;
+      const event = this.environment.force(kind, residentId, road,
+        this.clockSeconds, this.placements, tile => this.interceptLitter(tile));
+      if (!event) return false;
+      effectCell = event.cell;
+      if (action.id === 'litter' && event.outcome) {
+        // Respect capacity and overflow messages; placing a bin changes the
+        // outcome of a litter event, not the whole person's character.
+        message = event.message;
+      } else {
+        if (action.id === 'mend') {
+          const repaired = this.environment.removeNearby('skid',road,2);
+          if (repaired) message += ' The tyre scuffs have been cleared.';
+        } else if (action.id === 'tidy') {
+          const cleared = this.environment.removeNearby('litter',road,3);
+          if (cleared) message += ' A discarded wrapper was collected.';
+        } else if (action.id === 'courtesy' || action.id === 'guide') {
+          const helped = this.traffic.activeStop?.residentId !== residentId &&
+            this.traffic.shortenStop(this.clockSeconds,
+              action.id === 'guide' ? 3 : 1.8);
+          if (helped) message += ' The queue began to clear sooner.';
+        }
+        event.message = message;
+      }
+      this.lastEnvironmentEvent = event;
+    }
+    // Preserve the Pass 2 ambient rubbish: another family's inconvenient
+    // act can also leave a small wrapper behind. It is a *consequence* of
+    // this one action, never a second roll for a separate household action.
+    // Forced developer actions stay isolated for reproducible QA.
+    if (naturally && action.tone === 'troublesome' && action.id !== 'litter' &&
+      this.environment.rng.next() < 0.22) {
+      const wrapper = this.environment.force('litter', residentId, road,
+        this.clockSeconds, this.placements, tile => this.interceptLitter(tile));
+      if (wrapper) {
+        this.lastEnvironmentEvent = wrapper;
+        message += wrapper.outcome === 'captured'
+          ? ' A piece of paper made it into the rubbish bin.'
+          : wrapper.outcome === 'overflow'
+            ? ' A stray wrapper spilled beside the full bin.'
+            : ' A stray wrapper was left by the verge.';
+      }
+    }
+    this.behaviour.mark(residentId,this.clockSeconds);
+    resident.lastRemark = action.tone === 'helpful'
+      ? action.id === 'mend' ? 'That ought to last a little longer.'
+        : action.id === 'guide' ? 'There we are. All moving again.'
+        : 'A small thing, but it makes a difference.'
+      : action.id === 'display' ? 'I thought the neighbours might like to see it.'
+        : action.id === 'chat' ? 'There is always time for a quick word.'
+        : 'I shall be on my way in a moment.';
+    this.behaviourHistory.unshift({
+      residentId,action:action.id,tone:action.tone,cell:{...effectCell},
+      time:this.clockSeconds,message
+    });
+    if(this.behaviourHistory.length>BEHAVIOUR_MAX_HISTORY)
+      this.behaviourHistory.length=BEHAVIOUR_MAX_HISTORY;
+    this.notice=message;
+    this.notify();
+    return true;
+  }
+
+  /** Repeatable manual forcing is exclusively exposed in the Vite dev bundle. */
+  debugHouseholdAction(
+    residentId:number,actionId:HouseholdActionId,road:Cell
+  ):boolean {
+    if(this.phase!=='playing'||this.paused||this.workshopOpen ||
+      !this.residents[residentId]?.occupied)return false;
+    const pair=householdActionPair(residentId);
+    const action=[pair.helpful,pair.troublesome].find(item=>item.id===actionId);
+    return action?this.performHouseholdAction(residentId,action,road,false):false;
+  }
+
   /**
    * Queue delays cost time and generate irritation, but do not directly
    * generate or remove coins: fewer completed circuits means less income.
@@ -631,8 +707,11 @@ export class GameStore {
       const resident = this.residents[item.residentId];
       if (!resident?.occupied) continue;
       resident.trafficDelay += item.delaySeconds;
+      const helpfulNearby = this.environment.at(item.cell).some(effect =>
+        effect.kind === 'guidance' || effect.kind === 'courtesy');
       resident.irritation = clamp(resident.irritation +
-        item.delaySeconds * resident.temperament * 0.42, 0, 100);
+        item.delaySeconds * resident.temperament * (helpfulNearby ? 0.23 : 0.42),
+        0, 100);
     }
     if (changed) {
       if (this.traffic.queuedCars.length >= 2 && prior < 2 &&

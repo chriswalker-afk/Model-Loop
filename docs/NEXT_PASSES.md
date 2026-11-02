@@ -1,4 +1,15 @@
-# Model Loop - Next passes
+# The Generational Cycle — Next passes
+
+## Driver Behaviour system status (November 2026)
+
+Passes 1–4 are now implemented, including the Living Environment, rubbish
+bins/collection, real traffic queues and all twelve positive/troublesome
+household actions. The next dedicated pass is **Pass 5: Balancing, feedback
+and narrative polish**. This includes long-run incident pacing, income and
+irritation tuning, visual/audio accessibility, event interaction stress
+tests and quiet workbench scenes; see LIVING_ENVIRONMENT.md.
+
+The original broader design roadmap below is retained for future-era work.
 
 ## Pass 0: Engine foundation (this PR)
 - Official Phaser 4, Vite and TypeScript starter and GitHub Pages workflow.

@@ -8,6 +8,7 @@ import { CARE_LEVELS, careName, careDescription, modelEffects, normalizedCare,
 import { householdProfile, moodClass, moodName } from './game/households';
 import { environmentLabel, type EnvironmentKind } from './game/environment';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCareDescription } from './game/bins';
+import { householdActionPair, type HouseholdActionId } from './game/behaviors';
 
 const game = new Game({
   type: AUTO,
@@ -199,6 +200,10 @@ function renderHouseholdDetail(): void {
       '<div class="household-meter"><span class="household-meter-fill"></span></div>' +
       '<dl><dt>They appreciate</dt><dd>' + profile.feelsAtHomeWith + '</dd>' +
       '<dt>They find difficult</dt><dd>' + profile.findsDifficult + '</dd></dl>' +
+      '<div class="family-actions"><span class="eyebrow">HABITS ON THE ROAD</span>' +
+      '<span class="family-action-positive">✿ ' + householdActionPair(id).helpful.label + '</span>' +
+      '<span class="family-action-negative">◇ ' + householdActionPair(id).troublesome.label + '</span>' +
+      '</div>' +
       '<blockquote class="household-remark"></blockquote>' +
       '<p class="household-traffic-delay"></p>' +
        '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
@@ -219,9 +224,10 @@ function renderHouseholdDetail(): void {
   delay.hidden = resident.trafficDelay <= 0.1;
   panel.querySelector<HTMLElement>('.household-remark')!.textContent =
     '“' + resident.lastRemark + '”';
-  const latest = store.environment.history.find(event => event.residentId === id);
+  const latest = store.behaviourHistory.find(event => event.residentId === id);
+  const older = store.environment.history.find(event => event.residentId === id);
   panel.querySelector<HTMLElement>('.household-last-action')!.textContent =
-    latest ? latest.message : 'Nothing unusual noticed so far.';
+    latest?.message ?? older?.message ?? 'Nothing unusual noticed so far.';
 }
 
 function renderHouseholdReactions(
@@ -244,6 +250,28 @@ function renderHouseholdReactions(
     '<small>Estimated irritation change each circuit</small></div>';
 }
 
+function renderBehaviourForecast(
+  effects: Array<{
+    residentId:number;name:string;helpfulLabel:string;troublesomeLabel:string;
+    helpfulBefore:number;helpfulAfter:number;eventBefore:number;eventAfter:number;
+    reasons:string[];
+  }>
+):string {
+  if(!effects.length)return '';
+  const percent=(n:number)=>Math.round(n*100)+'%';
+  return '<details class="behaviour-forecast">' +
+    '<summary>How this miniature changes driver habits</summary>' +
+    '<p class="behaviour-forecast-caption">When an incident occurs, residents may help or hinder. ' +
+      'Nearby objects change these chances; upkeep makes their influence stronger.</p>' +
+    effects.map(row=>
+      '<div class="behaviour-forecast-row"><strong>'+row.name+'</strong>' +
+      '<span>Helpful action: '+row.helpfulLabel+'</span>' +
+      '<b>'+percent(row.helpfulBefore)+' → '+percent(row.helpfulAfter)+'</b>' +
+      '<small>'+row.reasons.join(' ')+'</small></div>'
+    ).join('')+
+    '</details>';
+}
+
 function environmentNotes(tile: Cell): string {
   const nearby = store.environment.at(tile);
   if (!nearby.length) return '';
@@ -251,14 +279,17 @@ function environmentNotes(tile: Cell): string {
     nearby.slice(0, 4).map(effect => {
       const source = store.residents[effect.residentId]?.name ?? 'A neighbour';
       const timeLeft = Math.max(0, Math.ceil(effect.expiresAt - store.elapsedSeconds));
-      const icon = effect.kind === 'flowers' ? '✿' : effect.kind === 'skid' ? '◇' : '▱';
+      const icon = ['flowers','tidied','heritage'].includes(effect.kind) ? '✿'
+        : ['courtesy','mended','guidance'].includes(effect.kind) ? '➜'
+        : effect.kind === 'skid' ? '◇'
+        : effect.kind === 'display' ? '▤' : '▱';
       return '<div class="environment-note ' + effect.kind + '">' +
         '<span aria-hidden="true" class="environment-mark">' + icon + '</span>' +
         '<span><strong>' + environmentLabel(effect.kind) + '</strong>' +
         '<small>' + source + ' · fades in ' + timeLeft + 's</small></span></div>';
     }).join('') +
-    '<p class="environment-hint">Roadside changes influence nearby journeys. ' +
-    'Bins prevent new litter; old rubbish can be cleared separately.</p></div>';
+    '<p class="environment-hint">Traces change the next journeys. Repairs and tidy-ups ' +
+    'can undo damage, while displays slow cars and bins catch new litter.</p></div>';
 }
 
 function binStatusPanel(cell: Cell): string {
@@ -370,7 +401,8 @@ function renderTilePanel(): void {
         ' road squares</b> are in range.' +
         '<span>Estimated irritation change per lap: <strong>' +
         signed(preview.irritationChangePerLap) + '</strong> on average across occupied homes.</span></div>' +
-        renderHouseholdReactions(preview.householdEffects) : '') +
+        renderHouseholdReactions(preview.householdEffects) +
+        renderBehaviourForecast(preview.behaviourEffects) : '') +
       (model.id === 'bin' ? '<p class="bin-hint">Catches up to ' +
          BIN_CAPACITY + ' items within ' + BIN_CATCH_RADIUS +
          ' squares. Collection bills are additional to upkeep; existing litter needs separate cleaning.</p>' : '') +
@@ -502,6 +534,8 @@ function cellFromClient(clientX: number, clientY: number): Cell | null {
 // __modelLoopDebug.trigger('skid', 0, 12, 3)
 // __modelLoopDebug.trafficStop(1, 4.2) // stop the actual Bell car
 // __modelLoopDebug.trafficSnapshot()    // inspect gap, phase and current queue
+// __modelLoopDebug.behaviourAction(3, 'tidy', 4, 3) // Marshes clear roadside rubbish
+// __modelLoopDebug.behaviourAction(4, 'display', 8, 3) // Hales' display slows cars
 if (import.meta.env.DEV) {
   const debug = {
     seed(seed: number) { store.newRun(seed); },
@@ -514,7 +548,8 @@ if (import.meta.env.DEV) {
       return { seed: store.environment.seed, effects: store.environment.effects.map(x => ({ ...x })),
         events: store.environment.history.map(x => ({ ...x })),
         safety: store.safety, irritation: store.averageIrritation,
-        activeStop: store.traffic.activeStop, queued: store.traffic.queuedCars.map(x => ({ ...x })) };
+        activeStop: store.traffic.activeStop, queued: store.traffic.queuedCars.map(x => ({ ...x })),
+        behaviour: store.behaviourHistory.map(x => ({ ...x })) };
     },
     trafficStop(id: number, duration?: number): boolean {
       if (!Number.isInteger(id) || id < 0 || id > 5) return false;
@@ -522,6 +557,11 @@ if (import.meta.env.DEV) {
     },
     trafficSnapshot() {
       return (game.scene.getScene('TownScene') as TownScene).trafficSnapshot();
+    },
+    behaviourAction(id:number,action:HouseholdActionId,x:number,y:number):boolean {
+      if(!Number.isInteger(id) || id<0 || id>5 ||
+        !Number.isInteger(x) || !Number.isInteger(y))return false;
+      return store.debugHouseholdAction(id,action,{x,y});
     }
   };
   (window as typeof window & { __modelLoopDebug?: typeof debug }).__modelLoopDebug = debug;

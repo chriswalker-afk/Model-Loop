@@ -142,7 +142,7 @@ export function canReserveRoad(
   });
 }
 
-export type TrafficIncidentKind = 'admiring' | 'hesitating';
+export type TrafficIncidentKind = 'admiring' | 'hesitating' | 'chatting';
 export interface TrafficStop {
   id: number;
   residentId: number;
@@ -185,7 +185,8 @@ export class RoadTraffic {
     return false;
   }
 
-  /** Only initial Bell/Ward road pauses; the full family set follows in Pass 4. */
+  /** Legacy independent opportunity, retained for existing regression tests.
+   *  Unified family actions use HouseholdBehaviourEngine instead. */
   attempt(
     residentId:number, irritation:number, cell:Cell, now:number,
     localSpeedSign=false
@@ -200,14 +201,25 @@ export class RoadTraffic {
     return this.forceStop(residentId,cell,now);
   }
 
+  /** Gameplay entry point; unlike debug forceStop this honours global and family cooldowns. */
+  requestStop(residentId:number,cell:Cell,now:number):TrafficStop|null {
+    if(this.activeStop || now-this.lastGlobalStop<TRAFFIC_GLOBAL_STOP_GAP ||
+      now-(this.previousStops.get(residentId)??-Infinity)<TRAFFIC_STOP_COOLDOWN) return null;
+    return this.forceStop(residentId,cell,now);
+  }
+
   forceStop(residentId:number, cell:Cell, now:number, duration?:number): TrafficStop | null {
     if(this.activeStop || !Number.isFinite(now) || residentId<0 || residentId>5 ||
       !Number.isInteger(residentId))return null;
-    const kind:TrafficIncidentKind=residentId===1?'admiring':'hesitating';
-    const seconds=Math.max(1,Math.min(6,duration ?? (kind==='admiring'?4.2:3)));
+    const kind:TrafficIncidentKind=residentId===1?'admiring':
+      residentId===3?'chatting':'hesitating';
+    const seconds=Math.max(1,Math.min(6,duration ??
+      (kind==='admiring'?4.2:kind==='chatting'?4.5:3)));
     const message=kind==='admiring'
       ? 'The Bells have stopped to take in the view. Traffic is slowing behind them.'
-      : 'The Wards paused cautiously. Cars behind are beginning to queue.';
+      : kind==='chatting'
+        ? 'The Marshes paused to chat with a neighbour. Cars are gathering behind.'
+        : 'The Wards paused cautiously. Cars behind are beginning to queue.';
     const incident:TrafficStop={
       id:this.nextId++,residentId,kind,cell:{...cell},
       startedAt:now,endsAt:now+seconds,message
@@ -217,6 +229,14 @@ export class RoadTraffic {
     this.previousStops.set(residentId,now);
     this.lastGlobalStop=now;
     return incident;
+  }
+
+  /** A helping driver can clear a queue sooner, but no stop lasts forever. */
+  shortenStop(now:number,seconds:number):boolean {
+    if(!this.activeStop || seconds<=0)return false;
+    this.activeStop.endsAt=Math.max(now,this.activeStop.endsAt-seconds);
+    if(this.activeStop.endsAt<=now)this.activeStop=null;
+    return true;
   }
 
   shouldStop(residentId:number):boolean {
