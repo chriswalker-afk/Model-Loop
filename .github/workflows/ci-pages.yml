@@ -20,12 +20,6 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Resolve smoke-test dependencies
-        run: |
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          echo MODEL_LOOP_LOCK_BEGIN
-          cat package-lock.json
-          echo MODEL_LOOP_LOCK_END
       - name: Install dependencies
         run: npm ci
       - name: Type check and production build
