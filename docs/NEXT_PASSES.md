@@ -1,5 +1,22 @@
 # The Generational Cycle — Next passes
 
+## Pass 7C — physically boxed 1908 miniature collection (November 2026)
+
+Pass 7B / PR #20 is merged. Pass 7C implements full physical cartons
+(front/top/right with punched hanging tab, recessed glass window and raised
+miniature plinth) and six detailed, period-specific SVG miniatures.
+**Shop, preview and installed models now use exactly the same canonical
+artwork**, with cached Phaser textures and unchanged model identities,
+prices, maintenance, damage, effects and drag/click/keyboard actions.
+
+See [PASS_7C_PHYSICAL_KITS.md](art-direction/PASS_7C_PHYSICAL_KITS.md)
+for the source architecture and the real-size screenshot gates.
+
+**Next after merging the 7C PR: Pass 7D — Edwardian motorcars,
+six house façades, town hall/clock tower and period landscaping.**
+Then Pass 7E reconciles remaining symbols, event/damage states, cleanup
+of superseded CSS and final visual/accessibility/performance checks.
+
 ## Pass 7B — engraved 1908 HUD and inspector (November 2026)
 
 Pass 7A is merged. Pass 7B implements the first real vintage treatment:
