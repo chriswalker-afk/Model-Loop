@@ -75,7 +75,6 @@ test('end-of-chapter story responds to town actions and does not change Blueprin
   const result=await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
     const starting=store.legacy.blueprints;
-    store.debugHouseholdAction(2,'litter',{x:4,y:3});
     store.place({x:4,y:4},'bin');
     store.debugHouseholdAction(2,'litter',{x:4,y:3});
     store.debugHouseholdAction(2,'litter',{x:4,y:3});
