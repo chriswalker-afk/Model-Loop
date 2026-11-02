@@ -4,6 +4,23 @@
 
 A miniature town-building roguelite about generations of fathers and sons making models together. Cars belonging to six households circle an irregular, grid-aligned road, generating coins and getting irritated by their surroundings. When too many houses close, the run ends, but permanent Blueprints persist.
 
+## Visual identity reset — Pass 7A
+
+The original 1908 concept is the standard for the game's art: **fine engraved
+ivory/chalk lines on black drafting board, period motorcars and houses, real
+three-dimensional model-kit cartons, and a restrained antique instrument HUD**.
+
+The [Pass 7A art direction](docs/art-direction/PASS_7A_ART_DIRECTION.md),
+[source-backed asset audit](docs/art-direction/asset-audit.md),
+[vector styleboard](docs/art-direction/vintage-styleboard.svg) and
+[7B–7E implementation plan](docs/art-direction/implementation-roadmap.md)
+define the visual acceptance criteria.
+
+**Pass 7A sets the design standard only.** The game still uses the existing
+prototype drawings until 7B (engraved HUD), 7C (physical model cartons and
+shared kit illustrations), 7D (Edwardian cars, buildings and scenery) and 7E
+(final visual consistency) are implemented and reviewed.
+
 ## Tech stack
 
 This game is initialized using the official [Phaser + Vite + TypeScript template](https://github.com/phaserjs/template-vite-ts), retaining the Phaser 4 dependency, starter TypeScript settings, production/development Vite configurations and MIT license.

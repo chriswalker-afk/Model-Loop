@@ -1,0 +1,110 @@
+{
+  "id": "model-loop-vintage-1908",
+  "status": "Pass 7A reference-only; no runtime binding yet",
+  "principle": "Fine-etched Edwardian miniature catalogue on nearly black draughting card; restrained, semantic colour",
+  "scene": {
+    "width": 1152,
+    "height": 620,
+    "gridColumns": 24,
+    "gridRows": 12
+  },
+  "colour": {
+    "blackboard": "#101211",
+    "deepShadow": "#090C0B",
+    "road": "#1B201E",
+    "raisedCardboard": "#252825",
+    "ivory": "#E9E2D5",
+    "secondaryChalk": "#B8B2A5",
+    "ghostChalk": "#777C72",
+    "brass": "#D9B66B",
+    "progress": "#9FC99C",
+    "community": "#A9CAE0",
+    "safety": "#DE9990",
+    "income": "#E0BF75"
+  },
+  "strokeAtSceneResolutionPx": {
+    "silhouette": {
+      "min": 1.4,
+      "max": 1.8
+    },
+    "structure": {
+      "min": 0.85,
+      "max": 1.2
+    },
+    "engravedDetail": {
+      "min": 0.5,
+      "max": 0.85
+    },
+    "constructionGrid": {
+      "min": 0.5,
+      "max": 0.8
+    },
+    "selectionDisplayPx": {
+      "min": 1.5,
+      "max": 2.5
+    }
+  },
+  "approximateInkBudget": {
+    "darkAndIvoryPct": 90,
+    "greysPct": 8,
+    "semanticColourPct": 2
+  },
+  "sceneGridOpacityRange": {
+    "min": 0.09,
+    "max": 0.2
+  },
+  "sourceLightDirection": "upper-left",
+  "typography": {
+    "display": "Georgia, 'Times New Roman', serif",
+    "functional": "system-ui, sans-serif",
+    "targetBodyCssPx": {
+      "min": 11,
+      "max": 14
+    },
+    "decorativeMicrotextNeedsAccessibleEquivalent": true
+  },
+  "packaging": {
+    "components": [
+      "punched-header",
+      "printed-front",
+      "top-fold",
+      "right-side-depth",
+      "die-cut-display-window",
+      "recessed-interior",
+      "model-plinth",
+      "cost-panel",
+      "effect-panel",
+      "serial-label"
+    ],
+    "sidesMustHaveVisibleGeometry": true,
+    "useSingleSemanticButton": true,
+    "mobileScrollInsteadOfFlatten": true,
+    "consistentModelArtAcrossTownAndShelf": true
+  },
+  "historicalDirection": {
+    "vintageYear": 1908,
+    "carSilhouette": "early Edwardian runabout or motor carriage; visible spoke wheels, fenders, radiator, tall roof",
+    "buildings": "Edwardian and late-Victorian brick, timber, slate, bay windows, sash windows and chimneys",
+    "modernCCTV": "reserve for future era; use a constable observation/call point for existing 'police' model ID",
+    "speedSign": "period-inspired roadside notice while retaining the existing speed gameplay",
+    "noMechanicsChangedIn7A": true
+  },
+  "accessibility": {
+    "targetFunctionalContrastRatio": 4.5,
+    "minimumMobileTouchTargetCssPx": 44,
+    "keyboardFocusPreserved": true,
+    "reducedMotionPreserved": true
+  },
+  "plannedPhases": [
+    "7B HUD/inspector",
+    "7C physical kit cartons/shared miniature art",
+    "7D cars/houses/world",
+    "7E consistency/reduced motion/responsive/performance"
+  ],
+  "referenceFiles": [
+    "docs/art-direction/PASS_7A_ART_DIRECTION.md",
+    "docs/art-direction/asset-audit.md",
+    "docs/art-direction/implementation-roadmap.md",
+    "docs/art-direction/vintage-styleboard.svg"
+  ]
+}
