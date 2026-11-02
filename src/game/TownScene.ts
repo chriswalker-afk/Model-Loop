@@ -438,6 +438,21 @@ export class TownScene extends Scene {
     }
   }
 
+  /** Real active prop art, not a screenshot-only mock; dev QA diagnostic. */
+  eventArtSnapshot() {
+    return {
+      loaded:eventArtIds.map(eventTextureKey).filter(key=>this.textures.exists(key)),
+      sprites:[...this.eventSprites.entries()].map(([id,image])=>({
+        id,texture:image.texture.key,x:image.x,y:image.y,
+        alpha:image.alpha,depth:image.depth,width:image.displayWidth,
+        height:image.displayHeight
+      })),
+      environmentCount:store.environment.effects.length,
+      activityCount:store.activities.active.length,
+      incidentCount:store.accidents.active.length
+    };
+  }
+
   /** Small read-only visual diagnostics, available to dev browser QA only. */
   worldArtSnapshot() {
     return {
