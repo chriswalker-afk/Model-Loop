@@ -2,6 +2,7 @@ import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, man
 import { householdProfile, modelReactionPerTile } from './households';
 import { careName, FLOW_WINDOW_SECONDS, modelEffects, normalizedCare, summarizeFlow,
   UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent } from './economy';
+import { LivingEnvironment, type EnvironmentKind, type EnvironmentalEvent } from './environment';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -15,6 +16,8 @@ export interface Resident {
   unsettled: boolean;
   lastRemark: string;
   seenModels: Record<string, number>;
+  lastEventLap: number;
+  nextEventOffset: number;
 }
 export interface JourneyReaction {
   residentId: number;
@@ -33,7 +36,7 @@ export interface PlacedModel extends Cell {
 }
 export interface PermanentUpgrades { savings: number; patience: number; }
 export interface Legacy { blueprints: number; upgrades: PermanentUpgrades; }
-export interface TileInfo { kind: string; beauty: number; noise: number; crime: number; }
+export interface TileInfo { kind: string; beauty: number; noise: number; crime: number; roadSafety: number; }
 export interface PlacementPreview {
   cell: Cell;
   modelId: ModelId;
@@ -91,6 +94,8 @@ export class GameStore {
   private clockSeconds = 0;
   private economyRefreshSeconds = 0;
   private cashflowEvents: CashflowEvent[] = [];
+  environment = new LivingEnvironment(1);
+  lastEnvironmentEvent: EnvironmentalEvent | null = null;
 
   get elapsedSeconds(): number { return this.clockSeconds; }
   get cashflow(): Cashflow {
@@ -104,6 +109,7 @@ export class GameStore {
     if (this.phase !== 'playing' || this.paused || this.workshopOpen ||
         !Number.isFinite(seconds) || seconds <= 0) return;
     this.clockSeconds += seconds;
+    const environmentChanged = this.environment.tick(this.clockSeconds);
     let billed = 0;
     for (const placed of this.placements) {
       if (placed.nextBillAt === undefined) placed.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
@@ -119,6 +125,7 @@ export class GameStore {
     }
     this.cashflowEvents = this.cashflowEvents.filter(
       entry => entry.at > this.clockSeconds - FLOW_WINDOW_SECONDS);
+    if (environmentChanged) this.notify();
     if (billed > 0) {
       this.notice = 'Workshop care bill: −' + billed + ' coins. ' +
         (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' : 'Adjust each model’s care to manage expenses.');
@@ -142,7 +149,9 @@ export class GameStore {
   }
   notify(): void { this.listeners.forEach((listener) => listener()); }
 
-  newRun(): void {
+  newRun(seed?: number): void {
+    this.environment = new LivingEnvironment(seed ?? (Date.now() >>> 0));
+    this.lastEnvironmentEvent = null;
     this.phase = 'playing';
     this.money = 145 + this.legacy.upgrades.savings * 35;
     this.progress = 0;
@@ -170,7 +179,9 @@ export class GameStore {
       warned: false,
       unsettled: false,
       lastRemark: householdProfile(home.id).firstRemark,
-      seenModels: {}
+      seenModels: {},
+      lastEventLap: -1,
+      nextEventOffset: this.environment.opportunityOffset(ROAD_CELLS.length)
     }));
     this.notice = 'The year is 1908. Keep the neighbourhood happy as the cars circle.';
     this.notify();
@@ -186,7 +197,17 @@ export class GameStore {
     return active.reduce((total, resident) => total + resident.irritation, 0) / active.length;
   }
   get community(): number { return Math.round(this.occupiedHomes / HOMES.length * 100); }
-  get safety(): number { return Math.round(clamp(100 - this.averageIrritation, 0, 100)); }
+  // Actual road hazards and maintained protections, not how irritated people are.
+  get safety(): number {
+    const protections = this.placements.reduce((sum, item) => {
+      const points = item.id === 'limit' ? 4 : item.id === 'lamp' ? 2 :
+        item.id === 'police' ? 3 : 0;
+      const care = normalizedCare(item.care);
+      return sum + points * (care === 'full' ? 1 : care === 'economy' ? 0.5 : 0.1);
+    }, 0);
+    return Math.round(clamp(90 + Math.min(10, protections) -
+      this.environment.hazardPenalty, 0, 100));
+  }
 
   getModel(id: ModelId) { return MODELS.find((model) => model.id === id)!; }
   getPlacedModel(cell: Cell | null): PlacedModel | null {
@@ -284,6 +305,7 @@ export class GameStore {
     return true;
   }
   private calculateTileInfo(cell: Cell, placements: PlacedModel[]): TileInfo {
+    const environmental = this.environment.modifiersAt(cell);
     let kind = isRoad(cell.x, cell.y) ? 'Road tile' : 'Grass tile';
     const home = HOMES.find((item) => item.x === cell.x && item.y === cell.y);
     if (home) {
@@ -295,13 +317,15 @@ export class GameStore {
     const nearby = placements.filter((item) => manhattanDistance(item, cell) <= EFFECT_RADIUS);
     return {
       kind,
-      beauty: 1 + nearby.reduce((total, item) =>
+      beauty: 1 + environmental.beauty + nearby.reduce((total, item) =>
         total + modelEffects(item.id, normalizedCare(item.care)).beauty, 0),
-      noise: (isRoad(cell.x, cell.y) ? 2 : 0)
+      noise: (isRoad(cell.x, cell.y) ? 2 : 0) + environmental.noise
         + nearby.reduce((total, item) =>
           total + modelEffects(item.id, normalizedCare(item.care)).noise, 0),
       crime: Math.max(0, 2 + nearby.reduce((total, item) =>
-        total + modelEffects(item.id, normalizedCare(item.care)).crime, 0))
+        total + modelEffects(item.id, normalizedCare(item.care)).crime, 0)),
+      roadSafety: Math.round(clamp(90 -
+        this.environment.at(cell).filter(effect => effect.kind === 'skid').length * 12, 0, 100))
     };
   }
 
@@ -372,7 +396,24 @@ export class GameStore {
     if (this.closedHomes > 0 && id === 3) change += this.closedHomes * 0.08;
     if (this.closedHomes > 0 && id === 5) change += this.closedHomes * 0.045;
 
+    // Roadside changes affect the next journeys too: events have consequences,
+    // rather than existing solely as decorations or permanent HUD penalties.
+    change += this.environment.modifiersAt(tile).irritation;
     resident.irritation = clamp(resident.irritation + change * resident.temperament, 0, 100);
+    const home = HOMES.find(home => home.id === id)!;
+    const startIndex = ROAD_CELLS.findIndex(road => manhattanDistance(road, home) === 1);
+    const tileIndex = ROAD_CELLS.findIndex(road => road.x === tile.x && road.y === tile.y);
+    if (tileIndex >= 0 && startIndex >= 0 && resident.lastEventLap !== resident.laps) {
+      const journeyOffset = (tileIndex - startIndex + ROAD_CELLS.length) % ROAD_CELLS.length;
+      if (journeyOffset >= resident.nextEventOffset) {
+        resident.lastEventLap = resident.laps;
+        resident.nextEventOffset = this.environment.opportunityOffset(ROAD_CELLS.length);
+        const event = this.environment.attempt(
+          id, resident.irritation, tile, this.clockSeconds, this.placements
+        );
+        if (event) this.recordEnvironmentEvent(event);
+      }
+    }
     let reaction: JourneyReaction | null = null;
     if (encountered && Math.abs(strongestReaction) >= 0.15) {
       const text = profile.remarks[encountered.id];
@@ -404,6 +445,24 @@ export class GameStore {
     this.statusTick++;
     if (reaction || this.statusTick % 14 === 0) this.notify();
     return reaction;
+  }
+
+  private recordEnvironmentEvent(event: EnvironmentalEvent): void {
+    this.lastEnvironmentEvent = event;
+    this.notice = event.message;
+    this.notify();
+  }
+
+  /**
+   * Used only by the Vite development-only console helper and browser tests.
+   * The live game never exposes a UI control to spawn an environmental event.
+   */
+  debugEnvironmentEvent(kind: EnvironmentKind, residentId: number, roadCell: Cell): boolean {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
+    const event = this.environment.force(kind, residentId, roadCell, this.clockSeconds, this.placements);
+    if (!event) return false;
+    this.recordEnvironmentEvent(event);
+    return true;
   }
 
   finishLap(id: number): number {
