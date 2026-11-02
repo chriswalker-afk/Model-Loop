@@ -175,6 +175,8 @@ export interface BehaviourOdds {
   troublesomeChance: number;
 }
 export interface BehaviourReport {
+  /** Monotonically increasing per run: scene feedback never repeats old acts. */
+  sequence: number;
   residentId: number;
   action: HouseholdActionId;
   tone: BehaviourTone;
