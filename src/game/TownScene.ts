@@ -2,7 +2,7 @@ import { Scene } from 'phaser';
 import { BOARD, EFFECT_RADIUS, HOMES, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
 import { store, type JourneyReaction } from './state';
 import { normalizedCare } from './economy';
-import { type EnvironmentalEffect, type EnvironmentalEvent, type LivingEnvironment } from './environment';
+import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { HOME_TRAVEL_SECONDS, newCarCycle, stepCarCycle, type CarCycle } from './traffic';
 
 interface Car {
