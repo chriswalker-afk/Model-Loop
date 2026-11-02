@@ -218,3 +218,47 @@ test('browser makes staged activities inspectable without adding a permanent HUD
     }}).__modelLoopDebug.snapshot().activities);
   expect(activityInSnapshot[0]?.kind).toBe('picnic');
 });
+
+
+test('a real family car pulls off for its activity instead of blocking the lane',async({page})=>{
+  await page.goto('/');
+  const started=await page.evaluate(async()=>{
+    const debug=(window as typeof window & {__modelLoopDebug:{
+      trafficSnapshot:()=>Array<{residentId:number;position:number;phase:string}>,
+      activity:(kind:string,x:number,y:number)=>boolean
+    }}).__modelLoopDebug;
+    const marsh=debug.trafficSnapshot().find(car=>car.residentId===3)!;
+    const {BOARD,ROAD_CELLS}=await import('/src/game/config.ts');
+    const cell=ROAD_CELLS[Math.floor(marsh.position/BOARD.tile)];
+    return marsh.phase==='driving' && debug.activity('picnic',cell.x,cell.y);
+  });
+  expect(started).toBe(true);
+  const snapshot=async()=>page.evaluate(()=>(
+    window as typeof window & {__modelLoopDebug:{
+      trafficSnapshot:()=>Array<{
+        residentId:number;parkedForActivity:boolean;travelled:number;lane:string
+      }>
+    }}).__modelLoopDebug.trafficSnapshot().find(car=>car.residentId===3)!);
+  await expect.poll(async()=>(await snapshot()).parkedForActivity,{timeout:5000})
+    .toBe(true);
+  const parked=await snapshot();
+  await page.waitForTimeout(170);
+  const stillParked=await snapshot();
+  expect(stillParked.parkedForActivity).toBe(true);
+  expect(stillParked.travelled).toBeCloseTo(parked.travelled,4);
+  const queued=await page.evaluate(async()=>{
+    const {store}=await import('/src/game/state.ts');
+    return store.traffic.queuedCars.some(car=>car.residentId===3);
+  });
+  expect(queued).toBe(false); // real pulled-over car is not a road queue
+  await page.evaluate(async()=>{
+    const {store}=await import('/src/game/state.ts');
+    store.tickEconomy(14);
+  });
+  await expect.poll(async()=>page.evaluate(async()=>{
+    const {store}=await import('/src/game/state.ts');
+    return store.activities.forResident(3);
+  }),{timeout:3000}).toBeNull();
+  const after=await snapshot();
+  if(!after.parkedForActivity)expect(after.lane).toBe('left');
+});
