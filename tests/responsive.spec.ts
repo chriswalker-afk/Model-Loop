@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 const screens = [
   { label: 'desktop', width: 1440, height: 900 },
   { label: 'compact laptop', width: 1024, height: 768 },
+  { label: 'standard laptop', width: 1366, height: 768 },
   { label: 'tablet portrait', width: 768, height: 1024 },
   { label: 'small phone', width: 320, height: 568 },
   { label: 'phone portrait', width: 390, height: 844 },
@@ -64,7 +65,7 @@ for (const screen of screens) {
     expect(geometry.canvas.height).toBeGreaterThan(130);
     expect(geometry.shop.width).toBeGreaterThanOrEqual(screen.width - 24);
 
-    if (screen.width <= 1100 || screen.height <= 720) {
+    if (screen.width <= 1100 || screen.height <= 820) {
       expect(geometry.shopPosition).toBe('fixed');
       expect(geometry.shop.bottom).toBeLessThanOrEqual(screen.height + 2);
       expect(geometry.shop.y).toBeGreaterThan(0);
