@@ -93,7 +93,22 @@ test('on narrow screens the model-kit dock stays available while the town remain
   await expect(page.locator('.model-box').first()).toBeInViewport();
   await page.getByRole('button', { name: /Select Gas Lamppost/ }).click();
   const point = await locationOf(page, targetCell.x, targetCell.y);
+  console.log('MOBILE_POINT_PREVIEW', JSON.stringify(await page.evaluate(({ x, y }) => {
+    const under = document.elementFromPoint(x,y);
+    const canvas = document.querySelector('#game-container canvas');
+    const pan = document.getElementById('town-pan');
+    return {
+      x,y, target: under?.tagName, targetId: under?.id,
+      underCanvas: under === canvas, canvas: canvas?.getBoundingClientRect().toJSON(),
+      scrollY:window.scrollY, panLeft:pan?.scrollLeft, panWidth:pan?.clientWidth,
+      panContentWidth:pan?.scrollWidth
+    };
+  }, point)));
   await page.mouse.move(point.x, point.y);
+  console.log('MOBILE_HOVER_PREVIEW', JSON.stringify(await page.evaluate(async () => {
+    const {store} = await import('/src/game/state.ts');
+    return {hovered:store.hovered, activeModel:store.activeModel, selected:store.selected};
+  })));
   await expect(page.locator('#tile-panel')).toContainText('READY TO PLACE');
   await page.mouse.click(point.x, point.y);
   await expect(page.locator('#coins')).toHaveText('110');
