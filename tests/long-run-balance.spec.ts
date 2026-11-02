@@ -178,6 +178,8 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
           car.tileIndex=index;
           store.passTile(car.residentId,ROAD_CELLS[index],
             car.lane==='left'&&!car.changingTo);
+          store.considerRoadsideAccident(car.residentId,ROAD_CELLS[index],
+            movement?.speed??0,car.lane,!!car.changingTo);
         }
       }
     }
@@ -197,6 +199,9 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
       expect(store.residents.every(r=>Number.isFinite(r.irritation)&&
         r.irritation>=0&&r.irritation<=100)).toBe(true);
       expect(store.environment.effects.length).toBeLessThanOrEqual(MAX_ENVIRONMENT_EFFECTS);
+      expect(store.accidents.active.length).toBeLessThanOrEqual(2);
+      expect(store.placements.every(model=>
+        ['intact','damaged','broken'].includes(model.condition??'intact'))).toBe(true);
       for(const kind of Object.keys(MAX_EFFECTS_BY_KIND) as Array<keyof typeof MAX_EFFECTS_BY_KIND>){
         expect(store.environment.effects.filter(e=>e.kind===kind).length)
           .toBeLessThanOrEqual(MAX_EFFECTS_BY_KIND[kind]);
