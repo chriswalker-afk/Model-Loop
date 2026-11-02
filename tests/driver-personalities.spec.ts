@@ -48,7 +48,6 @@ test('Finches and Wards approach turns at different speeds; straights remain unr
 
 test('corner-based family habits are scheduled at actual bends, reproducibly',()=>{
   const first=new HouseholdBehaviourEngine(2401);
-  const second=new HouseholdBehaviourEngine(2401);
   for(const residentId of [0,5]){
     const home=HOMES[residentId];
     const driveway=ROAD_CELLS.findIndex(cell=>manhattanDistance(cell,home)===1);
