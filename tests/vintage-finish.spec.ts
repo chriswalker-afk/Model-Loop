@@ -195,6 +195,8 @@ test('workshop and story share the original kit/car art, with predictable keyboa
       const {store}=await import('/src/game/state.ts');store.endRun(true);
     });
     await expect(modal.locator('.vintage-story-frame .story-vehicle svg')).toHaveCount(1);
+    await expect(modal.locator('.vintage-story-frame .story-vehicle svg'))
+      .toHaveAttribute('viewBox','0 0 264 142');
     await expect(modal.locator('#chapter-title')).toBeFocused();
     await expect(modal.locator('.story-car')).toHaveCount(0);
     await page.screenshot({
