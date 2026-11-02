@@ -2,6 +2,7 @@ import { AUTO, Game, Scale } from 'phaser';
 import { TownScene } from './game/TownScene';
 import { BOARD, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
 import { miniatureSvg } from './ui/modelArt';
+import { vintageIcon, vintageFrameCorners, type VintageIcon } from './ui/vintageIcons';
 import { store } from './game/state';
 import { CARE_LEVELS, careName, careDescription, modelEffects,
   modelCondition, modelConditionName, modelRepairCost, normalizedCare,
@@ -46,12 +47,36 @@ if (townViewport && typeof ResizeObserver !== 'undefined') {
 function byId<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
+// Decorate static plates once, outside frequent live rendering. Corner art
+// is an inert, aria-hidden overlay and cannot intercept selection or dragging.
+for (const selector of ['.vintage-brand', '.vintage-era']) {
+  document.querySelector(selector)?.insertAdjacentHTML('afterbegin', vintageFrameCorners());
+}
+const coinMark = document.querySelector<HTMLElement>('.balances .coin-icon');
+if (coinMark) coinMark.innerHTML = vintageIcon('income');
+
 function signed(n: number): string { return n > 0 ? '+' + n : String(n); }
-function meter(label: string, percent: number, symbol: string, color: string, value: string): string {
-  return '<div class="meter"><div class="meter-top"><span class="meter-icon">' + symbol +
-    '</span><span>' + label + '</span><b>' + value + '</b></div>' +
+
+/** One set of hand-engraved icons for the town gauges and tile inspection. */
+type TileScoreLabel = 'Beauty' | 'Noise' | 'Crime' | 'Road safety';
+const tileIcon: Record<TileScoreLabel, VintageIcon> = {
+  'Beauty': 'beauty', 'Noise': 'noise',
+  'Crime': 'crime', 'Road safety': 'road-safety'
+};
+function scoreName(title: TileScoreLabel): string {
+  return '<span class="tile-score-name">' + vintageIcon(tileIcon[title]) +
+    '<span>' + title + '</span></span>';
+}
+function meter(label: string, percent: number, icon: VintageIcon,
+  color: 'green' | 'blue' | 'red', value: string): string {
+  const displayed = Math.max(0, Math.min(100, percent));
+  return '<div class="meter meter-' + color + '" role="meter" aria-label="' + label +
+    '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' +
+    Math.round(displayed) + '" aria-valuetext="' + value + '">' +
+    '<div class="meter-top"><span class="meter-icon">' + vintageIcon(icon) +
+    '</span><span class="meter-label">' + label + '</span><b>' + value + '</b></div>' +
     '<div class="meter-rail"><div class="meter-fill ' + color + '" style="width:' +
-    Math.max(0, Math.min(100, percent)) + '%"></div></div></div>';
+    displayed + '%"></div><span class="meter-graticule" aria-hidden="true"></span></div></div>';
 }
 
 
@@ -67,12 +92,14 @@ function incomeMeter(): string {
     'Only completed car circuits generate earnings; placed models charge upkeep." ' +
     'aria-label="Income: ' + signedIncome(flow.net) + ' net coins in the last sixty seconds, ' +
     flow.gross + ' earned from laps and ' + flow.upkeep + ' spent on care.">' +
-    '<div class="meter-top"><span class="meter-icon">◉</span><span>Income</span>' +
+    '<div class="meter-top"><span class="meter-icon">' + vintageIcon('income') +
+    '</span><span class="meter-label">Income</span>' +
     '<b class="' + (debit ? 'negative-flow' : 'positive-flow') + '">' +
     signedIncome(flow.net) + '<small>/60s</small></b></div>' +
     '<div class="flow-track"><span class="flow-center"></span><span class="flow-fill ' +
     (debit ? 'outflow' : 'inflow') + '" style="width:' + width +
-    '%;left:' + (debit ? 50 - width : 50) + '%"></span></div>' +
+    '%;left:' + (debit ? 50 - width : 50) +
+    '%"></span><span class="flow-graticule" aria-hidden="true"></span></div>' +
     '<div class="flow-breakdown"><span>+' + flow.gross + ' laps</span>' +
     '<span>−' + flow.upkeep + ' care</span></div></div>';
 }
@@ -143,9 +170,10 @@ function changeClass(value: number, lowerIsBetter: boolean): string {
   return (lowerIsBetter ? value < 0 : value > 0) ? 'positive' : 'negative';
 }
 
-function projectedRow(title: string, before: number, after: number, lowerIsBetter: boolean): string {
+function projectedRow(title: TileScoreLabel, before: number, after: number,
+  lowerIsBetter: boolean): string {
   const change = after - before;
-  return '<div class="tile-score projected-delta"><span>' + title + '</span>' +
+  return '<div class="tile-score projected-delta">' + scoreName(title) +
     '<div class="score-comparison"><span>' + signed(before) + '</span><i aria-hidden="true">→</i>' +
     '<b class="' + changeClass(change,lowerIsBetter) + '">' + signed(after) + '</b>' +
     '<em class="' + changeClass(change,lowerIsBetter) + '">' + signed(change) + '</em></div></div>';
@@ -421,7 +449,8 @@ let hoverReady = false;
 
 /** A full inspection is reserved for a click. Hover only reveals a small hint. */
 function tileDetailsHeader(label: string): string {
-  return '<div class="tile-detail-top"><span class="eyebrow">' + label + '</span>' +
+  return vintageFrameCorners() +
+    '<div class="tile-detail-top"><span class="eyebrow">' + label + '</span>' +
     '<button type="button" class="tile-close" data-action="close-tile" ' +
     'aria-label="Close square details" title="Close details">×</button></div>';
 }
@@ -634,10 +663,14 @@ function renderTilePanel(): void {
   }
   const content = tileDetailsHeader('GRID ' + (tile.x + 1) + ' / ' + (tile.y + 1)) +
     '<h3>' + details.kind + '</h3>' +
-    '<div class="tile-score"><span>Beauty</span><b>' + signed(details.beauty) + '</b></div>' +
-    '<div class="tile-score"><span>Noise</span><b>' + signed(details.noise) + '</b></div>' +
-    '<div class="tile-score"><span>Crime</span><b>' + signed(details.crime) + '</b></div>' +
-    '<div class="tile-score"><span>Road safety</span><b>' + details.roadSafety + '%</b></div>' +
+    '<div class="tile-score">' + scoreName('Beauty') +
+      '<b>' + signed(details.beauty) + '</b></div>' +
+    '<div class="tile-score">' + scoreName('Noise') +
+      '<b>' + signed(details.noise) + '</b></div>' +
+    '<div class="tile-score">' + scoreName('Crime') +
+      '<b>' + signed(details.crime) + '</b></div>' +
+    '<div class="tile-score">' + scoreName('Road safety') +
+      '<b>' + details.roadSafety + '%</b></div>' +
     (store.traffic.queuedNear(tile) > 0
       ? '<p class="traffic-tile-note">Cars are queueing nearby: slower journeys, higher noise and irritation.</p>'
       : '') +
@@ -749,10 +782,10 @@ function render(): void {
   const progress = store.progress;
   const community = store.community;
   const safety = store.safety;
-  byId('meters').innerHTML =
-    meter('Progress',progress,'&#9874;','green',Math.round(progress) + '%') +
-    meter('Community',community,'&#9829;','blue',store.occupiedHomes + '/6') +
-    meter('Safety',safety,'&#9671;','red',Math.round(safety) + '%') +
+  byId('meters').innerHTML = vintageFrameCorners() +
+    meter('Progress',progress,'progress','green',Math.round(progress) + '%') +
+    meter('Community',community,'community','blue',store.occupiedHomes + '/6') +
+    meter('Safety',safety,'safety','red',Math.round(safety) + '%') +
     incomeMeter();
   byId('coins').textContent = String(store.money);
   byId('coins').classList.toggle('debt', store.money < 0);
