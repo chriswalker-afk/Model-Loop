@@ -242,6 +242,10 @@ test('browser shows the source family, all twelve actions and an optional model 
   const x=rect.x+(60+6.5*43)/1152*rect.width;
   const y=rect.y+(48+3.5*43)/620*rect.height;
   await page.mouse.move(x,y);
+  await expect(page.locator('#tile-panel')).toBeHidden();
+  await page.keyboard.down('Shift');
+  await page.mouse.click(x,y);
+  await page.keyboard.up('Shift');
   await expect(page.locator('.behaviour-forecast summary')).toBeVisible();
   await page.locator('.behaviour-forecast summary').click();
   await expect(page.locator('.behaviour-forecast')).toContainText('The Finches');
