@@ -16,7 +16,6 @@ import type { RoadsideIncident } from './damage';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { householdActionPair, type BehaviourReport } from './behaviors';
-import { type ActiveActivity } from './activities';
 import type { NeighbourNote } from './neighbours';
 import { bendSpeedMultiplier, drivingProfile, type DrivingProfile } from './driving';
 import {
