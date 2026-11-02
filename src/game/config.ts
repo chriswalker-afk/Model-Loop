@@ -1,7 +1,7 @@
 export const BOARD = { width: 1152, height: 620, cols: 24, rows: 12, tile: 43, left: 60, top: 48 } as const;
 
 export type Cell = { x: number; y: number };
-export type ModelId = 'lamp' | 'tree' | 'bench' | 'limit' | 'police';
+export type ModelId = 'lamp' | 'tree' | 'bench' | 'limit' | 'police' | 'bin';
 
 export interface ModelDefinition {
   id: ModelId;
@@ -20,7 +20,8 @@ export const MODELS: ModelDefinition[] = [
   { id: 'tree', name: 'Oak Tree', cost: 40, upkeep: 5, beauty: 3, noise: -1, crime: 0, comfort: -0.67, caption: 'A quieter, greener journey.' },
   { id: 'bench', name: 'Park Bench', cost: 25, upkeep: 4, beauty: 2, noise: 0, crime: 0, comfort: -0.43, caption: 'A place to stop and belong.' },
   { id: 'limit', name: 'Speed Sign', cost: 30, upkeep: 5, beauty: 0, noise: -2, crime: 0, comfort: -0.56, caption: 'A gentler pace for the town.' },
-  { id: 'police', name: 'Police Box', cost: 55, upkeep: 8, beauty: 0, noise: 0, crime: -3, comfort: -0.79, caption: 'A reassuring local presence.' }
+  { id: 'police', name: 'Police Box', cost: 55, upkeep: 8, beauty: 0, noise: 0, crime: -3, comfort: -0.79, caption: 'A reassuring local presence.' },
+  { id: 'bin', name: 'Cast-Iron Rubbish Bin', cost: 30, upkeep: 3, beauty: 1, noise: 0, crime: 0, comfort: -0.16, caption: 'A tidy corner for a growing town.' }
 ];
 
 export const HOMES = [
