@@ -1,5 +1,29 @@
 # The Generational Cycle — Next passes
 
+## Pass 7D — recognisably Edwardian town and vehicles (November 2026)
+
+Pass 7C / PR #21 is merged. This implementation pass replaces the plain
+rounded cars with **four illustrated motorcar body types** shared across the
+six residents, and replaces generic triangle-roof houses with **six genuinely
+distinct 1908 home façades**. A detailed clock-tower town hall, fountain,
+Victorian park sign, bandstand and branching/etched oak trees replace
+simplified world props. The road gains fine nested edging/shoulder scoring.
+
+The art uses 19 distinct SVG texture originals, cached once for Phaser
+(6 cars + 6 houses + 7 scenery); 13 fixed scenery objects reuse those
+textures. Household mood/occupation indicators remain live overlays and
+each car continues to use existing lane, overtaking, crash and home-trip
+simulation code. No new reserved land squares or game cost changes.
+
+See [PASS_7D_WORLD_ART.md](art-direction/PASS_7D_WORLD_ART.md) for resident
+vehicle silhouettes and the visual/test acceptance gates.
+
+**Next once this 7D PR is merged: Pass 7E — global visual consistency and
+release quality.** Harmonise remaining accident/damage/activity symbols
+and story art, remove obsolete presentation overrides, check contrast,
+focus, touch, 200% zoom, scrolling, gameplay screenshots and performance.
+Then assess readiness for a release playtest.
+
 ## Pass 7C — physically boxed 1908 miniature collection (November 2026)
 
 Pass 7B / PR #20 is merged. Pass 7C implements full physical cartons
