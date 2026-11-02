@@ -1,4 +1,5 @@
-import { MODELS, type ModelId } from './config';
+import { type ModelId } from './config';
+import { carePreferenceScale, modelEffects, type CareLevel } from './economy';
 
 export interface HouseholdProfile {
   id: number;
@@ -130,10 +131,9 @@ export function householdProfile(id: number): HouseholdProfile {
   return profile;
 }
 
-export function modelReactionPerTile(householdId: number, modelId: ModelId): number {
-  const model = MODELS.find(item => item.id === modelId);
-  if (!model) throw new Error('Unknown model: ' + modelId);
-  return model.comfort + householdProfile(householdId).modelBias[modelId];
+export function modelReactionPerTile(householdId: number, modelId: ModelId, care: CareLevel = 'full'): number {
+  const effects = modelEffects(modelId, care);
+  return effects.comfort + householdProfile(householdId).modelBias[modelId] * carePreferenceScale(care);
 }
 
 export function moodName(irritation: number, occupied: boolean): string {
