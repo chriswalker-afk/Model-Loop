@@ -545,10 +545,10 @@
   .vintage-header .meter-rail,
   .vintage-header .flow-track { height: 12px; }
   .vintage-header .flow-breakdown { font-size: 9px; }
-  .vintage-header .vintage-controls .utility-button { min-height: 42px; padding: 9px 8px; }
+  .vintage-header .vintage-controls .utility-button { min-height: 44px; padding: 9px 8px; }
   .tile-panel.vintage-inspector { border-radius: 6px; padding: 11px 14px; }
   .vintage-inspector .tile-detail-top { min-height: 34px; }
-  .vintage-inspector .tile-close { min-width: 40px; min-height: 40px; }
+  .vintage-inspector .tile-close { min-width: 44px; min-height: 44px; }
   .vintage-inspector .tile-score { min-height: 36px; }
   .vintage-inspector .tile-score-name { font-size: 12px; }
 }
