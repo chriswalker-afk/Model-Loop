@@ -90,6 +90,26 @@ tap positions and placement previews continue to match visible squares after
 the browser is resized or the device rotated. No manual zoom or settings
 change is required.
 
+## Left-hand driving and safe overtaking
+
+Cars now travel on the **left-hand side** of the miniature road, with a
+continuous offset path around every bend. When a driver catches a slower or
+stopped vehicle, they may change to the right-hand **passing lane** if the
+lane has safe gaps ahead and behind, the next stretch is suitable, and no
+roadside display or discarded packaging obstructs the manoeuvre. They
+complete the pass and merge back left only with a safe space. Vehicles
+changing lanes reserve both lanes until the sideways movement finishes;
+other traffic must brake or queue rather than cross their path. Roadside
+obstructions can also produce a slight inward adjustment on the usual
+left lane. Neither a speed sign nor a resident's stop is ignored.
+
+Cars still earn coins only on completed circuits, return home between
+journeys, obey driveway entry reservations and preserve household
+behaviour. The visible traffic queues, delays, braking and irritation
+continue to depend on actual movement. New regression tests cover lane
+continuity, overtaking a stopped car, blocked passes, safe merging and
+wrap-around traffic.
+
 ## Living Environment finishing pass (Driver Behaviour Pass 5)
 
 The six-family environment now uses centrally documented Vintage pacing:
