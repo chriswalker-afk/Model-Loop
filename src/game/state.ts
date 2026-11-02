@@ -621,11 +621,8 @@ export class GameStore {
       if (!stop) return false;
       message = stop.message;
     } else {
-      const kind = action.id === 'mend' ? 'mended' :
-        action.id === 'tidy' ? 'tidied' :
-        action.id === 'restore' ? 'heritage' :
-        action.id === 'guide' ? 'guidance' :
-        action.id;
+      const kind = action.environmentKind;
+      if (!kind) return false;
       const event = this.environment.force(kind, residentId, road,
         this.clockSeconds, this.placements, tile => this.interceptLitter(tile));
       if (!event) return false;
