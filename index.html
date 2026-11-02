@@ -37,7 +37,7 @@
         <div id="game-container" tabindex="0" role="application" aria-label="Miniature town. Select a model box, then use your mouse or arrow keys to find a square. Press Enter to build, Escape to cancel."></div>
       </div>
       <div class="town-pan-hint" aria-hidden="true"><span>↔</span> Swipe to explore the whole town</div>
-      <aside id="tile-panel" class="tile-panel" aria-live="polite"></aside>
+      <aside id="tile-panel" class="tile-panel" aria-label="Town square details"></aside>
       <aside id="household-detail" class="household-detail" aria-label="Selected household" hidden></aside>
       <div class="board-stamp">NO. 001 &mdash; HANDCRAFTED TOWNS</div>
     </section>
@@ -63,7 +63,8 @@
     </section>
     <footer class="footer">
       <span class="live-dot" aria-hidden="true"></span>
-      <p id="notice" aria-live="polite">The workshop is open.</p>
+      <p id="notice">The workshop is open.</p>
+      <span id="event-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
       <span id="traffic-status" class="traffic-status" hidden aria-label="Traffic conditions"></span>
       <span id="workbench-note" class="workbench-note" title="From the family workbench"></span>
     </footer>

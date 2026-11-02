@@ -2,12 +2,15 @@
 
 ## Driver Behaviour system status (November 2026)
 
-Passes 1–4 are now implemented, including the Living Environment, rubbish
-bins/collection, real traffic queues and all twelve positive/troublesome
-household actions. The next dedicated pass is **Pass 5: Balancing, feedback
-and narrative polish**. This includes long-run incident pacing, income and
-irritation tuning, visual/audio accessibility, event interaction stress
-tests and quiet workbench scenes; see LIVING_ENVIRONMENT.md.
+Passes 1–5 of the living-environment system are implemented:
+environmental incidents, rubbish bins and paid collection, physical car
+queues, twelve two-sided household behaviours, and the final tuning,
+accessible feedback, long-run stress suite and optional workbench diary.
+See LIVING_ENVIRONMENT.md and DRIVER_BEHAVIOUR_BALANCE.md.
+
+**Next project-wide milestone:** Post-war generation/era progression,
+heritage shelves, a broader permanent upgrade tree, and release-quality
+end-to-end playtesting on short laptop and phone screens.
 
 The original broader design roadmap below is retained for future-era work.
 

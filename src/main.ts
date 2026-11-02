@@ -266,7 +266,9 @@ function renderBehaviourForecast(
     effects.map(row=>
       '<div class="behaviour-forecast-row"><strong>'+row.name+'</strong>' +
       '<span>Helpful action: '+row.helpfulLabel+'</span>' +
-      '<b>'+percent(row.helpfulBefore)+' → '+percent(row.helpfulAfter)+'</b>' +
+      '<b>Helpful share: '+percent(row.helpfulBefore)+' → '+percent(row.helpfulAfter)+'</b>' +
+      '<span>Chance of any incident: '+percent(row.eventBefore)+' → '+
+        percent(row.eventAfter)+'</span>' +
       '<small>'+row.reasons.join(' ')+'</small></div>'
     ).join('')+
     '</details>';
@@ -386,6 +388,12 @@ function renderTilePanel(): void {
   if (store.activeModel) {
     const model = store.getModel(store.activeModel);
     const preview = store.previewPlacement(tile, model.id);
+    const forecastKey = model.id + ':' + tile.x + ',' + tile.y;
+    const currentForecast = byId('tile-panel').querySelector<HTMLDetailsElement>('.behaviour-forecast');
+    const restoreForecast = currentForecast?.open &&
+      currentForecast.dataset.previewKey === forecastKey;
+    const restoreForecastFocus = restoreForecast &&
+      currentForecast?.querySelector('summary') === document.activeElement;
     const status = preview.allowed ? 'READY TO PLACE' : 'CANNOT PLACE HERE';
     byId('tile-panel').innerHTML =
       '<span class="eyebrow">PLACEMENT PREVIEW · ' + (tile.x + 1) + '/' + (tile.y + 1) + '</span>' +
@@ -407,6 +415,14 @@ function renderTilePanel(): void {
          BIN_CAPACITY + ' items within ' + BIN_CATCH_RADIUS +
          ' squares. Collection bills are additional to upkeep; existing litter needs separate cleaning.</p>' : '') +
       '<p class="tile-tip">' + preview.reason + '</p>';
+    const nextForecast = byId('tile-panel').querySelector<HTMLDetailsElement>('.behaviour-forecast');
+    if (nextForecast) {
+      nextForecast.dataset.previewKey = forecastKey;
+      if (restoreForecast) nextForecast.open = true;
+      if (restoreForecastFocus) {
+        nextForecast.querySelector('summary')?.focus({ preventScroll: true });
+      }
+    }
     return;
   }
   byId('tile-panel').innerHTML =
@@ -441,6 +457,36 @@ function upgradeRow(type: 'savings' | 'patience', title: string, description: st
     '</button></div>';
 }
 
+/**
+ * Workbench notes are attached to actual milestones, not random lore rolls.
+ * Kept collapsible in the workshop rather than extending the persistent HUD.
+ */
+function renderWorkshopDiary(): string {
+  if (store.workbenchMoments.length === 0) {
+    return '<p class="workbench-empty">The first little workbench note is written at 25% Progress.</p>';
+  }
+  return '<details class="workbench-diary"><summary>From the workbench · ' +
+    store.workbenchMoments.length + ' notes</summary><ol>' +
+    store.workbenchMoments.map(moment =>
+      '<li><small>' + moment.milestone * 25 + '% Progress</small><p>' +
+      moment.line + '</p></li>'
+    ).join('') + '</ol></details>';
+}
+function renderRunLedger(): string {
+  const numbers = store.runSummary;
+  return '<details class="workbench-ledger"><summary>The little town in numbers</summary>' +
+    '<dl><dt>Car circuits</dt><dd>' + numbers.completedLaps + '</dd>' +
+    '<dt>Earned from circuits</dt><dd>+' + numbers.earnings + ' coins</dd>' +
+    '<dt>Spent on maintenance & collection</dt><dd>−' + numbers.servicing + ' coins</dd>' +
+    '<dt>Purchased miniatures</dt><dd>−' + numbers.purchases + ' coins</dd>' +
+    '<dt>Helpful / troublesome acts</dt><dd>' + store.ledger.helpfulActions +
+      ' / ' + store.ledger.troublesomeActions + '</dd>' +
+    '<dt>Packaging caught in bins</dt><dd>' + numbers.capturedPackaging + '</dd>' +
+    '<dt>Longest traffic queue</dt><dd>' + numbers.peakQueue + ' cars</dd>' +
+    '</dl><p class="ledger-hint">These are totals for this run; the Income meter shows ' +
+    'only the last 60 seconds.</p></details>';
+}
+
 function renderModal(): void {
   const modal = byId('modal');
   if (store.workshopOpen) {
@@ -453,6 +499,7 @@ function renderModal(): void {
       '<div class="blueprint-wallet">Saved blueprints <strong>' + store.legacy.blueprints + '</strong></div>' +
       upgradeRow('savings', 'Family Savings', 'Start future runs with 35 extra coins per level.', 20) +
       upgradeRow('patience', 'A Steady Hand', 'Residents start future runs with less irritation.', 30) +
+      renderWorkshopDiary() + renderRunLedger() +
       '<p class="dialog-footnote">Permanent upgrades can be purchased between runs. More workshop shelves and heritage models will arrive in later passes.</p>' +
       '<button class="dialog-main" type="button" data-action="workshop">Back to ' +
       (store.phase === 'playing' ? 'the town' : 'the chapter') + '</button></div>';
@@ -474,6 +521,7 @@ function renderModal(): void {
     '<p class="story-quote">' + (won ?
       'Father smiled at the little town. "I think we have made something worth keeping."' :
       '"We can always try a different road," his father said, and put the model back on the shelf.') +
+    '</p><p class="story-coda">' + store.closingLine +
     '</p><div class="result-grid"><div><strong>' + Math.round(store.progress) +
     '%</strong><span>Progress</span></div><div><strong>' + store.occupiedHomes +
     '/6</strong><span>Homes remaining</span></div><div><strong>' + store.legacy.blueprints +
@@ -483,6 +531,7 @@ function renderModal(): void {
     '<button type="button" class="dialog-main" data-action="new-run">Build a new town</button></div></div>';
 }
 
+let lastAnnouncementRevision = -1;
 function render(): void {
   const progress = store.progress;
   const community = store.community;
@@ -495,6 +544,12 @@ function render(): void {
   byId('coins').textContent = String(store.money);
   byId('coins').classList.toggle('debt', store.money < 0);
   byId('notice').textContent = store.notice;
+  // The tile and coins repaint frequently. Assistive technology receives
+  // only an actual new meaningful incident, not every visual re-render.
+  if (store.announcementRevision !== lastAnnouncementRevision) {
+    lastAnnouncementRevision = store.announcementRevision;
+    byId('event-announcement').textContent = store.announcement;
+  }
   const trafficTag = byId('traffic-status');
   const queued = store.traffic.queuedCars.length;
   const stop = store.traffic.activeStop;
@@ -549,7 +604,8 @@ if (import.meta.env.DEV) {
         events: store.environment.history.map(x => ({ ...x })),
         safety: store.safety, irritation: store.averageIrritation,
         activeStop: store.traffic.activeStop, queued: store.traffic.queuedCars.map(x => ({ ...x })),
-        behaviour: store.behaviourHistory.map(x => ({ ...x })) };
+        behaviour: store.behaviourHistory.map(x => ({ ...x })),
+        summary: store.runSummary, workbench: store.workbenchMoments.map(x => ({ ...x })) };
     },
     trafficStop(id: number, duration?: number): boolean {
       if (!Number.isInteger(id) || id < 0 || id > 5) return false;

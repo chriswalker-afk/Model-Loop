@@ -215,11 +215,34 @@ build supports all twelve actions, e.g.:
 
 All dev-only controls remain unavailable in the published bundle.
 
-## What comes next
+## Pass 5 — Balancing, feedback and narrative polish (implemented)
 
-**Pass 5 — Balancing & Narrative Polish:** Event-rate tuning, feedback and
-animations, accessibility, audio restraint, tests against exploits,
-and understated scenes across generations.
+The final pass consolidates Vintage tuning, verifies long-running seeded
+sessions, reduces repeated environmental and traffic incidents, and gives
+important feedback priority over routine lap payments without altering
+the actual coin transactions.
+
+Incidents now have brief contextual labels; bin interception or overflow
+is readable by text as well as colour. Nonessential tweens respect
+reduced-motion settings, and screen-reader announcements are separated
+from constantly repainted meters and tiles.
+
+Workshop fragments now arise at the real 25%, 50% and 75% milestones,
+respond to visible model-building and resident experiences, and can be
+re-read in a collapsed diary. A separate collapsed ledger allows players
+to inspect total earnings, spending, bins and delays. No extra Blueprints
+are awarded for causing or repairing damage.
+
+See [Pass 5 balancing and accessibility audit](DRIVER_BEHAVIOUR_BALANCE.md)
+for parameters, deterministic stress-test scenarios and remaining
+playtesting questions.
+
+## After the five driver-behaviour passes
+
+The next project-wide work can focus on the actual post-war generation
+and era transition, larger permanent heritage shelves, and release
+quality checks with classroom-sized and mobile screens. These are
+outside the current living-environment pass.
 
 ## Regression priorities
 
