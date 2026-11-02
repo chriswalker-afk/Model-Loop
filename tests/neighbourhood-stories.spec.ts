@@ -180,6 +180,27 @@ test('existing Hale and Ward helpful actions fulfil the same pending story',()=>
   expect(store.runSummary.haleRestorations).toBe(1);
 });
 
+test('an ordinary helpful Hale action prevents a second response on that same tile',()=>{
+  const store=make();
+  expect(store.place(site.model,'lamp')).toBe(true);
+  expect(store.debugRoadsideAccident(0,site.road,site.model,'break')).toBe(true);
+  store.tickEconomy(3);
+  store.residents[4].nextEventOffset=0;
+  store.residents[4].lastEventLap=-1;
+  store.neighbours.rng.next=()=>0;
+  store.behaviour.choose=()=>({
+    id:'restore',tone:'helpful',mechanic:'roadside',environmentKind:'heritage',
+    label:'Restores a familiar detail',
+    message:'The Hales carefully restored an old roadside detail.',
+    afterRemark:'We should look after it.'
+  });
+  store.passTile(4,site.road);
+  expect(store.ledger.helpfulActions).toBe(1);
+  expect(store.runSummary.neighbourResponses).toBe(0);
+  expect(store.getPlacedModel(site.model)?.condition).toBe('damaged');
+  expect(store.neighbours.history.filter(x=>x.kind==='hale-restore')).toHaveLength(1);
+});
+
 test('requests, histories and cooldowns are capped and reproducible',()=>{
   const run=()=>{
     const engine=new NeighbourhoodStories(44);
