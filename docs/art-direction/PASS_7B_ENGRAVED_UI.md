@@ -22,7 +22,8 @@ This is the first *implemented* visual overhaul pass. It does not change the roa
 - Beauty, Noise, Crime and Road safety now use matched, thin outline icons **plus their text names**, so no result relies on colour alone.
 - The placement preview reuses the **same icon source** as the ordinary inspector.
 - The model-care, litter, activity, accident and neighbourhood details remain in the original collapsible/scrollable inspector; it is *not* replaced by a decorative mockup.
-- The close button remains a semantic button with keyboard activation, a visible focus outline and a **44px phone touch target**. The opened inspector sits in a scrollable reading plate above the fixed mobile kit dock, avoiding the earlier hidden-behind-shop problem.
+- The close button remains a semantic button with keyboard activation, a visible focus outline and a **44px phone touch target**. The opened inspector sits in a scrollable reading plate above the fixed portrait kit dock, avoiding the earlier hidden-behind-shop problem.
+- On very short landscape phones (701–899px wide, at most 490px high), the fixed model dock would obscure the entire town. The town is now visible first and the shop remains available by scrolling below it; the selected-square inspector becomes a compact, internally scrollable plate on the right.
 
 ### Technical approach
 
