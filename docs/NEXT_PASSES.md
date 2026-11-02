@@ -9,8 +9,8 @@ Phaser caches textures and reuses active image objects by stable state ID,
 cleaning up finished activities, expired traces and repaired models.
 
 The family workshop now shares the Gas Lamppost model drawing, the chapter
-story frame reuses the illustrated landaulette instead of a CSS capsule
-car, and dialogs have more coherent antique frames and accessible keyboard
+story frame uses a proper side-profile landaulette drawn in the same art
+library as the road cars rather than a CSS capsule car, and dialogs have more coherent antique frames and accessible keyboard
 focus handling. Unused story-car/moon CSS is removed without destabilising
 older compact/mobile layout overrides.
 
