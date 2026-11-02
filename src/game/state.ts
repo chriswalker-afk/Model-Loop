@@ -608,7 +608,7 @@ export class GameStore {
 
   /** A single, attributable activity for every family on a given circuit. */
   private performHouseholdAction(
-    residentId: number, action: HouseholdAction, road: Cell
+    residentId: number, action: HouseholdAction, road: Cell, naturally = true
   ): boolean {
     const resident = this.residents[residentId];
     if (!resident?.occupied || !isRoad(road.x, road.y) || this.phase !== 'playing') return false;
@@ -648,6 +648,23 @@ export class GameStore {
       }
       this.lastEnvironmentEvent = event;
     }
+    // Preserve the Pass 2 ambient rubbish: another family's inconvenient
+    // act can also leave a small wrapper behind. It is a *consequence* of
+    // this one action, never a second roll for a separate household action.
+    // Forced developer actions stay isolated for reproducible QA.
+    if (naturally && action.tone === 'troublesome' && action.id !== 'litter' &&
+      this.environment.rng.next() < 0.22) {
+      const wrapper = this.environment.force('litter', residentId, road,
+        this.clockSeconds, this.placements, tile => this.interceptLitter(tile));
+      if (wrapper) {
+        this.lastEnvironmentEvent = wrapper;
+        message += wrapper.outcome === 'captured'
+          ? ' A piece of paper made it into the rubbish bin.'
+          : wrapper.outcome === 'overflow'
+            ? ' A stray wrapper spilled beside the full bin.'
+            : ' A stray wrapper was left by the verge.';
+      }
+    }
     this.behaviour.mark(residentId,this.clockSeconds);
     resident.lastRemark = action.tone === 'helpful'
       ? action.id === 'mend' ? 'That ought to last a little longer.'
@@ -675,7 +692,7 @@ export class GameStore {
       !this.residents[residentId]?.occupied)return false;
     const pair=householdActionPair(residentId);
     const action=[pair.helpful,pair.troublesome].find(item=>item.id===actionId);
-    return action?this.performHouseholdAction(residentId,action,road):false;
+    return action?this.performHouseholdAction(residentId,action,road,false):false;
   }
 
   /**
