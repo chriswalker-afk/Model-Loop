@@ -15,9 +15,27 @@ const game = new Game({
   backgroundColor: '#111515',
   antialias: true,
   render: { pixelArt: false },
-  scale: { mode: Scale.FIT, autoCenter: Scale.CENTER_BOTH },
+  // CSS centres the board on desktop. Phaser auto-centering gives negative
+  // canvas offsets inside a horizontally pannable phone viewport.
+  scale: { mode: Scale.FIT, autoCenter: Scale.NO_CENTER },
   scene: [TownScene]
 });
+
+// The CSS layout can change when the HUD wraps or a phone rotates even if the
+// browser's width stays the same. Phaser's FIT scale must follow the actual
+// available board viewport, not a guessed breakpoint.
+const townViewport = document.getElementById('town-pan');
+if (townViewport && typeof ResizeObserver !== 'undefined') {
+  let pendingFrame = 0;
+  const observer = new ResizeObserver(() => {
+    if (pendingFrame) cancelAnimationFrame(pendingFrame);
+    pendingFrame = requestAnimationFrame(() => {
+      pendingFrame = 0;
+      game.scale.refresh();
+    });
+  });
+  observer.observe(townViewport);
+}
 
 function byId<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;

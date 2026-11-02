@@ -64,7 +64,11 @@ export class TownScene extends Scene {
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       store.setHovered(this.pointerCell(pointer));
     });
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    // A tap selects a tile; a swipe is reserved for navigating the town.
+    // Placing on pointer-down made mobile panning buy models accidentally.
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      const travelled = Math.hypot(pointer.x - pointer.downX, pointer.y - pointer.downY);
+      if (travelled > 13) return;
       const cell = this.pointerCell(pointer);
       if (cell && store.phase === 'playing' && !store.paused && !store.workshopOpen) {
         store.selectTile(cell);
@@ -79,8 +83,23 @@ export class TownScene extends Scene {
   }
 
   private pointerCell(pointer: Phaser.Input.Pointer): Cell | null {
-    const x = Math.floor((pointer.worldX - BOARD.left) / BOARD.tile);
-    const y = Math.floor((pointer.worldY - BOARD.top) / BOARD.tile);
+    // Phaser's cached canvas bounds are not updated by CSS overflow scrolling.
+    // Use live browser coordinates so the right-hand end of the town remains
+    // interactive after swiping horizontally across a phone screen.
+    const event = pointer.event as MouseEvent | TouchEvent | undefined;
+    const touch = event && 'changedTouches' in event
+      ? (event.changedTouches[0] || event.touches[0]) : undefined;
+    const clientX = touch?.clientX ?? (event as MouseEvent | undefined)?.clientX;
+    const clientY = touch?.clientY ?? (event as MouseEvent | undefined)?.clientY;
+    const rect = this.game.canvas.getBoundingClientRect();
+    const worldX = Number.isFinite(clientX) && rect.width > 0
+      ? ((clientX as number) - rect.left) / rect.width * BOARD.width
+      : pointer.worldX;
+    const worldY = Number.isFinite(clientY) && rect.height > 0
+      ? ((clientY as number) - rect.top) / rect.height * BOARD.height
+      : pointer.worldY;
+    const x = Math.floor((worldX - BOARD.left) / BOARD.tile);
+    const y = Math.floor((worldY - BOARD.top) / BOARD.tile);
     return isOnBoard(x, y) ? { x, y } : null;
   }
 
