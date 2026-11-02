@@ -827,8 +827,8 @@ export class GameStore {
     }
     // Optional linked response is checked once per real tile crossing, not
     // every frame. Passing cars, parked cars and stopped drivers are excluded.
-    if (canParkForActivity && !this.activities.forResident(id) &&
-        !this.traffic.shouldStop(id))
+    if (canParkForActivity && !this.paused && !this.workshopOpen &&
+        !this.activities.forResident(id) && !this.traffic.shouldStop(id))
       this.respondToNeighbourhood(id,tile);
     if (resident.irritation >= 100) {
       resident.occupied = false;
@@ -879,7 +879,7 @@ export class GameStore {
       }
       const helped=this.accidents.active.find(event=>event.id===task.incidentId);
       const assisted=helped?.wardHelped ? null :
-        this.accidents.wardAssistance(road,this.clockSeconds);
+        this.accidents.wardAssistance(road,this.clockSeconds,task.incidentId);
       if(assisted){
         this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
         message='The Wards came past the damaged '+this.getModel(model.id).name+
