@@ -35,6 +35,9 @@ test('all six physical cartons use one accessible model control and three real c
   async({page})=>{
     const errors:string[]=[];
     page.on('pageerror',e=>errors.push(e.message));
+    // Desktop standing cartons display a punched hanging tab; the compact
+    // laptop side-shelf deliberately hides the tab to save vertical space.
+    await page.setViewportSize({width:1440,height:900});
     await page.goto('/');
     const kits=page.locator('.model-box.kit-carton');
     await expect(kits).toHaveCount(6);
