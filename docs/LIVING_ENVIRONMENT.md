@@ -79,13 +79,38 @@ The coordinates for trigger are a **road tile**, not the roadside cell
 which is selected deterministically by the event engine. The user-facing
 site has no event-spawning controls.
 
-## What comes next
+## Pass 2 — Rubbish & Collection (implemented)
 
-**Pass 2 — Rubbish & Collection:** A boxed cast-iron bin miniature, clearly
-shown catchment area, fill capacity, overflow, configurable collection
-frequency and full-bin service penalty. Bins intercept eligible litter
-rather than deleting it at no cost, and existing litter requires separate
-cleaning. All three care modes and the net Income flow must remain coherent.
+The 1908 boxed shop adds a cast-iron rubbish bin. Each placed bin has six
+units of fill and catches litter from road cells within a three-square
+Manhattan radius; the same radius is highlighted in the placement preview.
+The first available, well-positioned bin catches an eligible discarded
+item and fills by one; the litter never appears on a roadside cell.
+
+Care determines catch reliability and collection timing: full 100% / 60s,
+economy 70% / 120s, bare 25% / manual only. Routine care bills remain
+3, 2 or 0 coins per 20 seconds; actual collection is billed separately,
+using 4 + 2 per item and an extra eight coins at full capacity/overflow.
+All collection expenses feed the existing rolling sixty-second net Income,
+not the running savings total. Fully serviced bins return to zero fill.
+Automatic collection still services a bin if the town is temporarily
+in debt, avoiding permanent overflow. Manual collection requires adequate
+coins.
+
+When full, a bin stops catching. The next eligible litter event can make it
+overflow, leaving visible packaging and a red warning. An overflowing bin
+also reduces local Beauty and raises Crime; these penalties disappear when
+the bin is emptied. Previously discarded litter remains on the roadside
+until it naturally expires or the player manually clears it for six coins.
+No collection action can erase event history or charge twice for an empty
+bin.
+
+The resident model remains behavioural rather than moral: all families
+occasionally generate ordinary rubbish, while the Millers remain more
+prone to delivery-packaging incidents. A bin is a town-management tool,
+not a personality type.
+
+## What comes next
 
 **Pass 3 — Real Traffic Behaviour:** Actual car following, stop propagation,
 queue recovery, effects of speed signs and congestion on lap income.
