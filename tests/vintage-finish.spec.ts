@@ -178,6 +178,8 @@ test('workshop and story share the original kit/car art, with predictable keyboa
     await expect(modal.locator('.vintage-frame-corners')).toHaveCount(1);
     await expect(modal.locator('.workbench-engraving .miniature-svg')).toHaveCount(1);
     await expect(modal.locator('#workshop-title')).toBeFocused();
+    await expect(page.locator('#app > header')).toHaveAttribute('inert','');
+    await expect(page.locator('#app > main')).toHaveAttribute('inert','');
     await page.evaluate(async()=>{
       const {store}=await import('/src/game/state.ts'); store.notify();
     });
@@ -186,6 +188,8 @@ test('workshop and story share the original kit/car art, with predictable keyboa
     await expect(modal.locator('[data-action="workshop"]')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(modal).toBeHidden();
+    await expect(page.locator('#app > header')).not.toHaveAttribute('inert');
+    await expect(page.locator('#app > main')).not.toHaveAttribute('inert');
     await expect(workshopButton).toBeFocused();
     await page.evaluate(async()=>{
       const {store}=await import('/src/game/state.ts');store.endRun(true);
