@@ -135,6 +135,10 @@ test('purchased model and placement ghost are the SAME cached illustration as in
       cell:'4,4',texture:'vintage-miniature-lamp',alpha:1
     }]);
     await expect(page.locator('#tile-panel')).toContainText('MODEL CARE');
+    await page.screenshot({
+      path:'test-results/visual-review/7c-placed-lamp-world.png',
+      animations:'disabled'
+    });
     // No value, purchase, placement or condition behaviour changed.
     await expect(page.getByRole('button',{name:/Select Oak Tree/})).toHaveAttribute('aria-pressed','false');
   });
