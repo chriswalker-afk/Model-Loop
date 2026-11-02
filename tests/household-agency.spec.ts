@@ -162,14 +162,16 @@ test('Millers genuinely mend tyre scuffs, improving Safety; Marshes actually rem
   expect(store.behaviourHistory[0].message).toContain('wrapper was collected');
 });
 
-test('Finch courtesy and Ward guidance can shorten real traffic stops',()=>{
+test('Finches scout the road without commanding another car; Wards genuinely clear queues',()=>{
   const store=make();
   expect(store.debugTrafficStop(1,road,6)).toBe(true);
   const before=store.traffic.activeStop!.endsAt;
-  expect(store.debugHouseholdAction(0,'courtesy',road)).toBe(true);
-  expect(store.traffic.activeStop!.endsAt).toBeLessThan(before);
+  expect(store.debugHouseholdAction(0,'scout',road)).toBe(true);
+  expect(store.environment.effects.some(e=>e.kind==='courtesy')).toBe(true);
+  expect(store.traffic.activeStop!.endsAt).toBe(before);
+  expect(store.residents[0].lastRemark).toContain('good line');
   expect(store.debugHouseholdAction(5,'guide',road)).toBe(true);
-  expect(store.traffic.activeStop!.endsAt).toBeLessThan(before-1.8);
+  expect(store.traffic.activeStop!.endsAt).toBeLessThan(before);
   expect(store.environment.effects.some(e=>e.kind==='guidance')).toBe(true);
   expect(store.behaviourHistory[0].message).toContain('queue began to clear sooner');
 });
@@ -258,7 +260,7 @@ test('compact and phone layouts preserve readable behaviour details and usual sh
   await page.goto('/');
   await page.locator('[data-resident="3"]').first().click();
   await expect(page.locator('#household-detail')).toContainText('Tidies the verge');
-  await expect(page.locator('#household-detail')).toContainText('Stops for a conversation');
+  await expect(page.locator('#household-detail')).toContainText('Lingers for a neighbourly chat');
   const box=await page.locator('#game-container canvas').boundingBox();
   expect(box?.width).toBeGreaterThan(700);
   await page.setViewportSize({width:390,height:844});
@@ -270,25 +272,25 @@ test('compact and phone layouts preserve readable behaviour details and usual sh
 });
 
 
-test('non-Miller roadside pauses can generate incidental litter without a second action',()=>{
+test('scenic pauses do not mysteriously drop rubbish; delivery packaging can fill a bin',()=>{
   const store=make(441);
   const bin={x:4,y:4};
   expect(store.place(bin,'bin')).toBe(true);
   store.residents[1].nextEventOffset=0;
-  // Force the normal opportunity's result while preserving the *natural*
-  // action path. A tiny wrapper is a consequence of the same Bell pause.
   store.behaviour.choose=()=>householdActionPair(1).troublesome;
   store.environment.rng.next=()=>0;
   store.passTile(1,road);
   expect(store.traffic.activeStop?.kind).toBe('admiring');
   expect(store.behaviourHistory).toHaveLength(1);
-  expect(store.behaviourHistory[0]).toMatchObject({
-    residentId:1,action:'admire',tone:'troublesome'
-  });
-  expect(store.getBinStatus(bin)?.fill).toBe(1);
+  expect(store.getBinStatus(bin)?.fill).toBe(0);
   expect(store.environment.effects.filter(x=>x.kind==='litter')).toHaveLength(0);
+  // Miller packaging has a real source and still uses the same bin system.
+  expect(store.debugHouseholdAction(2,'litter',road)).toBe(true);
+  expect(store.getBinStatus(bin)?.fill).toBe(1);
+  expect(store.behaviourHistory[0]).toMatchObject({
+    residentId:2,action:'litter',tone:'troublesome'
+  });
   expect(store.behaviourHistory[0].message).toContain('rubbish bin');
-  // The household's second lap over the same square produces no new act.
   store.passTile(1,road);
-  expect(store.behaviourHistory).toHaveLength(1);
+  expect(store.behaviourHistory).toHaveLength(2);
 });

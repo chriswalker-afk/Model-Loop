@@ -9,7 +9,6 @@ export const VINTAGE_BALANCE = {
   westBendIrritation: 0.14,
   behaviourOpportunityChance: 0.38,
   behaviourCooldownSeconds: 52,
-  incidentalLitterChance: 0.18,
   stopPersonalCooldownSeconds: 68,
   stopGlobalCooldownSeconds: 18,
   stopAdmireSeconds: 3.8,

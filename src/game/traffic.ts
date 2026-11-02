@@ -1,5 +1,6 @@
 import { SeededRandom } from './environment';
 import { VINTAGE_BALANCE } from './balance';
+import type { DrivingProfile } from './driving';
 import { BOARD, ROAD_CELLS, worldPoint, type Cell } from './config';
 
 export type CarPhase = 'driving' | 'returning' | 'at-home' | 'departing';
@@ -71,6 +72,8 @@ export interface RoadVehicle {
   changingTo?: RoadLane | null;
   /** A departing driveway vehicle reserves the entry, never an overtaking target. */
   drivewayReservation?: boolean;
+  /** Optional per-household preferences; omitted by older solver callers. */
+  driver?: DrivingProfile;
 }
 export interface RoadMovement {
   residentId: number;
@@ -236,11 +239,15 @@ export function planLaneChanges(
     const backward = inTarget.map(other => forwardGap(other.position, car.position, roadLength));
     const frontGap = Math.min(roadLength, ...forward);
     const backGap = Math.min(roadLength, ...backward);
-    // Rear clearance is generous because a car may approach while the lane changes.
-    if (frontGap < 85 || backGap < 75 || !passingStretchClear(car.position, roadsideObstructions)) {
-      // Merging back to the left only needs a safe current stretch: a right-side
-      // display cannot stop a passing vehicle from retreating into the left lane.
-      if (lane === 'left' || frontGap < 85 || backGap < 75) continue;
+    // Personality changes how much clearance a driver wants; the universal
+    // hard bumper gap still applies regardless of someone's impatience.
+    const safeFront = Math.max(TRAFFIC_MIN_GAP + 20, car.driver?.passingFrontGap ?? 85);
+    const safeRear = Math.max(TRAFFIC_MIN_GAP + 20, car.driver?.passingRearGap ?? 75);
+    if (frontGap < safeFront || backGap < safeRear) continue;
+    if (!passingStretchClear(car.position, roadsideObstructions)) {
+      // Returning left need not be blocked by a display on the far verge,
+      // but cannot occur mid-bend or into an occupied lane.
+      if (lane === 'left') continue;
       const heading = roadPoseAt(car.position, 0).rotation;
       const nextHeading = roadPoseAt(car.position + BOARD.tile, 0).rotation;
       if (Math.cos(nextHeading - heading) < 0.94) continue;
@@ -250,16 +257,19 @@ export function planLaneChanges(
       .filter(other => occupies(other, 'left'))
       .map(other => ({ other, gap: forwardGap(car.position, other.position, roadLength) }))
       .sort((a,b) => a.gap - b.gap)[0];
+    const lookahead = car.driver?.passingLookahead ?? TRAFFIC_OVERTAKE_LOOKAHEAD;
+    const advantage = car.driver?.passingSpeedAdvantage ?? 9;
     if (lane === 'left') {
       if (!ahead || ahead.other.drivewayReservation) continue;
-      if (ahead.gap > TRAFFIC_OVERTAKE_LOOKAHEAD) continue;
-      if (car.desiredSpeed < ahead.other.desiredSpeed + 9) continue;
-      // Slower drivers must still queue until they actually have room to move out.
+      if (ahead.gap > lookahead) continue;
+      if (car.desiredSpeed < ahead.other.desiredSpeed + advantage) continue;
+      // Impatient drivers try sooner, cautious ones require a bigger advantage.
+      // Everyone still queues if the passing lane is occupied or obstructed.
     } else {
       // Stay in the passing lane until genuinely past the slower vehicle;
       // otherwise the car would weave back left before overtaking.
-      if (ahead && ahead.gap < TRAFFIC_OVERTAKE_LOOKAHEAD &&
-          car.desiredSpeed >= ahead.other.desiredSpeed + 9) continue;
+      if (ahead && ahead.gap < lookahead &&
+          car.desiredSpeed >= ahead.other.desiredSpeed + advantage) continue;
     }
     choices.set(car.residentId, destination);
     car.changingTo = destination; // reserve both lanes for subsequent decisions
@@ -300,7 +310,8 @@ export function advanceTraffic(
   const moves = ordered.map((_,i) => {
     const unconstrained = desired[i]*dt;
     if(leaders[i].index<0)return unconstrained;
-    const followingLimit=Math.max(0,(leaders[i].gap-TRAFFIC_MIN_GAP)/TRAFFIC_HEADWAY);
+    const headway = Math.max(0.35, ordered[i].driver?.headwaySeconds ?? TRAFFIC_HEADWAY);
+    const followingLimit=Math.max(0,(leaders[i].gap-TRAFFIC_MIN_GAP)/headway);
     return Math.min(unconstrained,followingLimit*dt);
   });
   // Propagate braking through each lane (including cars changing lanes).

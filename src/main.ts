@@ -6,6 +6,7 @@ import { store } from './game/state';
 import { CARE_LEVELS, careName, careDescription, modelEffects, normalizedCare,
   UPKEEP_INTERVAL_SECONDS, type CareLevel } from './game/economy';
 import { householdProfile, moodClass, moodName } from './game/households';
+import { drivingProfile } from './game/driving';
 import { environmentLabel, type EnvironmentKind } from './game/environment';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCareDescription } from './game/bins';
 import { householdActionPair, type HouseholdActionId } from './game/behaviors';
@@ -199,7 +200,8 @@ function renderHouseholdDetail(): void {
       '<strong class="household-irritation"></strong></div>' +
       '<div class="household-meter"><span class="household-meter-fill"></span></div>' +
       '<dl><dt>They appreciate</dt><dd>' + profile.feelsAtHomeWith + '</dd>' +
-      '<dt>They find difficult</dt><dd>' + profile.findsDifficult + '</dd></dl>' +
+      '<dt>They find difficult</dt><dd>' + profile.findsDifficult + '</dd>' +
+      '<dt>Behind the wheel</dt><dd>' + drivingProfile(id).roadHabit + '</dd></dl>' +
       '<div class="family-actions"><span class="eyebrow">HABITS ON THE ROAD</span>' +
       '<span class="family-action-positive">✿ ' + householdActionPair(id).helpful.label + '</span>' +
       '<span class="family-action-negative">◇ ' + householdActionPair(id).troublesome.label + '</span>' +

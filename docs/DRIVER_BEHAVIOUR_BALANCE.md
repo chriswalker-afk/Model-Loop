@@ -13,7 +13,7 @@ permanent upgrades unchanged.
 | East / west difficult bends | +0.18 / +0.14 irritation per tile | Keep local danger distinct from uniform background pressure |
 | Behaviour opportunity | 38% (was 44%) | Reduce clusters of unrelated environmental animations and overfull roadside strips |
 | Cooldown after an act | 52 simulated seconds (was 45) | Discourage repeated acts by one family across consecutive short circuits |
-| Incidental wrapper after a troublesome act | 18% (was 22%) | Keep bins relevant without turning every inconvenience into a litter incident |
+| Incidental wrapper after a troublesome act | 18% (was 22%) in Pass 5; **retired in Pass 6A** | The following personality pass now requires packaging to have an actual source; picnics are due in 6B |
 | Ordinary temporary car stop | 2.8–4 simulated seconds | A real jam can develop but should not dominate an entire circuit |
 | Road-stop cooldown | 68s per driver, 18s globally | Avoid back-to-back stoppages with no recovery opportunity |
 | Irritation per second lost in a queue | 0.36 × temperament, or 0.20 near guidance | Reward helpful interventions without giving queue time a direct monetary penalty |

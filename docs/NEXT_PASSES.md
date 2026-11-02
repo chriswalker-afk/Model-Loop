@@ -1,5 +1,26 @@
 # The Generational Cycle — Next passes
 
+## Driver personalities and activity roadmap (November 2026)
+
+**Pass 6A — implemented on the dedicated driver-personality branch:** six
+motivation-consistent driving profiles, bend-aware speeds, distinct headways
+and safe overtaking margins; Finches scout a clear route instead of offering
+an implausible charitable gap, Wards alone help shorten real stops; all
+twelve actions have authored after-remarks. Random wrappers from unrelated
+incidents have been retired.
+
+**Next: 6B — real activities and consequences.** Add visible, staged picnics,
+working lunches/deliveries, scenic pauses and community gatherings with
+their own cleanup, rubbish generation, bin catchment, and bounded duration.
+
+Then **6C — accidents and restoration** (rare impacts, model condition,
+paid repair and the Hales' genuine restoration role), followed by
+**6D — interactions and balance** (household response chains, long-run
+balance, legible notices and regression checks).
+
+See [Pass 6A design and parameters](DRIVER_PERSONALITIES_PASS6A.md).
+The wider era, workshop and roguelite plans below remain in scope.
+
 ## Driver Behaviour system status (November 2026)
 
 Passes 1–5 of the living-environment system are implemented:
