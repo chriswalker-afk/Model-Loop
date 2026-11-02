@@ -1,4 +1,5 @@
 import { SeededRandom } from './environment';
+import { VINTAGE_BALANCE } from './balance';
 import type { Cell } from './config';
 
 export type CarPhase = 'driving' | 'returning' | 'at-home' | 'departing';
@@ -50,8 +51,8 @@ export function stepCarCycle(
 export const TRAFFIC_MIN_GAP = 38; // World pixels, a little longer than a vintage car.
 export const TRAFFIC_MERGE_GAP = 58;
 export const TRAFFIC_HEADWAY = 0.55; // Seconds of following space above the bumper gap.
-export const TRAFFIC_STOP_COOLDOWN = 65;
-export const TRAFFIC_GLOBAL_STOP_GAP = 15;
+export const TRAFFIC_STOP_COOLDOWN = VINTAGE_BALANCE.stopPersonalCooldownSeconds;
+export const TRAFFIC_GLOBAL_STOP_GAP = VINTAGE_BALANCE.stopGlobalCooldownSeconds;
 
 export interface RoadVehicle {
   residentId: number;
@@ -214,7 +215,9 @@ export class RoadTraffic {
     const kind:TrafficIncidentKind=residentId===1?'admiring':
       residentId===3?'chatting':'hesitating';
     const seconds=Math.max(1,Math.min(6,duration ??
-      (kind==='admiring'?4.2:kind==='chatting'?4.5:3)));
+      (kind==='admiring'?VINTAGE_BALANCE.stopAdmireSeconds:
+        kind==='chatting'?VINTAGE_BALANCE.stopChatSeconds:
+          VINTAGE_BALANCE.stopHesitateSeconds)));
     const message=kind==='admiring'
       ? 'The Bells have stopped to take in the view. Traffic is slowing behind them.'
       : kind==='chatting'

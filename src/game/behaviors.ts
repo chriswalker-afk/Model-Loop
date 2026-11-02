@@ -1,6 +1,7 @@
 import { EFFECT_RADIUS, HOMES, manhattanDistance, type Cell, type ModelId } from './config';
 import { carePreferenceScale, normalizedCare, type CareLevel } from './economy';
 import { SeededRandom, type EnvironmentKind } from './environment';
+import { VINTAGE_BALANCE } from './balance';
 
 /**
  * Every family has two sides. Display the ordinary actions, never psychological
@@ -164,8 +165,8 @@ export const MODEL_BEHAVIOUR_MODIFIERS: readonly ModelBehaviourModifier[] = [
     reason:'The Marshes are encouraged to keep nearby places tidy.' }
 ];
 
-export const BEHAVIOUR_OPPORTUNITY_CHANCE = 0.44;
-export const BEHAVIOUR_COOLDOWN_SECONDS = 45;
+export const BEHAVIOUR_OPPORTUNITY_CHANCE = VINTAGE_BALANCE.behaviourOpportunityChance;
+export const BEHAVIOUR_COOLDOWN_SECONDS = VINTAGE_BALANCE.behaviourCooldownSeconds;
 export const BEHAVIOUR_MAX_HISTORY = 12;
 
 export interface BehaviourOdds {
@@ -174,6 +175,8 @@ export interface BehaviourOdds {
   troublesomeChance: number;
 }
 export interface BehaviourReport {
+  /** Monotonically increasing per run: scene feedback never repeats old acts. */
+  sequence: number;
   residentId: number;
   action: HouseholdActionId;
   tone: BehaviourTone;
@@ -199,7 +202,7 @@ export function behaviourOdds(
   placements:readonly NearbyMiniature[]
 ): BehaviourOdds {
   let helpfulChance=irritation>=72?.30:irritation>=45?.50:.70;
-  let eventChance=BEHAVIOUR_OPPORTUNITY_CHANCE;
+  let eventChance: number = BEHAVIOUR_OPPORTUNITY_CHANCE;
   const nearby=placements.filter(item=>manhattanDistance(item,cell)<=EFFECT_RADIUS);
   for(const item of nearby){
     const care=carePreferenceScale(normalizedCare(item.care));

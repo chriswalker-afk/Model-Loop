@@ -4,6 +4,7 @@ import { store, type JourneyReaction } from './state';
 import { normalizedCare } from './economy';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
+import { householdActionPair, type BehaviourReport } from './behaviors';
 import {
   HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, advanceTraffic, canReserveRoad,
   newCarCycle, stepCarCycle, type CarCycle, type RoadVehicle
@@ -43,6 +44,8 @@ export class TownScene extends Scene {
   private trafficLayer!: Phaser.GameObjects.Graphics;
   private trafficLabel!: Phaser.GameObjects.Text;
   private lastStopId = 0;
+  private lastBehaviourSequence = 0;
+  private feedbackChips: Phaser.GameObjects.Text[] = [];
   private lastPlacementCount = 0;
   private cars: Car[] = [];
 
@@ -70,6 +73,7 @@ export class TownScene extends Scene {
 
     this.lastPlacementCount = store.placements.length;
     this.observedEnvironment = store.environment;
+    this.lastBehaviourSequence = store.latestBehaviourReport?.sequence ?? 0;
     this.drawDynamic();
     const unsubscribe = store.subscribe(() => {
       if (this.observedEnvironment !== store.environment) {
@@ -81,6 +85,11 @@ export class TownScene extends Scene {
       if (environmentalEvent && environmentalEvent.effectId !== this.lastEnvironmentalEventId) {
         this.lastEnvironmentalEventId = environmentalEvent.effectId;
         this.animateEnvironmentEvent(environmentalEvent);
+      }
+      const action = store.latestBehaviourReport;
+      if (action && action.sequence !== this.lastBehaviourSequence) {
+        this.lastBehaviourSequence = action.sequence;
+        this.animateHouseholdAction(action);
       }
       if (store.placements.length > this.lastPlacementCount && store.phase === 'playing') {
         const latest = store.placements[store.placements.length - 1];
@@ -370,9 +379,51 @@ export class TownScene extends Scene {
     }
   }
 
+  /**
+   * Decorative tweens respect system motion preferences. Circulating cars
+   * still move because motion is integral to the game; small effects do not.
+   */
+  private reduceMotion(): boolean {
+    return typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  private animateHouseholdAction(action: BehaviourReport): void {
+    const point = worldPoint(action.cell);
+    const pair = householdActionPair(action.residentId);
+    const label = action.action === pair.helpful.id ? pair.helpful.label :
+      pair.troublesome.label;
+    const tint = action.tone === 'helpful' ? '#b5dbc1' : '#e4b894';
+    // Brief descriptive chip; never more than three on the board at a time.
+    const chip = this.add.text(point.x, point.y - 22,
+      (action.tone === 'helpful' ? '+ ' : '! ') + label, {
+        fontFamily: 'Georgia, serif', fontSize: '11px', color: tint,
+        backgroundColor: '#131c16',
+        padding: { x: 6, y: 4 }
+      }).setOrigin(0.5).setDepth(47).setAlpha(0.98);
+    this.feedbackChips.push(chip);
+    while (this.feedbackChips.length > 3) this.feedbackChips.shift()?.destroy();
+    const dispose = () => {
+      chip.destroy();
+      this.feedbackChips = this.feedbackChips.filter(item => item !== chip);
+    };
+    if (this.reduceMotion()) {
+      this.time.delayedCall(850, dispose);
+    } else {
+      this.tweens.add({
+        targets:chip, y:point.y - 36, alpha:0,
+        delay:500, duration:1000, ease:'Sine.Out', onComplete:dispose
+      });
+    }
+  }
+
   private animatePlacement(point: { x: number; y: number }): void {
     const circle = this.add.circle(point.x, point.y, 13, palette.mint, 0.13)
       .setStrokeStyle(2, palette.mint, 0.95).setDepth(12);
+    if (this.reduceMotion()) {
+      this.time.delayedCall(500, () => circle.destroy());
+      return;
+    }
     this.tweens.add({
       targets: circle,
       scaleX: 2.4,
@@ -494,10 +545,28 @@ export class TownScene extends Scene {
       helpful ? palette.mint : palette.gold, 0.12)
       .setStrokeStyle(1.8, helpful ? palette.mint : palette.gold, 0.82)
       .setDepth(25);
-    this.tweens.add({
-      targets: ripple, scale: 2.9, alpha: 0, duration: 900,
-      ease: 'Sine.Out', onComplete: () => ripple.destroy()
-    });
+    if (this.reduceMotion()) {
+      this.time.delayedCall(700, () => ripple.destroy());
+    } else {
+      this.tweens.add({
+        targets: ripple, scale: 2.9, alpha: 0, duration: 900,
+        ease: 'Sine.Out', onComplete: () => ripple.destroy()
+      });
+    }
+    if (event.outcome === 'captured' || event.outcome === 'overflow') {
+      const mark = this.add.text(point.x,point.y-20,
+        event.outcome === 'captured' ? '+1 IN BIN' : 'BIN FULL', {
+          fontFamily:'Georgia, serif',fontSize:'10px',
+          color:event.outcome === 'captured'?'#c3dfbb':'#e5af9e',
+          backgroundColor:'#131c16',padding:{x:4,y:3}
+        }).setOrigin(0.5).setDepth(46);
+      if (this.reduceMotion()) {
+        this.time.delayedCall(850,()=>mark.destroy());
+      } else {
+        this.tweens.add({targets:mark,alpha:0,y:mark.y-13,delay:450,
+          duration:700,onComplete:()=>mark.destroy()});
+      }
+    }
   }
 
   private drawDynamic(): void {
@@ -621,15 +690,15 @@ export class TownScene extends Scene {
       color: '#e5e4d7'
     }).setOrigin(0.5);
     bubble.add([background, label]);
-    this.tweens.add({
-      targets: bubble,
-      y: bubble.y - 16,
-      alpha: 0,
-      delay: 1150,
-      duration: 1200,
-      ease: 'Sine.Out',
-      onComplete: () => bubble.destroy()
-    });
+    if (this.reduceMotion()) {
+      this.time.delayedCall(1700,()=>bubble.destroy());
+    } else {
+      this.tweens.add({
+        targets: bubble, y: bubble.y - 16, alpha: 0,
+        delay: 1150, duration: 1200, ease: 'Sine.Out',
+        onComplete: () => bubble.destroy()
+      });
+    }
   }
 
   private showLapCoins(car: Car, earned: number): void {
@@ -651,14 +720,14 @@ export class TownScene extends Scene {
       strokeThickness: 3
     }).setOrigin(0, 0.5);
     bubble.add([ink, amount]);
-    this.tweens.add({
-      targets: bubble,
-      y: y - 43,
-      alpha: 0,
-      duration: 1700,
-      ease: 'Cubic.Out',
-      onComplete: () => bubble.destroy()
-    });
+    if (this.reduceMotion()) {
+      this.time.delayedCall(850,()=>bubble.destroy());
+    } else {
+      this.tweens.add({
+        targets: bubble, y: y - 43, alpha: 0, duration: 1700,
+        ease: 'Cubic.Out', onComplete: () => bubble.destroy()
+      });
+    }
   }
 
   /**
@@ -824,10 +893,14 @@ export class TownScene extends Scene {
         const spot = worldPoint(stop.cell);
         const pulse = this.add.circle(spot.x, spot.y, 9, palette.gold, 0.11)
           .setStrokeStyle(1.8, palette.gold, 0.78).setDepth(24);
-        this.tweens.add({
-          targets:pulse, scale:2.8, alpha:0, duration:800,
-          onComplete:() => pulse.destroy()
-        });
+        if (this.reduceMotion()) {
+          this.time.delayedCall(650,()=>pulse.destroy());
+        } else {
+          this.tweens.add({
+            targets:pulse, scale:2.8, alpha:0, duration:800,
+            onComplete:() => pulse.destroy()
+          });
+        }
       }
     } else {
       this.trafficLabel.setVisible(false);

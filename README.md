@@ -90,6 +90,28 @@ tap positions and placement previews continue to match visible squares after
 the browser is resized or the device rotated. No manual zoom or settings
 change is required.
 
+## Living Environment finishing pass (Driver Behaviour Pass 5)
+
+The six-family environment now uses centrally documented Vintage pacing:
+fewer rapid incidents, slightly gentler background irritation and enough
+recovery time after traffic stoppages to make player responses meaningful.
+The [balance and quality audit](docs/DRIVER_BEHAVIOUR_BALANCE.md) records
+the changes and describes longer seeded trials using the actual game
+state, traffic and lap/maintenance economy.
+
+Small on-board labels show where a family acted. Bin catches and overflow
+have distinct short text cues, and important incidents stay in the
+footer long enough to read. A dedicated screen-reader status reports
+significant happenings without reading every quick Income or tile update;
+nonessential animations respect reduced-motion preferences.
+
+The **Family Workshop** now has optional *From the workbench* notes
+written at three genuine Progress milestones and a collapsible ledger
+of completed laps, total money earned, maintenance paid, incidents and
+litter collected. These preserve subtle father–son stories without
+explaining the parallels or offering rewards for creating avoidable
+damage. Nothing extra is permanently on screen.
+
 ## The six household habits (Driver Behaviour Pass 4)
 
 The Finches, Bells, Millers, Marshes, Hales and Wards now each have a
