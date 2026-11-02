@@ -5,6 +5,7 @@ import { normalizedCare } from './economy';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { householdActionPair, type BehaviourReport } from './behaviors';
+import { bendSpeedMultiplier, drivingProfile, type DrivingProfile } from './driving';
 import {
   HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, TRAFFIC_LANE_CHANGE_SECONDS,
   TRAFFIC_LEFT_LANE_OFFSET, TRAFFIC_PASSING_LANE_OFFSET, advanceTraffic,
@@ -21,6 +22,7 @@ interface Car {
   tileIndex: number;
   speed: number;
   speedFactor: number;
+  driver: DrivingProfile;
   lane: RoadLane;
   changingTo: RoadLane | null;
   laneChangeElapsed: number;
@@ -271,6 +273,7 @@ export class TownScene extends Scene {
 
   private createCar(residentId: number, index: number): Car {
     const home = HOMES[index];
+    const driver = drivingProfile(residentId);
     const container = this.add.container(0, 0);
     const homeCell = worldPoint(home);
     const startIndex = ROAD_CELLS.findIndex(cell => manhattanDistance(cell, home) === 1);
@@ -312,8 +315,9 @@ export class TownScene extends Scene {
       startIndex,
       cycle: newCarCycle(),
       tileIndex: -1,
-      speed: 85 + index * 4,
+      speed: driver.cruiseSpeed,
       speedFactor: 1,
+      driver,
       lane: 'left',
       changingTo: null,
       laneChangeElapsed: 0,
@@ -493,7 +497,7 @@ export class TownScene extends Scene {
         g.lineStyle(1.1, palette.chalk, 0.5);
         g.strokeCircle(x + 16, y - 14, 4);
       } else if (effect.kind === 'courtesy') {
-        // Two soft chevrons show that the road is being shared.
+        // The Finches' lightly etched path marks a smooth way through a bend.
         g.lineStyle(2.1, palette.mint, 0.88);
         g.lineBetween(x - 11, y - 5, x - 2, y);
         g.lineBetween(x - 2, y, x - 11, y + 5);
@@ -763,7 +767,10 @@ export class TownScene extends Scene {
         residentId: car.residentId,
         phase: car.cycle.phase,
         position: (car.startIndex * BOARD.tile + car.cycle.distance) % length,
-        speed: car.speed * car.speedFactor,
+        speed: car.speed * car.speedFactor * bendSpeedMultiplier(
+          car.startIndex * BOARD.tile + car.cycle.distance, car.driver),
+        cruiseSpeed: car.driver.cruiseSpeed,
+        headwaySeconds: car.driver.headwaySeconds,
         travelled: car.cycle.distance,
         lane: car.lane,
         changingTo: car.changingTo,
@@ -799,8 +806,8 @@ export class TownScene extends Scene {
           desiredSpeed: store.traffic.shouldStop(car.residentId) ||
             (car.lane === 'passing' &&
               passingLaneBlockedAhead(position, vergeObstructions, 30))
-            ? 0 : car.speed * car.speedFactor,
-          lane: car.lane, changingTo: car.changingTo
+            ? 0 : car.speed * car.speedFactor * bendSpeedMultiplier(position, car.driver),
+          lane: car.lane, changingTo: car.changingTo, driver: car.driver
         });
       } else if (car.cycle.phase === 'departing') {
         vehicles.push({
