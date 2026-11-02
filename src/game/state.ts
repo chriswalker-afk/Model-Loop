@@ -255,7 +255,7 @@ export class GameStore {
     if (placed.id === 'bin') {
       const interval = binCollectionInterval(care);
       placed.nextCollectionAt = interval === null ? undefined
-        : Math.min(placed.nextCollectionAt ?? Infinity, this.clockSeconds + interval);
+        : this.clockSeconds + interval;
     }
     const price = modelEffects(placed.id, care).upkeep;
     this.notice = this.getModel(placed.id).name + ': ' + careName(care) +
