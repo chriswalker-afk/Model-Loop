@@ -420,6 +420,16 @@ export function scenerySvg(variant:SceneryVariant):string {
     case 'oak-c':return oakSvg(2);
   }
 }
+export const sceneryDimensions: Record<SceneryVariant,{width:number;height:number}> = {
+  'clock-hall': {width:180,height:180},
+  'garden-fountain': {width:118,height:94},
+  'park-notice': {width:105,height:107},
+  'bandstand': {width:140,height:132},
+  'oak-a': {width:136,height:128},
+  'oak-b': {width:136,height:128},
+  'oak-c': {width:136,height:128}
+};
+
 export const carTextureKey=(index:number):string=>'vintage-car-'+index;
 export const houseTextureKey=(index:number):string=>'vintage-house-'+index;
 export const sceneryTextureKey=(variant:SceneryVariant):string=>'vintage-scenery-'+variant;
