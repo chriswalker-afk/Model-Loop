@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { BOARD, EFFECT_RADIUS, HOMES, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
 import { store, type JourneyReaction } from './state';
 import { normalizedCare } from './economy';
+import { type EnvironmentalEffect, type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { HOME_TRAVEL_SECONDS, newCarCycle, stepCarCycle, type CarCycle } from './traffic';
 
 interface Car {
@@ -27,6 +28,9 @@ const palette = {
 
 export class TownScene extends Scene {
   private modelLayer!: Phaser.GameObjects.Graphics;
+  private environmentLayer!: Phaser.GameObjects.Graphics;
+  private lastEnvironmentalEventId = 0;
+  private observedEnvironment: LivingEnvironment | null = null;
   private homeLayer!: Phaser.GameObjects.Graphics;
   private highlightLayer!: Phaser.GameObjects.Graphics;
   private influenceLayer!: Phaser.GameObjects.Graphics;
@@ -42,6 +46,8 @@ export class TownScene extends Scene {
     this.drawScenery();
     this.drawRoad();
 
+    // Roadside changes are drawn above the road and below cars and models.
+    this.environmentLayer = this.add.graphics();
     this.modelLayer = this.add.graphics();
     this.homeLayer = this.add.graphics();
     this.influenceLayer = this.add.graphics();
@@ -50,9 +56,19 @@ export class TownScene extends Scene {
     this.cars = HOMES.map((home, index) => this.createCar(home.id, index));
 
     this.lastPlacementCount = store.placements.length;
+    this.observedEnvironment = store.environment;
     this.drawDynamic();
     const unsubscribe = store.subscribe(() => {
+      if (this.observedEnvironment !== store.environment) {
+        this.observedEnvironment = store.environment;
+        this.lastEnvironmentalEventId = 0;
+      }
       this.drawDynamic();
+      const environmentalEvent = store.lastEnvironmentEvent;
+      if (environmentalEvent && environmentalEvent.effectId !== this.lastEnvironmentalEventId) {
+        this.lastEnvironmentalEventId = environmentalEvent.effectId;
+        this.animateEnvironmentEvent(environmentalEvent);
+      }
       if (store.placements.length > this.lastPlacementCount && store.phase === 'playing') {
         const latest = store.placements[store.placements.length - 1];
         this.animatePlacement(worldPoint(latest));
@@ -334,8 +350,70 @@ export class TownScene extends Scene {
     });
   }
 
+  private drawEnvironment(): void {
+    const g = this.environmentLayer;
+    g.clear();
+    for (const effect of store.environment.effects) {
+      const { x, y } = worldPoint(effect.cell);
+      const variant = effect.id % 3;
+      if (effect.kind === 'litter') {
+        // Tiny scattered envelopes and wrappers, on the grass rather than on cars.
+        g.fillStyle(0xc6c2b0, 0.8);
+        g.fillTriangle(x - 13, y + 3, x - 5, y - 1 - variant, x - 4, y + 7);
+        g.fillStyle(0xb5aa92, 0.8);
+        g.fillRect(x + 4, y - 6, 9, 5);
+        g.lineStyle(1.1, 0xeee4cb, 0.72);
+        g.lineBetween(x + 4, y - 6, x + 13, y - 1);
+        g.lineBetween(x - 1, y + 9, x + 6, y + 11);
+      } else if (effect.kind === 'flowers') {
+        const offset = variant * 2;
+        g.lineStyle(1.5, 0x99bca4, 0.92);
+        g.lineBetween(x - 8, y + 12, x - 8, y - 2 - offset);
+        g.lineBetween(x + 6, y + 11, x + 6, y - 5);
+        g.lineBetween(x - 8, y + 7, x - 13, y + 1);
+        g.lineBetween(x + 6, y + 6, x + 12, y + 2);
+        const petals = [
+          [x - 8, y - 4 - offset], [x + 6, y - 8],
+          [x + 13, y - 1]
+        ];
+        for (const [px, py] of petals) {
+          g.fillStyle(0xd3c8a5, 0.95);
+          g.fillCircle(px - 3, py, 3);
+          g.fillCircle(px + 3, py, 3);
+          g.fillCircle(px, py - 3, 3);
+          g.fillCircle(px, py + 3, 3);
+          g.fillStyle(palette.gold, 1);
+          g.fillCircle(px, py, 1.8);
+        }
+      } else {
+        // Curved tyre marks on the asphalt. A faded accent indicates a safety hazard.
+        g.lineStyle(3, palette.danger, 0.63);
+        g.lineBetween(x - 18, y - 7, x - 8, y - 11);
+        g.lineBetween(x - 8, y - 11, x + 11, y - 6);
+        g.lineBetween(x - 18, y + 2, x - 8, y - 2);
+        g.lineBetween(x - 8, y - 2, x + 11, y + 3);
+        g.lineStyle(1.1, palette.chalk, 0.5);
+        g.strokeCircle(x + 16, y - 14, 4);
+      }
+    }
+  }
+
+  private animateEnvironmentEvent(event: EnvironmentalEvent): void {
+    const point = worldPoint(event.cell);
+    const helpful = event.tone === 'helpful';
+    const ripple = this.add.circle(point.x, point.y, 7,
+      helpful ? palette.mint : palette.gold, 0.12)
+      .setStrokeStyle(1.8, helpful ? palette.mint : palette.gold, 0.82)
+      .setDepth(25);
+    this.tweens.add({
+      targets: ripple, scale: 2.9, alpha: 0, duration: 900,
+      ease: 'Sine.Out', onComplete: () => ripple.destroy()
+    });
+  }
+
   private drawDynamic(): void {
     if (!this.modelLayer) return;
+    this.drawEnvironment();
     this.modelLayer.clear();
     this.homeLayer.clear();
     this.influenceLayer.clear();
