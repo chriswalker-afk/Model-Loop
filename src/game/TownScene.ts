@@ -192,11 +192,13 @@ export class TownScene extends Scene {
       g.closePath();
       g.strokePath();
     };
-    g.lineStyle(50, 0xa0a39a, 0.85);
+    // A slightly broader miniature road accommodates two car widths: the
+    // left-hand running lane and the occasional right-hand passing manoeuvre.
+    g.lineStyle(56, 0xa0a39a, 0.85);
     trace();
-    g.lineStyle(46, 0x111716, 1);
+    g.lineStyle(52, 0x111716, 1);
     trace();
-    g.lineStyle(39, palette.asphalt, 1);
+    g.lineStyle(46, palette.asphalt, 1);
     trace();
     g.lineStyle(1.5, 0xd5d0bd, 0.65);
     for (let i = 0; i < points.length; i += 1) {
