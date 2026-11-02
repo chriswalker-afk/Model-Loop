@@ -108,7 +108,9 @@ export class RoadsideAccidentEngine {
   ): RoadsideIncident | null {
     if (!isRoad(road.x,road.y) || !leftVergeContact(road,model) ||
       !HOMES.some(home=>home.id===residentId) ||
-      modelCondition(model.condition)==='broken')return null;
+      modelCondition(model.condition)==='broken' ||
+      this.active.length>=MAX_ACTIVE_ROADSIDE_INCIDENTS ||
+      this.active.some(incident=>keyOf(incident.model)===keyOf(model)))return null;
     return this.record(residentId,road,model,now,90,severity);
   }
   private record(
@@ -156,6 +158,11 @@ export class RoadsideAccidentEngine {
     if(previous){previous.wardHelped=true;previous.endsAt=event.endsAt;}
     this.revision++;
     return event;
+  }
+  clearActive(): void {
+    if(!this.active.length)return;
+    this.active.length=0;
+    this.revision++;
   }
   atRoad(road: Cell): RoadsideIncident[] {
     return this.active.filter(event => manhattanDistance(road,event.road)<=1);
