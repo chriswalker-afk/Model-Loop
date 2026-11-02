@@ -1523,3 +1523,27 @@ body { overflow: hidden; }
     padding-bottom: calc(var(--model-dock-height) + max(18px, env(safe-area-inset-bottom)));
   }
 }
+
+
+/* Phone pan alignment: a child wider than its parent must start at the left
+   edge, not in the middle of a CSS grid (which yields negative coordinates). */
+@media (max-width: 700px) {
+  .town-pan {
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+  }
+  #game-container {
+    flex: 0 0 max(720px, 150vw);
+    width: max(720px, 150vw);
+    min-width: max(720px, 150vw);
+    margin: 0;
+    justify-self: start;
+    align-self: flex-start;
+  }
+  #game-container canvas {
+    display: block;
+    margin: 0;
+    transform: none;
+  }
+}
