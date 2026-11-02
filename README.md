@@ -110,6 +110,25 @@ continue to depend on actual movement. New regression tests cover lane
 continuity, overtaking a stopped car, blocked passes, safe merging and
 wrap-around traffic.
 
+## Living neighbourhood stories (Pass 6D)
+
+The first generation now remembers **small chains of real events**. A
+roadside accident can prompt the Wards to inspect the corner and the
+Hales to restore the damaged model, while discarded picnic packaging
+may lead the Marshes to clean up. The Bells' streetside drawings can
+also be noticed by another household. No family teleports: a response
+is possible only when their actual car passes the place, with seeded,
+bounded opportunities.
+
+An incident also makes the driver briefly more cautious. Responsive
+acts earn no free coins or Progress and never replace a player's paid
+repair decisions. Open a household's **Shared moments** or click an
+affected square to read the optional local story; the regular HUD remains
+unchanged.
+
+See [Pass 6D — neighbourhood interactions](docs/NEIGHBOURHOOD_STORIES_PASS6D.md)
+for the event chains, caps, risk model and follow-up milestone.
+
 ## Physical accidents and restorations (Pass 6C)
 
 Cars driving on the left can occasionally **clip a real purchased roadside
