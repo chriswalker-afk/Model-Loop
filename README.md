@@ -82,6 +82,24 @@ tap positions and placement previews continue to match visible squares after
 the browser is resized or the device rotated. No manual zoom or settings
 change is required.
 
+## Compact landscape windows
+
+A short but fairly wide browser window (for example **1266 × 548**) is
+treated differently from either a full-size desktop or a phone. The town
+occupies the main area, the model-kit collection becomes a **scrollable
+vertical shelf on the right**, and the household list sits beneath the town.
+Kits are arranged as legible horizontal display boxes with large miniature
+windows rather than tiny cards compressed into a short bottom dock.
+
+The empty tile inspector is hidden in this layout; it appears automatically
+when a square is inspected or a model needs maintenance. Cars, prices,
+progress and resident preferences are unchanged. This layout is selected
+automatically for browser viewports at least 900px wide and 500–850px tall.
+
+On wider/taller screens the original horizontal boxed-model shelf remains;
+on phones the road can still be panned horizontally. A resize or rotation
+reflows the UI without restarting the run.
+
 ## Money, maintenance and traffic
 
 **Coins** (the balance in the top-right corner) are available savings. **Income**
