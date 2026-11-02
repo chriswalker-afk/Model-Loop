@@ -15,17 +15,15 @@ The first vertical slice has three actions:
 | Bells | Care for a corner | Flowers on verge | +2 Beauty and slightly calmer journeys nearby |
 | Millers | Discard packaging | Small paper litter on verge | −1 Beauty and slightly more irritation nearby |
 
-This is deliberately **not** the finished twelve-behaviour personality
-catalogue. Marshes, Hales and Wards retain their existing town preferences;
-their new helpful and troublesome actions follow in Pass 4.
+This was the initial **Pass 1** vertical slice. The full set of twelve
+actions is now implemented in Pass 4 (see below).
 
 ## Behaviour engine
 
 - Seeded linear-congruential random number generator. Re-running an event
   scenario with the same seed and actions produces the same sequence.
-- Each household has a single event opportunity at a random but deterministic
-  point in each circuit. The default event chance is 35%, modulated by mood
-  and whether the behaviour is helpful or troublesome.
+- Pass 1 originally used an environmental chance of 35%. Pass 4 now uses
+  a shared 44%-baseline behavioural opportunity across environment and traffic.
 - Per-driver cooldown: 45 simulated seconds after a *successful* event.
 - No more than 16 environmental patches globally; no more than 6 litter
   patches, 6 flower patches or 3 skid patches; a maximum of 2 per verge cell.
@@ -148,11 +146,71 @@ browser verification. Regression tests check collisions/wrap, queue
 formation and recovery, driveway merge safety, 1-paid-lap rules,
 simulated-time pause and compact-screen feedback.
 
-## What comes next
+## Pass 4 — All six households have two-sided agency (implemented)
 
-**Pass 4 — Household Behaviour Profiles:** The complete set of one positive
-and one troublesome action per family, weighted by mood and model context.
-Preserve subtle family-workshop parallels without psychological labels.
+Every household now has **one helpful and one troublesome action**. The
+driver gets **one** seeded opportunity on each circuit, replacing the old
+independent environmental and traffic rolls. There is a 44% baseline chance
+of an action when an opportunity is reached (the exact result is random but
+reproducible using the same seed); successful acts trigger a 45-second
+simulated-time cooldown.
+
+| Household | Helpful | Troublesome |
+| --- | --- | --- |
+| Finches | Make space to let others pass; can shorten a jam | Take a corner too quickly and leave noisy tyre scuffs |
+| Bells | Plant little flowers and improve nearby Beauty | Stop to admire a view and hold up traffic |
+| Millers | Mend a worn stretch and clear tyre damage | Discard packaging, caught by an available rubbish bin |
+| Marshes | Tidy a corner and collect litter | Stop to chat, forming a real queue |
+| Hales | Restore an old roadside detail and improve Beauty | Put out a display that slows cars within two tiles |
+| Wards | Guide cars through a difficult section and help clear queues | Hesitate in the road, causing others to brake |
+
+The positive and negative action share the same understandable personal
+motivation without naming a psychological cause. The town changes visibly:
+greenish etched courtesy arrows and guidance markers, mended road patches,
+swept verges, little restored plaques and roadside displays. These share
+the existing capped environment layer; results eventually fade. Cleanup
+removes one *real* damaging effect. Helpful traffic acts can shorten a
+temporary stop, not magically credit lap income.
+
+**Mood sensitivity** operates after an event is possible. The probability
+of a helpful act among incidents is 70% for irritation below 45, 50% from
+45 to 71, and 30% from 72 upward, before local modifications. Even a
+settled household can inconvenience the neighbours; an irritated one can
+still lend a hand. The probability remains bounded (14–86%), while
+the overall event opportunity remains capped (19–64%).
+
+**Placement is a two-sided decision:**
+
+- Speed signs discourage the Finches' hurried turns and the Wards' pauses.
+- Lampposts and police boxes help the Wards feel ready to guide traffic.
+- Trees encourage the Bells' flowers and the Hales' restorations.
+- Benches encourage the Marshes to tidy, *and* to stop for a chat; the Bells
+  similarly admire views more often.
+- Police boxes reduce littering and roadside hold-ups without erasing
+  ordinary household preferences.
+- Bins catch real rubbish from new events and encourage tidying, but can
+  still fill, overflow and need costly servicing.
+
+The influence depends on upkeep: **full / economy / minimal** use the
+same care preference scaling (100% / 60% / 20%) as household model reactions.
+The system calculates a forecast directly from its actual probability
+model; a collapsed "How this miniature changes driver habits" control
+appears during placement previews without adding another permanent HUD.
+
+A resident's notebook shows both possible habits and the most recent
+attributed action, including traffic stops. Debugging the Vite development
+build supports all twelve actions, e.g.:
+
+    __modelLoopDebug.behaviourAction(2, 'mend', 4, 3)
+    __modelLoopDebug.behaviourAction(3, 'tidy', 4, 3)
+    __modelLoopDebug.behaviourAction(3, 'chat', 4, 3)
+    __modelLoopDebug.behaviourAction(4, 'display', 4, 3)
+    __modelLoopDebug.behaviourAction(5, 'guide', 4, 3)
+    __modelLoopDebug.snapshot()
+
+All dev-only controls remain unavailable in the published bundle.
+
+## What comes next
 
 **Pass 5 — Balancing & Narrative Polish:** Event-rate tuning, feedback and
 animations, accessibility, audio restraint, tests against exploits,
