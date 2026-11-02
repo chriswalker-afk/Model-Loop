@@ -2111,3 +2111,47 @@ body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .bin-fill-track > span { transition: none; }
 }
+
+
+/* Pass 3: unobtrusive real-traffic feedback in the existing footer and inspector. */
+.traffic-status {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 5px;
+  white-space: nowrap;
+  border: 1px solid rgba(214,164,127,.7);
+  border-radius: 3px;
+  padding: 4px 6px;
+  background: rgba(94,59,37,.29);
+  color: #e5c7ac;
+  font: 700 10px/1.25 system-ui,sans-serif;
+  letter-spacing: .07em;
+}
+.traffic-status::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #d59c7c;
+}
+.traffic-status[hidden] { display: none; }
+.tile-panel .traffic-tile-note {
+  padding: 7px 0;
+  margin: 7px 0;
+  border-top: 1px solid #796c51;
+  color: #dfbb9c;
+  font: 10px/1.4 system-ui,sans-serif;
+}
+.household-detail .household-traffic-delay {
+  margin: 7px 0 3px;
+  color: #e1bca5;
+  font: 10px/1.35 system-ui,sans-serif;
+}
+.household-traffic-delay[hidden] { display: none; }
+@media (max-width: 700px) {
+  .traffic-status {
+    font-size: 9px;
+    padding: 3px 5px;
+    max-width: 145px;
+  }
+}
