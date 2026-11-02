@@ -110,6 +110,23 @@ continue to depend on actual movement. New regression tests cover lane
 continuity, overtaking a stopped car, blocked passes, safe merging and
 wrap-around traffic.
 
+## Distinct driver personalities (Pass 6A)
+
+Each household now has its own **actual driving profile**: preferred speed,
+cornering pace, following space and willingness to overtake. The Finches
+drive briskly and enjoy finding a clear line through a bend; the Wards
+slow early and only pass when they have generous clearance. The other four
+families have equally individual motives, shown in the optional household
+notebook under **Behind the wheel**. All drivers still obey the same hard
+collision avoidance, left-hand traffic, speed signs and driveway rules.
+
+Household actions now have personal follow-up remarks and better align with
+their motivation. Random wrappers after unrelated stops and skids have been
+removed; until activity-based litter arrives, the Millers' deliveries
+remain the natural source. The [Pass 6A driving/personality guide](docs/DRIVER_PERSONALITIES_PASS6A.md)
+also explains the proposed 6B activities, 6C accidents/repairs and 6D
+interaction/balance work.
+
 ## Living Environment finishing pass (Driver Behaviour Pass 5)
 
 The six-family environment now uses centrally documented Vintage pacing:
