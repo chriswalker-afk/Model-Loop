@@ -119,6 +119,15 @@ export class LivingEnvironment {
     return oldLength !== this.effects.length;
   }
 
+  /** Removes one physical roadside patch without erasing its history. */
+  removeEffect(id: number, kind: EnvironmentKind): boolean {
+    const index = this.effects.findIndex(effect => effect.id === id && effect.kind === kind);
+    if (index < 0) return false;
+    this.effects.splice(index, 1);
+    this.revision++;
+    return true;
+  }
+
   at(cell: Cell, radius = 1): EnvironmentalEffect[] {
     return this.effects.filter(effect => manhattanDistance(effect.cell, cell) <= radius);
   }
