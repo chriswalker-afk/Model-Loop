@@ -3,7 +3,7 @@ import {
   type Cell
 } from './config';
 
-/** First vertical slice: persistent visual consequences, not traffic queues or bins yet. */
+/** Persistent visual consequences, with a litter interception hook for collection. */
 export type EnvironmentKind = 'litter' | 'flowers' | 'skid';
 export type EnvironmentTone = 'helpful' | 'troublesome';
 
@@ -23,7 +23,17 @@ export interface EnvironmentalEvent {
   cell: Cell;
   time: number;
   message: string;
+  /** A captured wrapper never creates a roadside effect; a full bin does. */
+  outcome?: 'captured' | 'overflow';
+  bin?: Cell;
 }
+export interface LitterDiversion {
+  status: 'captured' | 'overflow';
+  bin: Cell;
+}
+export type LitterInterceptor = (
+  roadCell: Cell, residentId: number, now: number
+) => LitterDiversion | null;
 interface ActionRule {
   residentId: number;
   kind: EnvironmentKind;
@@ -142,9 +152,15 @@ export class LivingEnvironment {
    */
   attempt(
     residentId: number, irritation: number, roadCell: Cell, now: number,
-    blocked: readonly Cell[]
+    blocked: readonly Cell[], intercept?: LitterInterceptor
   ): EnvironmentalEvent | null {
-    const rule = ACTIONS.find(action => action.residentId === residentId);
+    // Small incidental rubbish events are possible for any household, while
+    // the Millers remain the specialists. Full positive/negative pairs await Pass 4.
+    const usual = ACTIONS.find(action => action.residentId === residentId);
+    const incidentalLitter = residentId !== 2 && this.rng.next() < 0.12;
+    const rule: ActionRule | undefined = incidentalLitter
+      ? { residentId, kind: 'litter', tone: 'troublesome', cooldownSeconds: 45 }
+      : usual;
     if (!rule || !isRoad(roadCell.x, roadCell.y)) return null;
     const since = now - (this.lastActionAt.get(residentId) ?? -Infinity);
     if (since < rule.cooldownSeconds) return null;
@@ -152,21 +168,47 @@ export class LivingEnvironment {
       ? (irritation < 45 ? 1.15 : irritation >= 72 ? 0.65 : 1)
       : (irritation < 45 ? 0.8 : irritation >= 72 ? 1.5 : 1);
     if (this.rng.next() >= Math.min(0.8, ENVIRONMENT_EVENT_CHANCE * moodScale)) return null;
-    return this.spawn(rule.kind, residentId, roadCell, now, blocked);
+    return this.spawn(rule.kind, residentId, roadCell, now, blocked, intercept);
   }
 
   /** Explicit, reproducible trigger for automated tests and DEV-only tools. */
   force(kind: EnvironmentKind, residentId: number, roadCell: Cell, now: number,
-    blocked: readonly Cell[] = []): EnvironmentalEvent | null {
-    return this.spawn(kind, residentId, roadCell, now, blocked);
+    blocked: readonly Cell[] = [], intercept?: LitterInterceptor): EnvironmentalEvent | null {
+    return this.spawn(kind, residentId, roadCell, now, blocked, intercept);
+  }
+
+  private noteLitter(
+    residentId: number, now: number, diversion: LitterDiversion
+  ): EnvironmentalEvent {
+    const family = HOMES.find(home => home.id === residentId)!.name;
+    const event: EnvironmentalEvent = {
+      effectId: this.nextId++,
+      kind: 'litter', residentId, cell: { ...diversion.bin },
+      bin: { ...diversion.bin }, time: now,
+      tone: diversion.status === 'captured' ? 'helpful' : 'troublesome',
+      outcome: diversion.status,
+      message: diversion.status === 'captured'
+        ? family + ' put packaging into a roadside rubbish bin.'
+        : 'The rubbish bin is overflowing; ' + family + ' left packaging nearby.'
+    };
+    this.lastActionAt.set(residentId, now);
+    this.history.unshift(event);
+    if (this.history.length > MAX_HISTORY) this.history.length = MAX_HISTORY;
+    return event;
   }
 
   private spawn(kind: EnvironmentKind, residentId: number, roadCell: Cell, now: number,
-    blocked: readonly Cell[]): EnvironmentalEvent | null {
-    if (!HOMES.some(home => home.id === residentId)
-      || !isRoad(roadCell.x, roadCell.y)
-      || this.effects.length >= MAX_ENVIRONMENT_EFFECTS
-      || this.effects.filter(effect => effect.kind === kind).length >= MAX_EFFECTS_BY_KIND[kind]) return null;
+    blocked: readonly Cell[], intercept?: LitterInterceptor): EnvironmentalEvent | null {
+    if (!HOMES.some(home => home.id === residentId) || !isRoad(roadCell.x, roadCell.y)) return null;
+    const diversion = kind === 'litter' ? intercept?.(roadCell, residentId, now) : null;
+    if (diversion?.status === 'captured') return this.noteLitter(residentId, now, diversion);
+
+    if (this.effects.length >= MAX_ENVIRONMENT_EFFECTS
+      || this.effects.filter(effect => effect.kind === kind).length >= MAX_EFFECTS_BY_KIND[kind]) {
+      // Even at the sprite cap, overflow is recorded and stays visible on the bin.
+      return diversion?.status === 'overflow'
+        ? this.noteLitter(residentId, now, diversion) : null;
+    }
 
     let cell = roadCell;
     if (kind !== 'skid') {
@@ -184,7 +226,8 @@ export class LivingEnvironment {
         && !this.effects.some(effect => effect.kind === kind &&
           effect.cell.x === candidate.x && effect.cell.y === candidate.y)
       );
-      if (available.length === 0) return null;
+      if (available.length === 0) return diversion?.status === 'overflow'
+        ? this.noteLitter(residentId, now, diversion) : null;
       cell = available[this.rng.int(available.length)];
     } else if (this.effects.some(effect => effect.kind === 'skid'
       && effect.cell.x === cell.x && effect.cell.y === cell.y)) {
@@ -202,7 +245,12 @@ export class LivingEnvironment {
     const event: EnvironmentalEvent = {
       effectId: effect.id, kind, residentId, cell: { ...cell }, time: now,
       tone: kind === 'flowers' ? 'helpful' : 'troublesome',
-      message: noteFor(kind, residentId)
+      message: diversion?.status === 'overflow'
+        ? 'A full rubbish bin has overflowed. ' + noteFor(kind, residentId)
+        : noteFor(kind, residentId),
+      ...(diversion?.status === 'overflow' ? {
+        outcome: 'overflow' as const, bin: { ...diversion.bin }
+      } : {})
     };
     this.history.unshift(event);
     if (this.history.length > MAX_HISTORY) this.history.length = MAX_HISTORY;
