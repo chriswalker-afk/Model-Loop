@@ -731,8 +731,10 @@ export class GameStore {
     } else {
       const kind = action.environmentKind;
       if (!kind) return false;
+      const occupiedVerge = [...this.placements,
+        ...this.activities.active.map(activity => activity.cell)];
       const event = this.environment.force(kind, residentId, road,
-        this.clockSeconds, this.placements, tile => this.interceptLitter(tile));
+        this.clockSeconds, occupiedVerge, tile => this.interceptLitter(tile));
       if (!event) return false;
       effectCell = event.cell;
       if (action.id === 'litter' && event.outcome) {
@@ -815,6 +817,12 @@ export class GameStore {
       tile => this.interceptLitter(tile), activity.cell) : null;
     let outcome: ActivityOutcome = leavesLitter ? 'none' : 'clean';
     let message = definition.finished;
+    if (effect && !event) {
+      // A full environment sprite cap cannot create a ghost piece of litter
+      // or pretend a new roadside improvement has appeared.
+      outcome = 'none';
+      message = resident.name + ' have finished and packed everything away.';
+    }
     if (leavesLitter && event) {
       outcome = event.outcome === 'captured' ? 'captured' :
         event.outcome === 'overflow' ? 'overflow' : 'litter';
