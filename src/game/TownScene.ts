@@ -64,7 +64,11 @@ export class TownScene extends Scene {
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       store.setHovered(this.pointerCell(pointer));
     });
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    // A tap selects a tile; a swipe is reserved for navigating the town.
+    // Placing on pointer-down made mobile panning buy models accidentally.
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      const travelled = Math.hypot(pointer.x - pointer.downX, pointer.y - pointer.downY);
+      if (travelled > 13) return;
       const cell = this.pointerCell(pointer);
       if (cell && store.phase === 'playing' && !store.paused && !store.workshopOpen) {
         store.selectTile(cell);
