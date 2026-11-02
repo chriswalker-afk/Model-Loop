@@ -642,11 +642,15 @@ function renderRunLedger(): string {
   return '<details class="workbench-ledger"><summary>The little town in numbers</summary>' +
     '<dl><dt>Car circuits</dt><dd>' + numbers.completedLaps + '</dd>' +
     '<dt>Earned from circuits</dt><dd>+' + numbers.earnings + ' coins</dd>' +
-    '<dt>Spent on maintenance & collection</dt><dd>−' + numbers.servicing + ' coins</dd>' +
+    '<dt>Spent on care, repairs & collection</dt><dd>−' + numbers.servicing + ' coins</dd>' +
+    '<dt>Of that: repairs</dt><dd>−' + numbers.repairSpending + ' coins</dd>' +
     '<dt>Purchased miniatures</dt><dd>−' + numbers.purchases + ' coins</dd>' +
     '<dt>Helpful / troublesome acts</dt><dd>' + store.ledger.helpfulActions +
       ' / ' + store.ledger.troublesomeActions + '</dd>' +
     '<dt>Packaging caught in bins</dt><dd>' + numbers.capturedPackaging + '</dd>' +
+    '<dt>Roadside impacts</dt><dd>' + numbers.roadsideAccidents + '</dd>' +
+    '<dt>Hale restorations / Ward assists</dt><dd>' +
+      numbers.haleRestorations + ' / ' + numbers.wardAssists + '</dd>' +
     '<dt>Longest traffic queue</dt><dd>' + numbers.peakQueue + ' cars</dd>' +
     '</dl><p class="ledger-hint">These are totals for this run; the Income meter shows ' +
     'only the last 60 seconds.</p></details>';
