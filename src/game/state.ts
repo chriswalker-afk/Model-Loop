@@ -936,6 +936,8 @@ export class GameStore {
   endRun(won: boolean): void {
     if (this.phase !== 'playing') return;
     this.phase = won ? 'complete' : 'lost';
+    // A finished chapter should not leave a frozen family picnic on screen.
+    this.activities.cancelAll();
     this.closingLine = chooseClosingMoment(won, this.ledger, this.closedHomes);
     const reward = won ? 20 + this.occupiedHomes * 2 : 5 + Math.floor(this.progress / 20);
     this.legacy.blueprints += reward;
