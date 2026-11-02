@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { BOARD, HOMES, isOnBoard, ROAD_CELLS, worldPoint, type Cell, type ModelId } from './config';
+import { BOARD, EFFECT_RADIUS, HOMES, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
 import { store } from './state';
 
 interface Car {
@@ -23,6 +23,9 @@ export class TownScene extends Scene {
   private modelLayer!: Phaser.GameObjects.Graphics;
   private homeLayer!: Phaser.GameObjects.Graphics;
   private highlightLayer!: Phaser.GameObjects.Graphics;
+  private influenceLayer!: Phaser.GameObjects.Graphics;
+  private ghostLayer!: Phaser.GameObjects.Graphics;
+  private lastPlacementCount = 0;
   private cars: Car[] = [];
 
   constructor() { super('TownScene'); }
@@ -35,11 +38,21 @@ export class TownScene extends Scene {
 
     this.modelLayer = this.add.graphics();
     this.homeLayer = this.add.graphics();
+    this.influenceLayer = this.add.graphics();
     this.highlightLayer = this.add.graphics();
+    this.ghostLayer = this.add.graphics().setAlpha(0.68);
     this.cars = HOMES.map((home, index) => this.createCar(home.id, index));
 
+    this.lastPlacementCount = store.placements.length;
     this.drawDynamic();
-    const unsubscribe = store.subscribe(() => this.drawDynamic());
+    const unsubscribe = store.subscribe(() => {
+      this.drawDynamic();
+      if (store.placements.length > this.lastPlacementCount && store.phase === 'playing') {
+        const latest = store.placements[store.placements.length - 1];
+        this.animatePlacement(worldPoint(latest));
+      }
+      this.lastPlacementCount = store.placements.length;
+    });
     this.events.once('shutdown', unsubscribe);
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -121,11 +134,7 @@ export class TownScene extends Scene {
 
   private drawScenery(): void {
     const g = this.add.graphics();
-    const plots: Cell[] = [
-      { x: 7, y: 5 }, { x: 6, y: 7 }, { x: 15, y: 7 }, { x: 18, y: 6 },
-      { x: 4, y: 5 }, { x: 22, y: 2 }, { x: 0, y: 10 }, { x: 19, y: 11 },
-      { x: 11, y: 7 }, { x: 10, y: 5 }
-    ];
+    const plots: Cell[] = SCENERY_CELLS.slice(0, 10);
     plots.forEach((cell, i) => {
       const point = worldPoint(cell);
       this.drawTree(g, point.x, point.y, i % 3 === 0 ? 21 : 16);
@@ -258,11 +267,27 @@ export class TownScene extends Scene {
     }
   }
 
+  private animatePlacement(point: { x: number; y: number }): void {
+    const circle = this.add.circle(point.x, point.y, 13, palette.mint, 0.13)
+      .setStrokeStyle(2, palette.mint, 0.95).setDepth(12);
+    this.tweens.add({
+      targets: circle,
+      scaleX: 2.4,
+      scaleY: 2.4,
+      alpha: 0,
+      duration: 550,
+      ease: 'Sine.Out',
+      onComplete: () => circle.destroy()
+    });
+  }
+
   private drawDynamic(): void {
     if (!this.modelLayer) return;
     this.modelLayer.clear();
     this.homeLayer.clear();
+    this.influenceLayer.clear();
     this.highlightLayer.clear();
+    this.ghostLayer.clear();
 
     store.placements.forEach((placed) => {
       const point = worldPoint(placed);
@@ -271,16 +296,59 @@ export class TownScene extends Scene {
     HOMES.forEach((home) => this.drawHouse(this.homeLayer, home));
 
     const cell = store.hovered || store.selected;
-    if (cell && isOnBoard(cell.x, cell.y)) {
-      const x = BOARD.left + cell.x * BOARD.tile;
-      const y = BOARD.top + cell.y * BOARD.tile;
-      const allowed = store.canPlace(cell);
-      const color = store.activeModel ? (allowed ? palette.mint : palette.danger) : palette.gold;
-      this.highlightLayer.fillStyle(color, 0.13);
-      this.highlightLayer.fillRect(x + 2, y + 2, BOARD.tile - 4, BOARD.tile - 4);
-      this.highlightLayer.lineStyle(2.5, color, 0.95);
-      this.highlightLayer.strokeRect(x + 2, y + 2, BOARD.tile - 4, BOARD.tile - 4);
+    if (!cell || !isOnBoard(cell.x, cell.y)) return;
+
+    const preview = store.activeModel && store.phase === 'playing'
+      ? store.previewPlacement(cell, store.activeModel)
+      : null;
+    const color = preview
+      ? preview.allowed ? palette.mint : palette.danger
+      : palette.gold;
+
+    if (preview && preview.canPlace) {
+      // The same Manhattan-radius footprint drives both the visual overlay
+      // and passTile's actual car-irritation calculation.
+      for (let x = cell.x - EFFECT_RADIUS; x <= cell.x + EFFECT_RADIUS; x += 1) {
+        for (let y = cell.y - EFFECT_RADIUS; y <= cell.y + EFFECT_RADIUS; y += 1) {
+          const candidate = { x, y };
+          if (!isOnBoard(x, y) || manhattanDistance(candidate, cell) > EFFECT_RADIUS) continue;
+          this.influenceLayer.fillStyle(preview.allowed ? palette.mint : palette.danger, 0.075);
+          this.influenceLayer.fillRect(
+            BOARD.left + x * BOARD.tile + 2,
+            BOARD.top + y * BOARD.tile + 2,
+            BOARD.tile - 4, BOARD.tile - 4
+          );
+        }
+      }
+      ROAD_CELLS.filter((road) => manhattanDistance(road, cell) <= EFFECT_RADIUS)
+        .forEach((road) => {
+          const point = worldPoint(road);
+          this.influenceLayer.lineStyle(2, palette.gold, preview.allowed ? 0.6 : 0.25);
+          this.influenceLayer.strokeCircle(point.x, point.y, 13);
+        });
+
+      const point = worldPoint(cell);
+      this.ghostLayer.setAlpha(preview.allowed ? 0.78 : 0.35);
+      this.drawModel(this.ghostLayer, point.x, point.y, store.activeModel!);
     }
+
+    const x = BOARD.left + cell.x * BOARD.tile;
+    const y = BOARD.top + cell.y * BOARD.tile;
+    this.highlightLayer.fillStyle(color, 0.12);
+    this.highlightLayer.fillRect(x + 2, y + 2, BOARD.tile - 4, BOARD.tile - 4);
+    this.highlightLayer.lineStyle(2.4, color, 0.94);
+    this.highlightLayer.strokeRect(x + 2, y + 2, BOARD.tile - 4, BOARD.tile - 4);
+    // Four registration marks make the square read as a model-kit placement target.
+    const tick = 9;
+    this.highlightLayer.lineStyle(2.5, color, 1);
+    this.highlightLayer.lineBetween(x + 1, y + tick, x + 1, y + 1);
+    this.highlightLayer.lineBetween(x + 1, y + 1, x + tick, y + 1);
+    this.highlightLayer.lineBetween(x + BOARD.tile - tick, y + 1, x + BOARD.tile - 1, y + 1);
+    this.highlightLayer.lineBetween(x + BOARD.tile - 1, y + 1, x + BOARD.tile - 1, y + tick);
+    this.highlightLayer.lineBetween(x + 1, y + BOARD.tile - tick, x + 1, y + BOARD.tile - 1);
+    this.highlightLayer.lineBetween(x + 1, y + BOARD.tile - 1, x + tick, y + BOARD.tile - 1);
+    this.highlightLayer.lineBetween(x + BOARD.tile - tick, y + BOARD.tile - 1, x + BOARD.tile - 1, y + BOARD.tile - 1);
+    this.highlightLayer.lineBetween(x + BOARD.tile - 1, y + BOARD.tile - 1, x + BOARD.tile - 1, y + BOARD.tile - tick);
   }
 
   update(_time: number, delta: number): void {
