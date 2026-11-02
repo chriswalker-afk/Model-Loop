@@ -10,6 +10,7 @@ import { drivingProfile } from './game/driving';
 import { environmentLabel, type EnvironmentKind } from './game/environment';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCareDescription } from './game/bins';
 import { householdActionPair, type HouseholdActionId } from './game/behaviors';
+import { activityDefinition, activityOptionsFor, type ActivityKind } from './game/activities';
 
 const game = new Game({
   type: AUTO,
@@ -206,6 +207,10 @@ function renderHouseholdDetail(): void {
       '<span class="family-action-positive">✿ ' + householdActionPair(id).helpful.label + '</span>' +
       '<span class="family-action-negative">◇ ' + householdActionPair(id).troublesome.label + '</span>' +
       '</div>' +
+      '<details class="family-activities"><summary>Everyday activities</summary>' +
+      '<p class="household-small-note">' +
+      activityOptionsFor(id).map(activity => activity.title).join(' · ') + '</p></details>' +
+      '<p class="household-active-activity"></p>' +
       '<blockquote class="household-remark"></blockquote>' +
       '<p class="household-traffic-delay"></p>' +
        '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
@@ -224,12 +229,21 @@ function renderHouseholdDetail(): void {
     ? 'Time lost waiting behind traffic: ' + resident.trafficDelay.toFixed(1) + ' seconds.'
     : '';
   delay.hidden = resident.trafficDelay <= 0.1;
+  const currentActivity = store.activities.forResident(id);
+  const activityLine = panel.querySelector<HTMLElement>('.household-active-activity')!;
+  activityLine.hidden = !currentActivity;
+  activityLine.textContent = currentActivity
+    ? 'RIGHT NOW · ' + activityDefinition(currentActivity.kind).title +
+      ' · ' + currentActivity.phase.replace('-', ' ')
+    : '';
   panel.querySelector<HTMLElement>('.household-remark')!.textContent =
     '“' + resident.lastRemark + '”';
   const latest = store.behaviourHistory.find(event => event.residentId === id);
+  const activity = store.activities.history.find(event => event.residentId === id);
   const older = store.environment.history.find(event => event.residentId === id);
   panel.querySelector<HTMLElement>('.household-last-action')!.textContent =
-    latest?.message ?? older?.message ?? 'Nothing unusual noticed so far.';
+    activity && (!latest || activity.time >= latest.time) ? activity.message :
+      latest?.message ?? older?.message ?? 'Nothing unusual noticed so far.';
 }
 
 function renderHouseholdReactions(
@@ -276,6 +290,23 @@ function renderBehaviourForecast(
     '</details>';
 }
 
+function activityNotes(tile: Cell): string {
+  const activity = store.activities.active.find(item =>
+    (item.cell.x === tile.x && item.cell.y === tile.y) ||
+    (item.roadCell.x === tile.x && item.roadCell.y === tile.y));
+  if (!activity) return '';
+  const details = activityDefinition(activity.kind);
+  const phase = activity.phase === 'setting-up' ? 'Setting up' :
+    activity.phase === 'underway' ? 'Underway' : 'Packing up';
+  return '<div class="environment-notes activity-notes"><span class="eyebrow">' +
+    'A LITTLE ACTIVITY</span><div class="environment-note"><span class="environment-mark" ' +
+    'aria-hidden="true">◌</span><span><strong>' + details.title + '</strong>' +
+    '<p>' + details.description + '</p><p>' + phase + ' · About ' +
+    Math.ceil(Math.max(0, activity.endsAt - store.elapsedSeconds)) +
+    ' game seconds remaining. Cars pull over and rejoin when the road is clear.</p>' +
+    '</span></div></div>';
+}
+
 function environmentNotes(tile: Cell): string {
   const nearby = store.environment.at(tile);
   if (!nearby.length) return '';
@@ -283,7 +314,7 @@ function environmentNotes(tile: Cell): string {
     nearby.slice(0, 4).map(effect => {
       const source = store.residents[effect.residentId]?.name ?? 'A neighbour';
       const timeLeft = Math.max(0, Math.ceil(effect.expiresAt - store.elapsedSeconds));
-      const icon = ['flowers','tidied','heritage'].includes(effect.kind) ? '✿'
+      const icon = ['flowers','tidied','heritage','sketch'].includes(effect.kind) ? '✿'
         : ['courtesy','mended','guidance'].includes(effect.kind) ? '➜'
         : effect.kind === 'skid' ? '◇'
         : effect.kind === 'display' ? '▤' : '▱';
@@ -405,6 +436,9 @@ function renderTilePeek(): void {
       : 'CANNOT PLACE HERE · ' + preview.reason;
   } else if (store.getPlacedModel(tile)) {
     description = 'Placed miniature · Click to change care';
+  } else if (store.activities.isOccupied(tile)) {
+    const ongoing = store.activities.at(tile)[0];
+    description = activityDefinition(ongoing.kind).title + ' · Click to inspect';
   } else if (store.canPlace(tile)) {
     description = 'Available square · Click for details';
   } else {
@@ -475,7 +509,7 @@ function renderPlacedModelCare(): boolean {
     '<p class="care-warning">A reduced care bill can mean less beauty, more noise or more crime. ' +
     'The effects on residents change too.</p>' +
     (placed.id === 'bin' ? binStatusPanel(cell) : '') +
-    environmentNotes(cell);
+    activityNotes(cell) + environmentNotes(cell);
   updateTilePanelMarkup(content, 'care:' + cell.x + ',' + cell.y);
   return true;
 }
@@ -528,7 +562,7 @@ function renderTilePanel(): void {
     (store.traffic.queuedNear(tile) > 0
       ? '<p class="traffic-tile-note">Cars are queueing nearby: slower journeys, higher noise and irritation.</p>'
       : '') +
-    environmentNotes(tile) +
+    activityNotes(tile) + environmentNotes(tile) +
     (store.environment.at(tile, 0).some(effect => effect.kind === 'litter') ?
       '<button type="button" class="clear-litter-button" data-action="clear-litter" data-x="' +
       tile.x + '" data-y="' + tile.y + '"' +
@@ -700,6 +734,8 @@ if (import.meta.env.DEV) {
         safety: store.safety, irritation: store.averageIrritation,
         activeStop: store.traffic.activeStop, queued: store.traffic.queuedCars.map(x => ({ ...x })),
         behaviour: store.behaviourHistory.map(x => ({ ...x })),
+        activities: store.activities.active.map(x => ({ ...x })),
+        activityHistory: store.activities.history.map(x => ({ ...x })),
         summary: store.runSummary, workbench: store.workbenchMoments.map(x => ({ ...x })) };
     },
     trafficStop(id: number, duration?: number): boolean {
@@ -713,6 +749,10 @@ if (import.meta.env.DEV) {
       if(!Number.isInteger(id) || id<0 || id>5 ||
         !Number.isInteger(x) || !Number.isInteger(y))return false;
       return store.debugHouseholdAction(id,action,{x,y});
+    },
+    activity(kind:ActivityKind,x:number,y:number):boolean {
+      if (!Number.isInteger(x) || !Number.isInteger(y)) return false;
+      return store.debugActivity(kind,{x,y});
     }
   };
   (window as typeof window & { __modelLoopDebug?: typeof debug }).__modelLoopDebug = debug;
