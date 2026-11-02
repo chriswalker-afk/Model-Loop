@@ -1,6 +1,6 @@
 import { EFFECT_RADIUS, HOMES, manhattanDistance, type Cell, type ModelId } from './config';
 import { carePreferenceScale, normalizedCare, type CareLevel } from './economy';
-import { SeededRandom } from './environment';
+import { SeededRandom, type EnvironmentKind } from './environment';
 
 /**
  * Every family has two sides. Display the ordinary actions, never psychological
@@ -19,6 +19,7 @@ export interface HouseholdAction {
   id: HouseholdActionId;
   tone: BehaviourTone;
   mechanic: BehaviourMechanic;
+  environmentKind?: EnvironmentKind;
   label: string;
   message: string;
 }
@@ -45,12 +46,12 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
   {
     residentId: 0,
     helpful: {
-      id: 'courtesy', tone: 'helpful', mechanic: 'roadside',
+      id: 'courtesy', environmentKind: 'courtesy', tone: 'helpful', mechanic: 'roadside',
       label: 'Offers a gap',
       message: 'The Finches made room for another car to pass.'
     },
     troublesome: {
-      id: 'skid', tone: 'troublesome', mechanic: 'roadside',
+      id: 'skid', environmentKind: 'skid', tone: 'troublesome', mechanic: 'roadside',
       label: 'Takes the bend sharply',
       message: 'The Finches took the corner rather quickly. Fresh tyre marks remain.'
     }
@@ -58,7 +59,7 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
   {
     residentId: 1,
     helpful: {
-      id: 'flowers', tone: 'helpful', mechanic: 'roadside',
+      id: 'flowers', environmentKind: 'flowers', tone: 'helpful', mechanic: 'roadside',
       label: 'Plants a little colour',
       message: 'The Bells planted a few flowers by the road.'
     },
@@ -71,12 +72,12 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
   {
     residentId: 2,
     helpful: {
-      id: 'mend', tone: 'helpful', mechanic: 'roadside',
+      id: 'mend', environmentKind: 'mended', tone: 'helpful', mechanic: 'roadside',
       label: 'Mends a worn patch',
       message: 'The Millers smoothed a rough bit of road.'
     },
     troublesome: {
-      id: 'litter', tone: 'troublesome', mechanic: 'roadside',
+      id: 'litter', environmentKind: 'litter', tone: 'troublesome', mechanic: 'roadside',
       label: 'Leaves delivery packaging',
       message: 'The Millers left some packaging by the road.'
     }
@@ -84,7 +85,7 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
   {
     residentId: 3,
     helpful: {
-      id: 'tidy', tone: 'helpful', mechanic: 'roadside',
+      id: 'tidy', environmentKind: 'tidied', tone: 'helpful', mechanic: 'roadside',
       label: 'Tidies the verge',
       message: 'The Marshes left the roadside a little tidier.'
     },
@@ -97,12 +98,12 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
   {
     residentId: 4,
     helpful: {
-      id: 'restore', tone: 'helpful', mechanic: 'roadside',
+      id: 'restore', environmentKind: 'heritage', tone: 'helpful', mechanic: 'roadside',
       label: 'Restores a familiar detail',
       message: 'The Hales carefully restored an old roadside detail.'
     },
     troublesome: {
-      id: 'display', tone: 'troublesome', mechanic: 'roadside',
+      id: 'display', environmentKind: 'display', tone: 'troublesome', mechanic: 'roadside',
       label: 'Puts out a roadside display',
       message: 'The Hales have put a little display beside the road. Drivers slow to look.'
     }
@@ -110,7 +111,7 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
   {
     residentId: 5,
     helpful: {
-      id: 'guide', tone: 'helpful', mechanic: 'roadside',
+      id: 'guide', environmentKind: 'guidance', tone: 'helpful', mechanic: 'roadside',
       label: 'Helps traffic along',
       message: 'The Wards helped everyone through a difficult corner.'
     },
