@@ -1,4 +1,4 @@
-name: Check and publish Model Loop
+name: Check and publish The Generational Cycle
 
 on:
   push:
