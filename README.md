@@ -110,6 +110,24 @@ continue to depend on actual movement. New regression tests cover lane
 continuity, overtaking a stopped car, blocked passes, safe merging and
 wrap-around traffic.
 
+## Physical accidents and restorations (Pass 6C)
+
+Cars driving on the left can occasionally **clip a real purchased roadside
+miniature**. The accident risk is seeded and grounded in actual car speed,
+bend geometry, visibility and maintained safety models. Passing cars and
+cars changing lanes cannot trigger such an accident. Damage is visible
+as cracks or fragments; models have **intact / damaged / broken** physical
+conditions, separate from the player's care setting.
+
+A damaged model works at half strength; a broken model provides no benefits
+and stops regular upkeep (even a rubbish bin ceases collecting). Click the
+model to see its status and pay to repair it. The Hales can restore one
+damage level through their usual helpful actions or heritage visit, while
+the Wards can shorten the temporary traffic disruption.
+
+See [Pass 6C — Accidents & Restoration](docs/ACCIDENTS_RESTORATION_PASS6C.md)
+for the spatial safety rules, balance, recovery and tests.
+
 ## Living roadside activities (Pass 6B)
 
 Families sometimes pull off the left-hand road for a real staged miniature
