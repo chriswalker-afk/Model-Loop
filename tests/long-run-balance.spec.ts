@@ -225,3 +225,41 @@ test('pacing constants avoid guaranteed event outcomes and intrusive rapid inter
   expect(VINTAGE_BALANCE.incidentalLitterChance).toBeLessThan(.25);
   expect(VINTAGE_BALANCE.stopGlobalCooldownSeconds).toBeGreaterThanOrEqual(15);
 });
+
+
+test('four simulated minutes of heavy litter pressure cannot break bin servicing or money flow',()=>{
+  const road:Cell={x:4,y:3}, bin:Cell={x:4,y:4};
+  const outcomes:Array<{care:string;fill:number;overflow:boolean;paid:number;captured:number}>=[];
+  for(const care of ['full','economy','bare'] as const){
+    const store=new GameStore();
+    store.legacy.upgrades={savings:0,patience:0};
+    store.newRun(753);
+    expect(store.place(bin,'bin')).toBe(true);
+    expect(store.setModelCare(bin,care)).toBe(true);
+    for(let tick=0;tick<120;tick++){
+      if(tick%3===0)store.debugEnvironmentEvent('litter',2,road);
+      store.tickEconomy(2);
+      const status=store.getBinStatus(bin)!;
+      expect(status.fill).toBeGreaterThanOrEqual(0);
+      expect(status.fill).toBeLessThanOrEqual(6);
+      expect(store.environment.effects.length).toBeLessThanOrEqual(MAX_ENVIRONMENT_EFFECTS);
+      expect(store.money).toBe(145-store.ledger.miniaturePurchases-store.ledger.carePaid);
+    }
+    const status=store.getBinStatus(bin)!;
+    outcomes.push({
+      care, fill:status.fill,overflow:status.overflowed,
+      paid:store.ledger.carePaid,captured:store.ledger.litterCaught
+    });
+    if(care!=='bare'){
+      expect(status.fill).toBe(0);
+      expect(status.overflowed).toBe(false);
+      expect(store.ledger.carePaid).toBeGreaterThan(0);
+    }else{
+      expect(status.collectionDueIn).toBeNull();
+    }
+  }
+  console.log('BIN_LOAD_TRIALS '+JSON.stringify(outcomes));
+  expect(outcomes[0].captured).toBeGreaterThan(outcomes[2].captured);
+  expect(outcomes[2].fill).toBeGreaterThanOrEqual(3);
+  expect(outcomes[2].paid).toBe(0);
+});
