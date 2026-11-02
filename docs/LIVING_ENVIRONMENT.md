@@ -150,32 +150,32 @@ simulated-time pause and compact-screen feedback.
 
 Every household now has **one helpful and one troublesome action**. The
 driver gets **one** seeded opportunity on each circuit, replacing the old
-independent environmental and traffic rolls. There is a 44% baseline chance
-of an action when an opportunity is reached (the exact result is random but
-reproducible using the same seed); successful acts trigger a 45-second
-simulated-time cooldown.
+independent environmental and traffic rolls. As of Pass 5 the opportunity
+chance is 38%, with a 52-simulated-second action cooldown (the exact result
+is seeded and reproducible).
 
 | Household | Helpful | Troublesome |
 | --- | --- | --- |
-| Finches | Make space to let others pass; can shorten a jam | Take a corner too quickly and leave noisy tyre scuffs |
+| Finches | Scout a smoother line through a bend | Take a corner too quickly and leave noisy tyre scuffs |
 | Bells | Plant little flowers and improve nearby Beauty | Stop to admire a view and hold up traffic |
 | Millers | Mend a worn stretch and clear tyre damage | Discard packaging, caught by an available rubbish bin |
 | Marshes | Tidy a corner and collect litter | Stop to chat, forming a real queue |
 | Hales | Restore an old roadside detail and improve Beauty | Put out a display that slows cars within two tiles |
 | Wards | Guide cars through a difficult section and help clear queues | Hesitate in the road, causing others to brake |
 
-Incidental rubbish can still accompany another family's troublesome
-action (about 22% of those successful incidents). This is a **side effect
-of the same event**, not a second independent behaviour opportunity. It
-keeps collection useful without making the Millers the sole source of litter.
+**Pass 6A update:** The old chance of an unrelated wrapper after another
+family's action was removed. Packaging naturally comes from the Millers'
+deliveries until Pass 6B introduces observable picnics and other activities.
+This keeps litter attributable to something that really happened in town.
 
 The positive and negative action share the same understandable personal
 motivation without naming a psychological cause. The town changes visibly:
-greenish etched courtesy arrows and guidance markers, mended road patches,
+etched clear-route arrows and guidance markers, mended road patches,
 swept verges, little restored plaques and roadside displays. These share
 the existing capped environment layer; results eventually fade. Cleanup
-removes one *real* damaging effect. Helpful traffic acts can shorten a
-temporary stop, not magically credit lap income.
+removes one *real* damaging effect. The Wards' traffic guidance can shorten a
+temporary stop; the Finches' route finding does not control another car.
+Neither act magically credits lap income.
 
 **Mood sensitivity** operates after an event is possible. The probability
 of a helpful act among incidents is 70% for irritation below 45, 50% from
