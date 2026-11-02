@@ -810,6 +810,20 @@ export class GameStore {
     return reaction;
   }
 
+  /** One genuinely damaged miniature restored by the Hales, at most one
+   * condition step per action; a broken miniature needs two helping visits. */
+  private haleRestoreOne(road: Cell): {model: PlacedModel; before: ModelCondition} | null {
+    const model=this.placements.filter(placed =>
+      modelCondition(placed.condition)!=='intact' &&
+      manhattanDistance(placed,road)<=2)
+      .sort((a,b)=>manhattanDistance(a,road)-manhattanDistance(b,road) ||
+        a.x-b.x||a.y-b.y)[0];
+    if(!model)return null;
+    const before=modelCondition(model.condition);
+    model.condition=before==='broken'?'damaged':'intact';
+    return {model,before};
+  }
+
   /**
    * Activities replace, never supplement, a family's one event opportunity
    * this circuit. Developer-forced legacy actions remain instantaneous, but
@@ -845,17 +859,11 @@ export class GameStore {
     } else {
       const kind = action.environmentKind;
       if (!kind) return false;
-      const haleRepair = action.id === 'restore'
-        ? this.placements.filter(placed => modelCondition(placed.condition) !== 'intact'
-          && manhattanDistance(placed,road) <= 2)
-          .sort((a,b)=>manhattanDistance(a,road)-manhattanDistance(b,road) ||
-            a.x-b.x||a.y-b.y)[0] : undefined;
+      const haleRepair = action.id === 'restore' ? this.haleRestoreOne(road) : null;
       if (haleRepair) {
-        const before = modelCondition(haleRepair.condition);
-        haleRepair.condition = before === 'broken' ? 'damaged' : 'intact';
-        message = 'The Hales restored ' + this.getModel(haleRepair.id).name +
-          ' from ' + before + ' to ' + haleRepair.condition + '.';
-        effectCell = {x:haleRepair.x,y:haleRepair.y};
+        message = 'The Hales restored ' + this.getModel(haleRepair.model.id).name +
+          ' from ' + haleRepair.before + ' to ' + haleRepair.model.condition + '.';
+        effectCell = {x:haleRepair.model.x,y:haleRepair.model.y};
       } else {
       const occupiedVerge = [...this.placements,
         ...this.activities.active.map(activity => activity.cell)];
@@ -940,12 +948,23 @@ export class GameStore {
     const resident = this.residents[activity.residentId];
     if (!resident?.occupied) return;
     const definition = activityDefinition(activity.kind);
-    const effect = leavesLitter ? 'litter' : definition.cleanEffect;
+    // Visits are genuinely useful when damage or a real traffic hazard exists,
+    // without inventing a second random action or extra currency.
+    const haleRepair=activity.kind==='heritage-visit'
+      ? this.haleRestoreOne(activity.roadCell) : null;
+    const wardHelp=activity.kind==='safety-round'
+      ? this.accidents.wardAssistance(activity.roadCell,this.clockSeconds) : null;
+    const effect = haleRepair ? undefined :
+      leavesLitter ? 'litter' : definition.cleanEffect;
     const event = effect ? this.environment.force(effect, activity.residentId,
       activity.roadCell, this.clockSeconds, this.placements,
       tile => this.interceptLitter(tile), activity.cell) : null;
     let outcome: ActivityOutcome = leavesLitter ? 'none' : 'clean';
-    let message = definition.finished;
+    let message = haleRepair
+      ? 'The Hales repaired ' + this.getModel(haleRepair.model.id).name +
+        ' from ' + haleRepair.before + ' to ' + haleRepair.model.condition + '.'
+      : definition.finished;
+    if (wardHelp) message += ' The accident site was made safer sooner.';
     if (effect && !event) {
       // A full environment sprite cap cannot create a ghost piece of litter
       // or pretend a new roadside improvement has appeared.
