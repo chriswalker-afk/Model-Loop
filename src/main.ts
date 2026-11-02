@@ -943,6 +943,9 @@ if (import.meta.env.DEV) {
     worldArt() {
       return (game.scene.getScene('TownScene') as TownScene).worldArtSnapshot();
     },
+    eventArt() {
+      return (game.scene.getScene('TownScene') as TownScene).eventArtSnapshot();
+    },
     behaviourAction(id:number,action:HouseholdActionId,x:number,y:number):boolean {
       if(!Number.isInteger(id) || id<0 || id>5 ||
         !Number.isInteger(x) || !Number.isInteger(y))return false;
