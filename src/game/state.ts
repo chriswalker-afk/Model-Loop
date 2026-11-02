@@ -16,7 +16,7 @@ import {
 import { VINTAGE_BALANCE, newRunLedger, summariseRun, type RunLedger } from './balance';
 import { chooseWorkshopMoment, chooseClosingMoment, type WorkshopMoment } from './workbench';
 import {
-  ActivityEngine, activityDefinition, type ActiveActivity, type ActivityKind,
+  ActivityEngine, activityDefinition, type ActivityKind,
   type ActivityCompletion, type ActivityOutcome
 } from './activities';
 
@@ -711,7 +711,8 @@ export class GameStore {
     let effectCell = road;
     const activityKind = action.mechanic === 'activity' ? action.activityKind :
       (naturally && action.id === 'litter' ? 'delivery' : undefined);
-    if (activityKind && canParkForActivity) {
+    if (activityKind && !canParkForActivity) return false;
+    if (activityKind) {
       const hurry = naturally && action.id === 'litter' ? .78 : undefined;
       const blocked = [...this.placements, ...this.environment.effects.map(effect => effect.cell)];
       const activity = this.activities.start(activityKind, residentId, road,
