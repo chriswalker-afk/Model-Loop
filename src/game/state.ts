@@ -2,7 +2,11 @@ import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, man
 import { householdProfile, modelReactionPerTile } from './households';
 import { careName, FLOW_WINDOW_SECONDS, modelEffects, normalizedCare, summarizeFlow,
   UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent } from './economy';
-import { LivingEnvironment, type EnvironmentKind, type EnvironmentalEvent } from './environment';
+import { LivingEnvironment, type EnvironmentKind, type EnvironmentalEvent, type LitterDiversion } from './environment';
+import {
+  BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCatchChance,
+  binCollectionInterval, collectionCost, withinBinCatchment
+} from './bins';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -33,6 +37,9 @@ export interface PlacedModel extends Cell {
   id: ModelId;
   care?: CareLevel; // Older prototype saves/tests without a care level default to full.
   nextBillAt?: number;
+  fill?: number; // Only bin models use these three collection fields.
+  overflowed?: boolean;
+  nextCollectionAt?: number;
 }
 export interface PermanentUpgrades { savings: number; patience: number; }
 export interface Legacy { blueprints: number; upgrades: PermanentUpgrades; }
@@ -121,6 +128,28 @@ export class GameStore {
           this.recordCashflow(-price, 'upkeep', placed.nextBillAt);
         }
         placed.nextBillAt += UPKEEP_INTERVAL_SECONDS;
+      }
+      if (placed.id !== 'bin') continue;
+      const interval = binCollectionInterval(normalizedCare(placed.care));
+      if (interval === null) {
+        placed.nextCollectionAt = undefined;
+        continue;
+      }
+      if (placed.nextCollectionAt === undefined) {
+        placed.nextCollectionAt = this.clockSeconds + interval;
+      }
+      while (placed.nextCollectionAt <= this.clockSeconds) {
+        const cost = collectionCost(placed.fill ?? 0, !!placed.overflowed);
+        if (cost > 0) {
+          // Routine collectors will service a filled bin, even if the town is
+          // temporarily in debt. The charge remains real, within net Income.
+          this.money -= cost;
+          billed += cost;
+          this.recordCashflow(-cost, 'upkeep', placed.nextCollectionAt);
+          placed.fill = 0;
+          placed.overflowed = false;
+        }
+        placed.nextCollectionAt += interval;
       }
     }
     this.cashflowEvents = this.cashflowEvents.filter(
@@ -223,6 +252,11 @@ export class GameStore {
     if (!placed) return false;
     if (normalizedCare(placed.care) === care) return true;
     placed.care = care;
+    if (placed.id === 'bin') {
+      const interval = binCollectionInterval(care);
+      placed.nextCollectionAt = interval === null ? undefined
+        : Math.min(placed.nextCollectionAt ?? Infinity, this.clockSeconds + interval);
+    }
     const price = modelEffects(placed.id, care).upkeep;
     this.notice = this.getModel(placed.id).name + ': ' + careName(care) +
       '. Next service bill ' + price + ' coins per ' + UPKEEP_INTERVAL_SECONDS + 's.';
@@ -230,6 +264,97 @@ export class GameStore {
     this.notify();
     return true;
   }
+  getBinStatus(cell: Cell | null): {
+    fill: number; capacity: number; overflowed: boolean; radius: number;
+    reliability: number; collectionPrice: number; collectionDueIn: number | null;
+    regularUpkeep: number;
+  } | null {
+    const item = this.getPlacedModel(cell);
+    if (!item || item.id !== 'bin') return null;
+    const level = normalizedCare(item.care);
+    const interval = binCollectionInterval(level);
+    return {
+      fill: item.fill ?? 0, capacity: BIN_CAPACITY, overflowed: !!item.overflowed,
+      radius: BIN_CATCH_RADIUS, reliability: binCatchChance(level),
+      collectionPrice: collectionCost(item.fill ?? 0, !!item.overflowed),
+      collectionDueIn: interval === null ? null :
+        Math.ceil(Math.max(0, (item.nextCollectionAt ??
+          this.clockSeconds + interval) - this.clockSeconds)),
+      regularUpkeep: modelEffects('bin', level).upkeep
+    };
+  }
+
+  /** A collection costs coins and counts towards the rolling Income outflow. */
+  emptyBin(cell: Cell): boolean {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
+    const bin = this.getPlacedModel(cell);
+    if (!bin || bin.id !== 'bin') return false;
+    const cost = collectionCost(bin.fill ?? 0, !!bin.overflowed);
+    if (!cost) {
+      this.notice = 'The rubbish bin is already empty.';
+      this.notify();
+      return false;
+    }
+    if (this.money < cost) {
+      this.notice = 'Need ' + cost + ' coins to empty this bin.';
+      this.notify();
+      return false;
+    }
+    this.money -= cost;
+    this.recordCashflow(-cost, 'upkeep');
+    bin.fill = 0;
+    bin.overflowed = false;
+    const interval = binCollectionInterval(normalizedCare(bin.care));
+    bin.nextCollectionAt = interval === null ? undefined : this.clockSeconds + interval;
+    this.notice = 'The rubbish bin was emptied for ' + cost + ' coins.';
+    this.notify();
+    return true;
+  }
+
+  /** A placed bin prevents *new* litter; old scraps require separate tidying. */
+  cleanLitter(cell: Cell): boolean {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
+    const litter = this.environment.effects.find(effect =>
+      effect.kind === 'litter' && effect.cell.x === cell.x && effect.cell.y === cell.y);
+    if (!litter) return false;
+    if (this.money < LITTER_CLEANUP_COST) {
+      this.notice = 'Need ' + LITTER_CLEANUP_COST + ' coins to tidy this corner.';
+      this.notify();
+      return false;
+    }
+    if (!this.environment.removeEffect(litter.id, 'litter')) return false;
+    this.money -= LITTER_CLEANUP_COST;
+    this.recordCashflow(-LITTER_CLEANUP_COST, 'upkeep');
+    this.notice = 'A little roadside rubbish was cleared for ' +
+      LITTER_CLEANUP_COST + ' coins.';
+    this.notify();
+    return true;
+  }
+
+  private interceptLitter(roadCell: Cell): LitterDiversion | null {
+    const covered = this.placements.filter(item => item.id === 'bin'
+      && withinBinCatchment(item, roadCell))
+      .sort((a, b) =>
+        manhattanDistance(a, roadCell) - manhattanDistance(b, roadCell)
+        || a.x - b.x || a.y - b.y
+      );
+    if (covered.length === 0) return null;
+    // Try any non-full bins first, so an overlapping second bin is genuinely
+    // useful. Missed catches from poor maintenance still become roadside litter.
+    for (const bin of covered) {
+      if ((bin.fill ?? 0) >= BIN_CAPACITY) continue;
+      if (this.environment.rng.next() >= binCatchChance(normalizedCare(bin.care))) continue;
+      bin.fill = Math.min(BIN_CAPACITY, (bin.fill ?? 0) + 1);
+      return { status: 'captured', bin: { x: bin.x, y: bin.y } };
+    }
+    const full = covered.find(bin => (bin.fill ?? 0) >= BIN_CAPACITY);
+    if (full) {
+      full.overflowed = true;
+      return { status: 'overflow', bin: { x: full.x, y: full.y } };
+    }
+    return null;
+  }
+
   speedMultiplierAt(tile: Cell): number {
     let multiplier = 1;
     for (const placed of this.placements) {
@@ -284,7 +409,9 @@ export class GameStore {
       && adjacentToRoad(cell.x, cell.y)
       && !HOMES.some((home) => home.x === cell.x && home.y === cell.y)
       && !isScenery(cell.x, cell.y)
-      && !this.placements.some((placed) => placed.x === cell.x && placed.y === cell.y);
+      && !this.placements.some((placed) => placed.x === cell.x && placed.y === cell.y)
+      && !this.environment.effects.some(effect =>
+        effect.cell.x === cell.x && effect.cell.y === cell.y);
   }
   place(cell: Cell, id: ModelId): boolean {
     if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
@@ -299,7 +426,11 @@ export class GameStore {
     }
     this.money -= model.cost;
     this.placements.push({ ...cell, id, care: 'full',
-      nextBillAt: this.clockSeconds + UPKEEP_INTERVAL_SECONDS });
+      nextBillAt: this.clockSeconds + UPKEEP_INTERVAL_SECONDS,
+      ...(id === 'bin' ? {
+        fill: 0, overflowed: false, nextCollectionAt: this.clockSeconds + 60
+      } : {})
+    });
     this.activeModel = null;
     this.notice = model.name + ' added to the miniature town.';
     return true;
@@ -315,14 +446,15 @@ export class GameStore {
     const model = placements.find((item) => item.x === cell.x && item.y === cell.y);
     if (model) kind = this.getModel(model.id).name;
     const nearby = placements.filter((item) => manhattanDistance(item, cell) <= EFFECT_RADIUS);
+    const overflowing = nearby.filter(item => item.id === 'bin' && item.overflowed).length;
     return {
       kind,
-      beauty: 1 + environmental.beauty + nearby.reduce((total, item) =>
+      beauty: 1 + environmental.beauty - 2 * overflowing + nearby.reduce((total, item) =>
         total + modelEffects(item.id, normalizedCare(item.care)).beauty, 0),
       noise: (isRoad(cell.x, cell.y) ? 2 : 0) + environmental.noise
         + nearby.reduce((total, item) =>
           total + modelEffects(item.id, normalizedCare(item.care)).noise, 0),
-      crime: Math.max(0, 2 + nearby.reduce((total, item) =>
+      crime: Math.max(0, 2 + overflowing + nearby.reduce((total, item) =>
         total + modelEffects(item.id, normalizedCare(item.care)).crime, 0)),
       roadSafety: Math.round(clamp(90 -
         this.environment.at(cell).filter(effect => effect.kind === 'skid').length * 12, 0, 100))
@@ -353,7 +485,7 @@ export class GameStore {
       ? this.calculateTileInfo(cell, [...this.placements, { ...cell, id }])
       : before;
     const affectedRoadTiles = ROAD_CELLS.filter((road) =>
-      manhattanDistance(road, cell) <= EFFECT_RADIUS).length;
+      manhattanDistance(road, cell) <= (id === 'bin' ? BIN_CATCH_RADIUS : EFFECT_RADIUS)).length;
 
     const householdEffects = canPlace ? this.projectedHouseholdEffects(cell, id) : [];
     const averageChange = householdEffects.length
@@ -396,9 +528,11 @@ export class GameStore {
     if (this.closedHomes > 0 && id === 3) change += this.closedHomes * 0.08;
     if (this.closedHomes > 0 && id === 5) change += this.closedHomes * 0.045;
 
-    // Roadside changes affect the next journeys too: events have consequences,
-    // rather than existing solely as decorations or permanent HUD penalties.
+    // Roadside changes affect subsequent journeys; a bin that overflows also
+    // becomes an ongoing nuisance, until someone pays for collection.
     change += this.environment.modifiersAt(tile).irritation;
+    change += this.placements.filter(item => item.id === 'bin' && item.overflowed
+      && manhattanDistance(item, tile) <= EFFECT_RADIUS).length * 0.12;
     resident.irritation = clamp(resident.irritation + change * resident.temperament, 0, 100);
     const home = HOMES.find(home => home.id === id)!;
     const startIndex = ROAD_CELLS.findIndex(road => manhattanDistance(road, home) === 1);
@@ -409,7 +543,8 @@ export class GameStore {
         resident.lastEventLap = resident.laps;
         resident.nextEventOffset = this.environment.opportunityOffset(ROAD_CELLS.length);
         const event = this.environment.attempt(
-          id, resident.irritation, tile, this.clockSeconds, this.placements
+          id, resident.irritation, tile, this.clockSeconds, this.placements,
+          road => this.interceptLitter(road)
         );
         if (event) this.recordEnvironmentEvent(event);
       }
@@ -459,7 +594,8 @@ export class GameStore {
    */
   debugEnvironmentEvent(kind: EnvironmentKind, residentId: number, roadCell: Cell): boolean {
     if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
-    const event = this.environment.force(kind, residentId, roadCell, this.clockSeconds, this.placements);
+    const event = this.environment.force(kind, residentId, roadCell, this.clockSeconds,
+      this.placements, road => this.interceptLitter(road));
     if (!event) return false;
     this.recordEnvironmentEvent(event);
     return true;
