@@ -60,6 +60,28 @@ The model shelf is docked below the town and stays visible while you play.
 The irritation estimate is an approximation **per completed circuit**, before
 individual household temperament. Every household drives the same road loop.
 
+## Adaptive screen layout
+
+Model Loop adjusts to screen width **and** available height, including
+portrait/landscape rotation and browser-window resizing.
+
+- **Large desktop:** town, household strip and model kits form a single-screen
+  composition, with floating inspection panels inside the board.
+- **Compact laptop / tablet / short landscape:** the HUD reflows, the board
+  retains its natural aspect ratio, and the main content can scroll vertically.
+  The kit dock and household strip remain available at the foot of the screen.
+- **Phone:** the town remains at a practical viewing size and can be **swiped
+  left/right** rather than compressing every square into an unreadable grid.
+  The model shop scrolls sideways; tap a miniature and then tap a square to
+  place it. Swiping no longer causes accidental purchases.
+- **Care panel and resident notes:** these move below the board on smaller
+  screens instead of obscuring the street.
+
+The Phaser canvas uses FIT scaling and an observed viewport size so clicks,
+tap positions and placement previews continue to match visible squares after
+the browser is resized or the device rotated. No manual zoom or settings
+change is required.
+
 ## Money, maintenance and traffic
 
 **Coins** (the balance in the top-right corner) are available savings. **Income**
