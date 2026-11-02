@@ -100,7 +100,12 @@ export class TownScene extends Scene {
       if (travelled > 13) return;
       const cell = this.pointerCell(pointer);
       if (cell && store.phase === 'playing' && !store.paused && !store.workshopOpen) {
-        store.selectTile(cell);
+        // Shift+click opens the full placement forecast without spending coins.
+        // An ordinary click still places the selected model in one action.
+        const modifier = pointer.event && 'shiftKey' in pointer.event &&
+          pointer.event.shiftKey;
+        if (modifier && store.activeModel) store.inspectTile(cell);
+        else store.selectTile(cell);
         const home = HOMES.find(item => item.x === cell.x && item.y === cell.y);
         if (home && !store.activeModel) store.selectResident(home.id);
       }
