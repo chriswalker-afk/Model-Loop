@@ -3,6 +3,9 @@ import { carePreferenceScale, normalizedCare, type CareLevel } from './economy';
 import { SeededRandom, type EnvironmentKind } from './environment';
 import { VINTAGE_BALANCE } from './balance';
 import { bendOpportunityOffsets } from './driving';
+import {
+  ACTIVITY_DEFINITIONS, ACTIVITY_SELECTION_CHANCE, type ActivityKind
+} from './activities';
 
 /**
  * Every family has two sides. Display the ordinary actions, never psychological
@@ -14,14 +17,15 @@ export type HouseholdActionId =
   | 'mend' | 'litter'
   | 'tidy' | 'chat'
   | 'restore' | 'display'
-  | 'guide' | 'hesitate';
+  | 'guide' | 'hesitate' | ActivityKind;
 export type BehaviourTone = 'helpful' | 'troublesome';
-export type BehaviourMechanic = 'roadside' | 'stop';
+export type BehaviourMechanic = 'roadside' | 'stop' | 'activity';
 export interface HouseholdAction {
   id: HouseholdActionId;
   tone: BehaviourTone;
   mechanic: BehaviourMechanic;
   environmentKind?: EnvironmentKind;
+  activityKind?: ActivityKind;
   label: string;
   message: string;
   /** A resident's own reaction to their decision, in their ordinary voice. */
@@ -138,6 +142,15 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
     }
   }
 ];
+
+/** Optional activity alternatives use the same one-opportunity-per-lap budget. */
+export const HOUSEHOLD_ACTIVITY_ACTIONS: readonly HouseholdAction[] =
+  ACTIVITY_DEFINITIONS.map(definition => ({
+    id: definition.kind, activityKind: definition.kind,
+    tone: definition.tone, mechanic: 'activity',
+    label: definition.title, message: definition.started,
+    afterRemark: definition.finished
+  }));
 
 /**
  * Environmental interactions are intentional rather than arbitrary. Modifiers
@@ -281,12 +294,23 @@ export class HouseholdBehaviourEngine {
     return 5+this.rng.int(Math.max(1,roadLength-10));
   }
   choose(residentId:number,irritation:number,cell:Cell,now:number,
-    models:readonly NearbyMiniature[]):HouseholdAction|null {
+    models:readonly NearbyMiniature[], allowActivity=true):HouseholdAction|null {
     if(now-(this.lastActionAt.get(residentId)??-Infinity)<BEHAVIOUR_COOLDOWN_SECONDS)return null;
     const odds=behaviourOdds(residentId,irritation,cell,models);
     if(this.rng.next()>=odds.eventChance)return null;
     const pair=householdActionPair(residentId);
-    return this.rng.next()<odds.helpfulChance?pair.helpful:pair.troublesome;
+    const tone:BehaviourTone=this.rng.next()<odds.helpfulChance?'helpful':'troublesome';
+    // No additional event roll: an activity REPLACES an ordinary action.
+    // A family on the passing lane cannot suddenly pull off for a picnic.
+    if(allowActivity){
+      const choices=ACTIVITY_DEFINITIONS.filter(definition=>
+        definition.residentId===residentId && definition.tone===tone);
+      if(choices.length && this.rng.next()<ACTIVITY_SELECTION_CHANCE){
+        const definition=choices[this.rng.int(choices.length)];
+        return HOUSEHOLD_ACTIVITY_ACTIONS.find(item=>item.activityKind===definition.kind)!;
+      }
+    }
+    return tone==='helpful'?pair.helpful:pair.troublesome;
   }
   mark(residentId:number,time:number):void{
     this.lastActionAt.set(residentId,time);
