@@ -420,10 +420,10 @@ export class TownScene extends Scene {
       placed: [...this.kitSprites.entries()].map(([cell,image])=>({
         cell, texture: image.texture.key, alpha: image.alpha
       })),
-      ghost: {
+      ghost: this.kitGhost ? {
         texture: this.kitGhost.texture.key,
         visible: this.kitGhost.visible, alpha: this.kitGhost.alpha
-      }
+      } : { texture: '', visible: false, alpha: 0 }
     };
   }
 
