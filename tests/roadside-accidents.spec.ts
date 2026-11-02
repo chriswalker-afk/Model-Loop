@@ -4,6 +4,7 @@ import {
   type Cell
 } from '../src/game/config';
 import { GameStore } from '../src/game/state';
+import { behaviourOdds } from '../src/game/behaviors';
 import {
   ACCIDENT_GLOBAL_COOLDOWN, ACCIDENT_DRIVER_COOLDOWN,
   ACCIDENT_SCENE_SECONDS, MAX_ACTIVE_ROADSIDE_INCIDENTS,
@@ -115,6 +116,24 @@ test('damage halves useful model effects, broken models have none and upkeep sto
   expect(store.speedMultiplierAt(site.road)).toBe(1); // broken sign is useless
   expect(store.tileInfo(site.road)!.noise).toBeGreaterThan(before);
   expect(store.cashflow.nextUpkeep).toBe(0);
+});
+
+test('broken miniatures do not influence the chance of family actions',()=>{
+  const baseline=behaviourOdds(0,50,site.road,[]);
+  const intact=behaviourOdds(0,50,site.road,[
+    {...site.model,id:'police',care:'full',condition:'intact'}
+  ]);
+  const damaged=behaviourOdds(0,50,site.road,[
+    {...site.model,id:'police',care:'full',condition:'damaged'}
+  ]);
+  const broken=behaviourOdds(0,50,site.road,[
+    {...site.model,id:'police',care:'full',condition:'broken'}
+  ]);
+  expect(broken).toEqual(baseline);
+  expect(damaged.helpfulChance).toBeGreaterThan(Math.min(
+    intact.helpfulChance,baseline.helpfulChance));
+  expect(damaged.helpfulChance).toBeLessThan(Math.max(
+    intact.helpfulChance,baseline.helpfulChance));
 });
 
 test('repairs cost actual coins, never award progress or lap rewards',()=>{
