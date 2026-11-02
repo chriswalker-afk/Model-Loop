@@ -105,9 +105,10 @@ export class TownScene extends Scene {
         if (home && !store.activeModel) store.selectResident(home.id);
       }
     });
-    // Keep the last preview in view while the player reads the forecast.
+    // A short hover label must not linger after the pointer leaves the town.
+    // Full placement forecasts are now opened deliberately by clicking a tile.
     this.input.on('gameout', () => {
-      if (!store.activeModel) store.setHovered(null);
+      store.setHovered(null);
     });
   }
 
