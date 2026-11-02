@@ -325,6 +325,111 @@ function binStatusPanel(cell: Cell): string {
       'Emptying a full or overflowing bin costs more.</small></section>';
 }
 
+
+const TILE_HOVER_DELAY_MS = 600;
+let hoverDelayTimer: ReturnType<typeof setTimeout> | null = null;
+let hoverKey: string | null = null;
+let hoverReady = false;
+
+/** A full inspection is reserved for a click. Hover only reveals a small hint. */
+function tileDetailsHeader(label: string): string {
+  return '<div class="tile-detail-top"><span class="eyebrow">' + label + '</span>' +
+    '<button type="button" class="tile-close" data-action="close-tile" ' +
+    'aria-label="Close square details" title="Close details">×</button></div>';
+}
+
+/** Live care, expiry and local conditions can update without losing keyboard focus. */
+function updateTilePanelMarkup(content: string, key: string): void {
+  const panel = byId('tile-panel');
+  const sameSelection = panel.dataset.detailKey === key;
+  const oldForecast = panel.querySelector<HTMLDetailsElement>('.behaviour-forecast');
+  const keepForecast = sameSelection && !!oldForecast?.open;
+  const focused = sameSelection && panel.contains(document.activeElement)
+    ? document.activeElement as HTMLElement : null;
+  const focusedCare = focused?.getAttribute('data-care');
+  const focusedAction = focused?.getAttribute('data-action');
+  const focusedForecast = focused === oldForecast?.querySelector('summary');
+  const oldScroll = sameSelection ? panel.scrollTop : 0;
+
+  panel.innerHTML = content;
+  panel.dataset.detailKey = key;
+  const forecast = panel.querySelector<HTMLDetailsElement>('.behaviour-forecast');
+  if (keepForecast && forecast) forecast.open = true;
+  panel.scrollTop = oldScroll;
+  const focusTarget = focusedForecast ? forecast?.querySelector('summary') :
+    focusedCare ? panel.querySelector('[data-care="' + focusedCare + '"]') :
+    focusedAction ? panel.querySelector('[data-action="' + focusedAction + '"]') : null;
+  if (focusTarget instanceof HTMLElement) focusTarget.focus({ preventScroll: true });
+}
+
+function renderTilePeek(): void {
+  const peek = byId('tile-peek');
+  const tile = store.hovered;
+  const allowedHover = window.matchMedia(
+    '(min-width: 701px) and (hover: hover) and (pointer: fine)'
+  ).matches;
+  const eligible = allowedHover && store.phase === 'playing' &&
+    !store.workshopOpen && !store.selected && !!tile;
+  const key = eligible ? tile!.x + ',' + tile!.y + ':' + (store.activeModel ?? 'inspect') : null;
+  if (key !== hoverKey) {
+    if (hoverDelayTimer !== null) clearTimeout(hoverDelayTimer);
+    hoverDelayTimer = null;
+    hoverKey = key;
+    hoverReady = false;
+    if (key !== null) {
+      hoverDelayTimer = setTimeout(() => {
+        hoverDelayTimer = null;
+        if (hoverKey !== key) return;
+        hoverReady = true;
+        renderTilePeek();
+      }, TILE_HOVER_DELAY_MS);
+    }
+  }
+  if (!eligible || !hoverReady || !tile) {
+    peek.hidden = true;
+    peek.textContent = '';
+    return;
+  }
+  const info = store.tileInfo(tile);
+  if (!info) { peek.hidden = true; return; }
+  let description: string;
+  if (store.activeModel) {
+    const model = store.getModel(store.activeModel);
+    const preview = store.previewPlacement(tile, model.id);
+    description = preview.allowed
+      ? 'READY TO PLACE · ' + model.name + ' · ' + model.cost + ' coins'
+      : 'CANNOT PLACE HERE · ' + preview.reason;
+  } else if (store.getPlacedModel(tile)) {
+    description = 'Placed miniature · Click to change care';
+  } else if (store.canPlace(tile)) {
+    description = 'Available square · Click for details';
+  } else {
+    description = 'Click for details';
+  }
+  peek.innerHTML = '<strong>' + info.kind + '</strong><span>' +
+    description + '</span>';
+  peek.hidden = false;
+  // Anchor to the *actual* canvas, not an assumed page grid. This also works
+  // when the whole town is letterboxed inside a short landscape viewport.
+  const board = byId('game-container').querySelector('canvas');
+  const frame = peek.parentElement;
+  if (!board || !frame) return;
+  const canvas = board.getBoundingClientRect();
+  const rect = frame.getBoundingClientRect();
+  const pointX = canvas.left - rect.left +
+    (BOARD.left + (tile.x + .5) * BOARD.tile) / BOARD.width * canvas.width;
+  const pointY = canvas.top - rect.top +
+    (BOARD.top + (tile.y + .5) * BOARD.tile) / BOARD.height * canvas.height;
+  const width = peek.offsetWidth;
+  const height = peek.offsetHeight;
+  let left = pointX + 16;
+  if (left + width + 8 > rect.width) left = pointX - width - 16;
+  let top = pointY - height - 15;
+  if (top < 7) top = pointY + 15;
+  peek.style.left = Math.max(8, Math.min(left, rect.width - width - 8)) + 'px';
+  peek.style.top = Math.max(7, Math.min(top, rect.height - height - 7)) + 'px';
+}
+
 function renderPlacedModelCare(): boolean {
   const placed = store.getPlacedModel(store.selected);
   if (!placed || store.activeModel) return false;
@@ -335,8 +440,8 @@ function renderPlacedModelCare(): boolean {
   const info = store.tileInfo(cell);
   const panel = byId('tile-panel');
   panel.classList.add('is-active');
-  panel.innerHTML =
-    '<span class="eyebrow">MODEL CARE · GRID ' + (cell.x + 1) + '/' + (cell.y + 1) + '</span>' +
+  const content =
+    tileDetailsHeader('MODEL CARE · GRID ' + (cell.x + 1) + '/' + (cell.y + 1)) +
     '<h3>' + model.name + '</h3>' +
     '<div class="care-heading"><span>' + careName(level) + '</span>' +
     '<strong>' + current.upkeep + ' coins / ' + UPKEEP_INTERVAL_SECONDS + 's</strong></div>' +
@@ -367,28 +472,28 @@ function renderPlacedModelCare(): boolean {
     'The effects on residents change too.</p>' +
     (placed.id === 'bin' ? binStatusPanel(cell) : '') +
     environmentNotes(cell);
+  updateTilePanelMarkup(content, 'care:' + cell.x + ',' + cell.y);
   return true;
 }
 
 function renderTilePanel(): void {
-  if (renderPlacedModelCare()) return;
-  const tile = store.hovered || store.selected;
+  const panel = byId('tile-panel');
+  const tile = store.selected;
   const details = store.tileInfo(tile);
-  // Hide the decorative empty inspector only in compact landscape layouts.
-  // On wider desktops the original guidance panel remains unchanged.
-  byId('tile-panel').classList.toggle('is-active', Boolean(details && tile));
+  panel.hidden = !details;
+  panel.classList.toggle('is-active', !!details);
   if (!details || !tile) {
-    byId('tile-panel').innerHTML =
-      '<span class="eyebrow">INSPECT THE TOWN</span><h3>Every square tells a story</h3>' +
-      '<p>Hover over the grid to inspect conditions. Select a boxed miniature to preview its effect.</p>';
+    panel.innerHTML = '';
+    delete panel.dataset.detailKey;
     return;
   }
+  if (renderPlacedModelCare()) return;
   if (store.activeModel) {
     const model = store.getModel(store.activeModel);
     const preview = store.previewPlacement(tile, model.id);
     const status = preview.allowed ? 'READY TO PLACE' : 'CANNOT PLACE HERE';
-    byId('tile-panel').innerHTML =
-      '<span class="eyebrow">PLACEMENT PREVIEW · ' + (tile.x + 1) + '/' + (tile.y + 1) + '</span>' +
+    const content =
+      tileDetailsHeader('PLACEMENT PREVIEW · ' + (tile.x + 1) + '/' + (tile.y + 1)) +
       '<h3>' + model.name + '</h3><div class="preview-status ' +
       (preview.allowed ? 'valid' : 'invalid') + '">' + status + '</div>' +
       '<p class="projection-caption">Local tile values · now → after</p>' +
@@ -407,10 +512,10 @@ function renderTilePanel(): void {
          BIN_CAPACITY + ' items within ' + BIN_CATCH_RADIUS +
          ' squares. Collection bills are additional to upkeep; existing litter needs separate cleaning.</p>' : '') +
       '<p class="tile-tip">' + preview.reason + '</p>';
+    updateTilePanelMarkup(content, 'preview:' + tile.x + ',' + tile.y + ':' + model.id);
     return;
   }
-  byId('tile-panel').innerHTML =
-    '<span class="eyebrow">GRID ' + (tile.x + 1) + ' / ' + (tile.y + 1) + '</span>' +
+  const content = tileDetailsHeader('GRID ' + (tile.x + 1) + ' / ' + (tile.y + 1)) +
     '<h3>' + details.kind + '</h3>' +
     '<div class="tile-score"><span>Beauty</span><b>' + signed(details.beauty) + '</b></div>' +
     '<div class="tile-score"><span>Noise</span><b>' + signed(details.noise) + '</b></div>' +
@@ -428,6 +533,7 @@ function renderTilePanel(): void {
     '<p class="tile-tip">' + (store.canPlace(tile)
       ? 'Free building square. Pick a model kit to see its effect.'
       : 'Existing part of the miniature town.') + '</p>';
+  updateTilePanelMarkup(content, 'tile:' + tile.x + ',' + tile.y);
 }
 
 function upgradeRow(type: 'savings' | 'patience', title: string, description: string, costBase: number): string {
@@ -507,6 +613,7 @@ function render(): void {
   renderShop();
   renderPlacementStatus();
   renderTilePanel();
+  renderTilePeek();
   renderHouseholds();
   renderHouseholdDetail();
   byId('workbench-note').textContent = 'AT THE WORKBENCH · ' + store.workbenchLine;
@@ -604,6 +711,11 @@ document.addEventListener('click', (event) => {
   const actionButton = target.closest<HTMLElement>('[data-action]');
   if (!actionButton) return;
   const action = actionButton.dataset.action;
+  if (action === 'close-tile') {
+    store.dismissTile();
+    byId('game-container').focus({ preventScroll: true });
+    return;
+  }
   if (action === 'empty-bin' || action === 'clear-litter') {
     const x = Number(actionButton.dataset.x), y = Number(actionButton.dataset.y);
     if (Number.isInteger(x) && Number.isInteger(y) && isOnBoard(x,y)) {
@@ -673,6 +785,11 @@ document.addEventListener('dragend', () => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !store.activeModel && store.selected) {
+    store.dismissTile();
+    byId('game-container').focus({ preventScroll: true });
+    return;
+  }
   if (event.key === 'Escape' && store.activeModel) {
     store.cancelModel();
     return;
