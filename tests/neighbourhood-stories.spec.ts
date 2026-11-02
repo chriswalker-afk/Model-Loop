@@ -115,6 +115,7 @@ test('the Marshes clean real scraps from a picnic, not unrelated road tiles',()=
   expect(task).toBeTruthy();
   expect(store.environment.effects.some(effect=>effect.id===task.effectId)).toBe(true);
   const before=store.money;
+  store.tickEconomy(2.1); // let the other car genuinely arrive later
   avoidExtraActions(store,3);
   store.neighbours.rng.next=()=>0;
   store.passTile(3,road);
@@ -152,6 +153,7 @@ test('the Bells leave art that the Marshes can genuinely notice',()=>{
   store.tickEconomy(11.1);
   const task=store.neighbours.pending.find(t=>t.kind==='marsh-admire')!;
   expect(task).toBeTruthy();
+  store.tickEconomy(2.1); // neighbours cannot respond at the instant a sketch is made
   avoidExtraActions(store,3);
   store.neighbours.rng.next=()=>0;
   store.passTile(3,road);
