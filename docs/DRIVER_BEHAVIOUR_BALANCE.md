@@ -49,6 +49,33 @@ This is a **headless deterministic systems simulation**, not a substitute
 for watching the actual Phaser game on a laptop and phone. Browser smoke
 tests separately cover the rendered UI and user interactions.
 
+## Initial multiseed calibration (11, 29, 67)
+
+A headless full-town simulation of approximately 2–4 simulated minutes
+per run produced the following first set of results:
+
+| Strategy | Three seed outcomes | Progress at loss | Time to result |
+| --- | --- | --- | --- |
+| Bare town | 3 losses | 68–73% | 157–160s |
+| Cared-for | 3 wins, five homes remaining | 100% (completed) | 203–212s |
+| Minimal care | 3 losses | 53–59% | 129–133s |
+
+The cared-for runs earned 503–511 total lap coins and paid 170 in
+maintenance/collection over the full run, plus 125 on initial models.
+Net coins, occupancy, event history and traffic metrics remained bounded;
+none of the runs developed a permanent road stoppage. These are illustrative
+seeded scenarios, **not** a guarantee that every thoughtful build wins or
+that every no-build strategy loses.
+
+The four models in the baseline town include one bin, but **these three
+short sampled runs did not happen to generate a wrapper within its small
+interception radius**. That is a useful playtesting limitation, not
+proof that bin collection is sufficiently frequent. A separate heavy-litter
+stress test now exercises the full, economy and minimal-care schedules over
+four simulated minutes; the Pass 2 capacity/overflow tests remain in place.
+Natural litter frequency and the value of bins at different sites should
+be observed with a larger seed sample and actual play sessions.
+
 ## Readable feedback, not more clutter
 
 - The existing footer gives significant incidents priority over ordinary
