@@ -132,7 +132,7 @@ function renderPlacementStatus(): void {
     return;
   }
   status.innerHTML = '<strong>' + model.name + ' is ready</strong>' +
-    '<span>Hover to preview · click or drag to place · Esc to return it.</span>';
+    '<span>Click or drag to place · hold hover for a hint · Shift+click to inspect first · Esc to cancel.</span>';
 }
 
 function changeClass(value: number, lowerIsBetter: boolean): string {
