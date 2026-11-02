@@ -25,8 +25,8 @@ A new typed **src/ui/vintageEventArt.ts** contains exactly **22** original fine-
 
 ### 2. Workbench and end-of-chapter now match the town
 
-- The previously CSS-rounded “story car” is removed. The conclusion illustrates the **same formal 1908 landaulette SVG** as a resident's actual motorcar, in a finely registered model plate.
-- The workshop uses the existing finely etched Gas Lamppost miniature, a simple antiquarian shelf/desk frame and the same four engraved corner ornaments as the HUD and Selected Tile inspector.
+- The previously CSS-rounded “story car” is removed. The conclusion uses a **proper side-elevation 1908 landaulette** from the same car-art source library as the resident vehicles. A real gameplay screenshot rejected reuse of the top-down board view in this side-facing story scene.
+- The workshop uses the existing finely etched Gas Lamppost miniature, a simple antiquarian shelf/desk frame and the same four engraved corner ornaments as the HUD and Selected Tile inspector. The focused dialog title uses a restrained, visible brass engraving rule instead of a blue outline.
 - A standalone **src/styles/vintage-finish.css** collects only the final frame and inspector visual adjustments (not another set of unrelated full-page rules in the old stylesheet).
 - Real button focus states, translucent antique engraving panels, legible typography, reduced-motion settings and scrollable narrow dialogs are retained.
 - Workshop, chapter and model-selection actions still operate on the original state and economy.
