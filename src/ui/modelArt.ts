@@ -11,9 +11,7 @@ import type { ModelId } from '../game/config';
  */
 const ink = '#E9E2D5';
 const secondary = '#B8B2A5';
-const dark = '#101611';
 const brass = '#D9B66B';
-const green = '#91A58A';
 
 export const MODEL_ART_WIDTH = 130;
 export const MODEL_ART_HEIGHT = 104;
