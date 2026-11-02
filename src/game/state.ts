@@ -785,6 +785,7 @@ export class GameStore {
     const home = HOMES.find(home => home.id === id)!;
     const startIndex = ROAD_CELLS.findIndex(road => manhattanDistance(road, home) === 1);
     const tileIndex = ROAD_CELLS.findIndex(road => road.x === tile.x && road.y === tile.y);
+    let actedThisTile=false;
     if (tileIndex >= 0 && startIndex >= 0 &&
       resident.lastEventLap !== resident.laps) {
       const offset = (tileIndex - startIndex + ROAD_CELLS.length) % ROAD_CELLS.length;
@@ -797,11 +798,12 @@ export class GameStore {
         if (action) {
           const success = this.performHouseholdAction(id, action, tile, true,
             canParkForActivity && !this.traffic.shouldStop(id));
+          actedThisTile=success;
           if (!success && action.mechanic === 'activity') {
             // A full verge should not turn a picnic into invisible litter.
             const alternative = householdActionPair(id)[action.tone];
             if (alternative.id !== 'litter')
-              this.performHouseholdAction(id, alternative, tile, false, false);
+              actedThisTile=this.performHouseholdAction(id, alternative, tile, false, false);
           }
         }
       }
@@ -827,7 +829,7 @@ export class GameStore {
     }
     // Optional linked response is checked once per real tile crossing, not
     // every frame. Passing cars, parked cars and stopped drivers are excluded.
-    if (canParkForActivity && !this.paused && !this.workshopOpen &&
+    if (canParkForActivity && !actedThisTile && !this.paused && !this.workshopOpen &&
         !this.activities.forResident(id) && !this.traffic.shouldStop(id))
       this.respondToNeighbourhood(id,tile);
     if (resident.irritation >= 100) {
