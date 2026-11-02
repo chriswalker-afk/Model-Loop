@@ -4,8 +4,9 @@ import {
 } from '../src/game/config';
 import { GameStore } from '../src/game/state';
 import {
-  HOME_DWELL_SECONDS, advanceTraffic, canReserveRoad, newCarCycle,
-  stepCarCycle, TRAFFIC_MIN_GAP, type CarCycle, type RoadVehicle
+  HOME_DWELL_SECONDS, TRAFFIC_LANE_CHANGE_SECONDS, advanceTraffic,
+  canReserveRoad, newCarCycle, passingLaneBlockedAhead, planLaneChanges,
+  stepCarCycle, TRAFFIC_MIN_GAP, type CarCycle, type RoadLane, type RoadVehicle
 } from '../src/game/traffic';
 import { MAX_ENVIRONMENT_EFFECTS, MAX_EFFECTS_BY_KIND } from '../src/game/environment';
 import { VINTAGE_BALANCE, summariseRun } from '../src/game/balance';
@@ -19,6 +20,9 @@ interface TestCar {
   tileIndex:number;
   speed:number;
   speedFactor:number;
+  lane:RoadLane;
+  changingTo:RoadLane|null;
+  laneChangeElapsed:number;
 }
 interface TrialResult {
   seed:number;
@@ -57,13 +61,17 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
   const cars:TestCar[]=HOMES.map((home,i)=>({
     residentId:home.id,
     startIndex:ROAD_CELLS.findIndex(cell=>manhattanDistance(cell,home)===1),
-    cycle:newCarCycle(), tileIndex:-1, speed:85+i*4,speedFactor:1
+    cycle:newCarCycle(), tileIndex:-1, speed:85+i*4,speedFactor:1,
+    lane:'left',changingTo:null,laneChangeElapsed:0
   }));
   expect(cars.every(car=>car.startIndex>=0)).toBe(true);
   let clock=0,allStopped=0,worstStall=0;
   while(clock<timeout && store.phase==='playing'){
     store.tickEconomy(dt);
     clock+=dt;
+    const vergeObstructions=store.environment.effects
+      .filter(effect=>effect.kind==='display'||effect.kind==='litter')
+      .map(effect=>effect.cell);
     const vehicles:RoadVehicle[]=[];
     for(const car of cars){
       if(!store.residents[car.residentId].occupied)continue;
@@ -73,10 +81,14 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
         const sign=store.speedMultiplierAt(ROAD_CELLS[index]);
         car.speedFactor+=(sign-car.speedFactor)*Math.min(1,dt*7);
         vehicles.push({residentId:car.residentId,position,
-          desiredSpeed:store.traffic.shouldStop(car.residentId)?0:car.speed*car.speedFactor});
+          desiredSpeed:store.traffic.shouldStop(car.residentId)||
+            (car.lane==='passing'&&passingLaneBlockedAhead(position,vergeObstructions,30))
+            ?0:car.speed*car.speedFactor,
+          lane:car.lane,changingTo:car.changingTo});
       }else if(car.cycle.phase==='departing'){
         vehicles.push({residentId:car.residentId,
-          position:car.startIndex*BOARD.tile,desiredSpeed:0});
+          position:car.startIndex*BOARD.tile,desiredSpeed:0,
+          lane:'left',drivewayReservation:true});
       }
     }
     const granted=new Set<number>();
@@ -86,7 +98,17 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
       const position=car.startIndex*BOARD.tile;
       if(!canReserveRoad(position,vehicles,length))continue;
       granted.add(car.residentId);
-      vehicles.push({residentId:car.residentId,position,desiredSpeed:0});
+      vehicles.push({residentId:car.residentId,position,desiredSpeed:0,
+        lane:'left',drivewayReservation:true});
+    }
+    const laneChanges=planLaneChanges(vehicles,length,vergeObstructions);
+    for(const car of cars){
+      const target=laneChanges.get(car.residentId);
+      if(!target||car.changingTo||car.cycle.phase!=='driving')continue;
+      car.changingTo=target;
+      car.laneChangeElapsed=0;
+      const vehicle=vehicles.find(item=>item.residentId===car.residentId);
+      if(vehicle)vehicle.changingTo=target;
     }
     const moves=advanceTraffic(vehicles,dt,length);
     const byResident=new Map(moves.map(m=>[m.residentId,m]));
@@ -110,7 +132,20 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
       }else{
         stepCarCycle(car.cycle,dt,0,length,granted.has(car.residentId));
       }
+      if(car.cycle.phase==='at-home'){
+        car.lane='left';
+        car.changingTo=null;
+        car.laneChangeElapsed=0;
+      }
       if(car.cycle.phase==='driving'){
+        if(car.changingTo){
+          car.laneChangeElapsed+=dt;
+          if(car.laneChangeElapsed>=TRAFFIC_LANE_CHANGE_SECONDS){
+            car.lane=car.changingTo;
+            car.changingTo=null;
+            car.laneChangeElapsed=0;
+          }
+        }
         const position=(car.startIndex*BOARD.tile+car.cycle.distance)%length;
         const index=Math.min(ROAD_CELLS.length-1,Math.floor(position/BOARD.tile));
         if(index!==car.tileIndex){
@@ -121,7 +156,8 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
     }
     store.reportTrafficFlow(queued);
 
-    // The visible car-following logic cannot create a permanent deadlock.
+    // Run the same two-lane overtaking decisions as the visible cars:
+    // a new passing manoeuvre must never create an unbounded road deadlock.
     const activeCars=vehicles.filter(v=>v.desiredSpeed>1);
     if(store.traffic.activeStop===null && activeCars.length>=2 &&
        moves.every(m=>m.speed<.3)) allStopped+=dt;
