@@ -1,6 +1,11 @@
 import { Scene } from 'phaser';
 import { BOARD, EFFECT_RADIUS, HOMES, MODELS, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
 import { miniatureDataUri, miniatureTextureKey, MODEL_ART_WIDTH, MODEL_ART_HEIGHT } from '../ui/modelArt';
+import {
+  carSvg, carTextureKey, carVariants, houseSvg, houseTextureKey,
+  scenerySvg, sceneryTextureKey, sceneryVariants, sceneryDimensions,
+  worldSvgDataUri, WORLD_CAR_SIZE, WORLD_HOUSE_SIZE
+} from '../ui/vintageWorldArt';
 import { store, type JourneyReaction } from './state';
 import { normalizedCare, modelCondition } from './economy';
 import type { RoadsideIncident } from './damage';
@@ -71,6 +76,8 @@ export class TownScene extends Scene {
   // per frame); a placed kit keeps its physical tile footprint unchanged.
   private kitSprites = new Map<string, Phaser.GameObjects.Image>();
   private kitGhost!: Phaser.GameObjects.Image;
+  private houseSprites: Phaser.GameObjects.Image[] = [];
+  private scenerySprites: Phaser.GameObjects.Image[] = [];
 
   constructor() { super('TownScene'); }
 
@@ -86,6 +93,29 @@ export class TownScene extends Scene {
         });
       }
     }
+    // A single immutable texture per household and civic illustration.
+    // The traffic update transforms existing images, never rasterizes SVGs.
+    for (let i = 0; i < HOMES.length; i++) {
+      const tint = '#' + HOMES[i].color.toString(16).padStart(6, '0');
+      if (!this.textures.exists(carTextureKey(i))) {
+        this.load.svg(carTextureKey(i), worldSvgDataUri(carSvg(i,tint)), {
+          width: WORLD_CAR_SIZE.width * 2, height: WORLD_CAR_SIZE.height * 2
+        });
+      }
+      if (!this.textures.exists(houseTextureKey(i))) {
+        this.load.svg(houseTextureKey(i), worldSvgDataUri(houseSvg(i)), {
+          width: WORLD_HOUSE_SIZE.width * 2, height: WORLD_HOUSE_SIZE.height * 2
+        });
+      }
+    }
+    for (const variant of sceneryVariants) {
+      const key = sceneryTextureKey(variant);
+      if (this.textures.exists(key)) continue;
+      const size = sceneryDimensions[variant];
+      this.load.svg(key, worldSvgDataUri(scenerySvg(variant)), {
+        width: size.width * 2, height: size.height * 2
+      });
+    }
   }
 
   create(): void {
@@ -93,6 +123,11 @@ export class TownScene extends Scene {
     this.drawBoard();
     this.drawScenery();
     this.drawRoad();
+    this.houseSprites = HOMES.map(home => {
+      const point = worldPoint(home);
+      return this.add.image(point.x, point.y + 22, houseTextureKey(home.id))
+        .setOrigin(.5, 1).setDisplaySize(59, 70).setDepth(2);
+    });
 
     // Roadside changes are drawn above the road and below cars and models.
     this.environmentLayer = this.add.graphics().setDepth(1);
@@ -157,6 +192,8 @@ export class TownScene extends Scene {
     this.events.once('shutdown', () => {
       unsubscribe();
       this.kitSprites.clear(); // Phaser scene shutdown destroys images.
+      this.scenerySprites = [];
+      this.houseSprites = [];
     });
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -208,7 +245,7 @@ export class TownScene extends Scene {
   }
 
   private drawBoard(): void {
-    const graphics = this.add.graphics();
+    const graphics = this.add.graphics().setDepth(-3);
     graphics.fillStyle(0x151a18, 1);
     graphics.fillRoundedRect(28, 18, 1096, 566, 18);
     graphics.lineStyle(1, 0x6c7269, 0.45);
@@ -236,7 +273,7 @@ export class TownScene extends Scene {
   }
 
   private drawRoad(): void {
-    const g = this.add.graphics();
+    const g = this.add.graphics().setDepth(-1);
     const points = ROAD_CELLS.map(worldPoint);
     const trace = () => {
       g.beginPath();
@@ -245,81 +282,69 @@ export class TownScene extends Scene {
       g.closePath();
       g.strokePath();
     };
-    // A slightly broader miniature road accommodates two car widths: the
-    // left-hand running lane and the occasional right-hand passing manoeuvre.
-    g.lineStyle(56, 0xa0a39a, 0.85);
-    trace();
-    g.lineStyle(52, 0x111716, 1);
-    trace();
-    g.lineStyle(46, palette.asphalt, 1);
-    trace();
-    g.lineStyle(1.5, 0xd5d0bd, 0.65);
-    for (let i = 0; i < points.length; i += 1) {
+    // Drawn with a pair of period engraved curb rules, fine shadow, a subtle
+    // paved strip and broken chalk centre markings. The original road cells,
+    // actual width used by the lane planner and collision physics are intact.
+    for (const [width,colour,alpha] of [
+      [59,0x566056,.44],[57,0xd7d1bf,.66],[55,0x131815,1],
+      [52,0xa8a99a,.58],[50,0x1a221c,1],[46,0x2A3029,1]
+    ]) {
+      g.lineStyle(width,colour,alpha);
+      trace();
+    }
+    // Fine interrupted centre paint, not a cartoon solid stroke.
+    g.lineStyle(1.18,0xe1d4b9,.68);
+    for (let i = 0; i < points.length; i++) {
       const from = points[i], to = points[(i + 1) % points.length];
-      for (let part = 0.08; part < 0.9; part += 0.34) {
-        const end = Math.min(0.9, part + 0.17);
+      for (let part=.13;part<.88;part+=.37) {
+        const last=Math.min(.88,part+.17);
         g.lineBetween(
-          from.x + (to.x - from.x) * part,
-          from.y + (to.y - from.y) * part,
-          from.x + (to.x - from.x) * end,
-          from.y + (to.y - from.y) * end
+          from.x+(to.x-from.x)*part,from.y+(to.y-from.y)*part,
+          from.x+(to.x-from.x)*last,from.y+(to.y-from.y)*last
         );
+      }
+    }
+    // Engraved shoulder/paving seams outside the road. Short ticks avoid
+    // ambiguous grid-like obstruction marks in the playable road itself.
+    g.lineStyle(.9,0xc8c3af,.30);
+    for(let i=0;i<points.length;i+=2) {
+      const a=points[i],b=points[(i+1)%points.length];
+      const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
+      const px=-dy/len,py=dx/len;
+      for(const side of [-1,1]) {
+        const x=a.x+px*side*25,y=a.y+py*side*25;
+        g.lineBetween(x,y,x+px*side*4,y+py*side*4);
       }
     }
   }
 
   private drawScenery(): void {
-    const g = this.add.graphics();
-    const plots: Cell[] = SCENERY_CELLS.slice(0, 10);
-    plots.forEach((cell, i) => {
-      const point = worldPoint(cell);
-      this.drawTree(g, point.x, point.y, i % 3 === 0 ? 21 : 16);
+    this.scenerySprites = [];
+    // The ten existing reserved scenery plots remain exactly as before.
+    // Plot 0 is now a bandstand in the park; the other nine are finely
+    // etched oak variations. No extra land is taken from buildable tiles.
+    SCENERY_CELLS.slice(0,10).forEach((cell,i)=>{
+      const point=worldPoint(cell);
+      const style = i===0?'bandstand' :
+        (['oak-a','oak-b','oak-c'] as const)[i%3];
+      const image=this.add.image(point.x,point.y+21,sceneryTextureKey(style))
+        .setOrigin(.5,1)
+        .setDisplaySize(i===0?59:53,i===0?57:61)
+        .setDepth(i===0?2:1);
+      this.scenerySprites.push(image);
     });
-
-    const hall = worldPoint({ x: 11, y: 6 });
-    g.fillStyle(0x212725, 0.96);
-    g.fillRoundedRect(hall.x - 41, hall.y - 20, 82, 59, 3);
-    g.lineStyle(2, palette.chalk, 0.72);
-    g.strokeRect(hall.x - 41, hall.y - 20, 82, 59);
-    g.strokeTriangle(hall.x - 48, hall.y - 20, hall.x, hall.y - 49, hall.x + 48, hall.y - 20);
-    g.strokeRect(hall.x - 6, hall.y - 61, 12, 23);
-    g.strokeCircle(hall.x, hall.y - 52, 3.5);
-    for (let x = hall.x - 27; x <= hall.x + 27; x += 18) {
-      g.strokeRect(x - 4, hall.y - 7, 8, 14);
-    }
-    g.strokeRect(hall.x - 6, hall.y + 10, 12, 29);
-    this.add.text(hall.x, hall.y + 45, 'TOWN HALL', {
-      fontFamily: 'Georgia, serif', fontSize: '10px', color: '#a7afa4'
-    }).setOrigin(0.5);
-
-    const fountain = worldPoint({ x: 16, y: 6 });
-    g.lineStyle(1.5, 0xb9ccc8, 0.86);
-    g.strokeEllipse(fountain.x, fountain.y + 9, 49, 17);
-    g.strokeEllipse(fountain.x, fountain.y + 4, 37, 13);
-    g.lineBetween(fountain.x, fountain.y - 21, fountain.x, fountain.y + 3);
-    g.strokeEllipse(fountain.x, fountain.y - 14, 19, 6);
-    g.fillStyle(0xa0c5c2, 0.28);
-    g.fillEllipse(fountain.x, fountain.y + 7, 33, 8);
-
-    const notice = worldPoint({ x: 7, y: 7 });
-    g.lineStyle(1.3, palette.chalk, 0.65);
-    g.strokeRect(notice.x - 25, notice.y - 7, 50, 19);
-    g.lineBetween(notice.x - 19, notice.y + 12, notice.x - 19, notice.y + 23);
-    g.lineBetween(notice.x + 19, notice.y + 12, notice.x + 19, notice.y + 23);
-    this.add.text(notice.x, notice.y - 2, 'TOWN PARK', {
-      fontFamily: 'Georgia, serif', fontSize: '8px', color: '#c6c5b8'
-    }).setOrigin(0.5);
-  }
-
-  private drawTree(g: Phaser.GameObjects.Graphics, x: number, y: number, size: number): void {
-    g.lineStyle(1.4, 0xb8c5b5, 0.65);
-    g.lineBetween(x, y + size * 0.2, x, y + size * 0.86);
-    g.lineBetween(x, y + size * 0.48, x - size * 0.38, y + size * 0.12);
-    g.strokeCircle(x - size * 0.35, y - size * 0.14, size * 0.39);
-    g.strokeCircle(x + size * 0.3, y - size * 0.2, size * 0.43);
-    g.strokeCircle(x, y - size * 0.46, size * 0.51);
-    g.fillStyle(0x839b86, 0.14);
-    g.fillCircle(x, y - size * 0.2, size * 0.58);
+    const hall=worldPoint({x:11,y:6});
+    this.scenerySprites.push(this.add.image(
+      hall.x,hall.y+43,sceneryTextureKey('clock-hall'))
+      .setOrigin(.5,1).setDisplaySize(111,112).setDepth(2));
+    const fountain=worldPoint({x:16,y:6});
+    this.scenerySprites.push(this.add.image(
+      fountain.x,fountain.y+22,sceneryTextureKey('garden-fountain'))
+      .setOrigin(.5,1).setDisplaySize(59,47).setDepth(2));
+    const notice=worldPoint({x:7,y:7});
+    this.scenerySprites.push(this.add.image(
+      notice.x,notice.y+24,sceneryTextureKey('park-notice'))
+      .setOrigin(.5,1).setDisplaySize(52,53).setDepth(2));
   }
 
   private createCar(residentId: number, index: number): Car {
@@ -338,28 +363,17 @@ export class TownScene extends Scene {
       backgroundColor: '#19251d',
       padding: { x: 5, y: 3 }
     }).setOrigin(0.5).setDepth(18).setVisible(false);
-    const g = this.add.graphics();
-    g.fillStyle(0x0a0e0e, 0.97);
-    g.fillRoundedRect(-15, -10, 28, 20, 3);
-    g.fillStyle(home.color);
-    g.fillRoundedRect(-13, -6, 25, 12, 3);
-    g.fillStyle(0x121b1a);
-    g.fillRect(-4, -5, 7, 10);
-    g.lineStyle(1.2, palette.chalk, 0.8);
-    g.strokeRoundedRect(-13, -6, 25, 12, 3);
-    g.strokeRect(-4, -5, 7, 10);
-    g.fillStyle(0x090a0a);
-    g.fillRoundedRect(-10, -10, 9, 4, 1);
-    g.fillRoundedRect(-10, 6, 9, 4, 1);
-    g.fillStyle(palette.gold, 1);
-    g.fillCircle(12, -4, 2);
-    g.fillCircle(12, 4, 2);
+    // Four real brass-era silhouettes are mapped to the six households.
+    // Their cache images move and rotate in the SAME unchanged traffic
+    // container, preserving following gaps, lane offsets and accident rules.
+    const motorcar = this.add.image(0,0,carTextureKey(index))
+      .setDisplaySize(45,26);
     const brakeLights = this.add.graphics();
-    brakeLights.fillStyle(palette.danger, 0.95);
-    brakeLights.fillCircle(-13, -5, 3);
-    brakeLights.fillCircle(-13, 5, 3);
+    brakeLights.fillStyle(palette.danger,.92);
+    brakeLights.fillCircle(-21,-6,1.9);
+    brakeLights.fillCircle(-21,6,1.9);
     brakeLights.setVisible(false);
-    container.add([g, brakeLights]);
+    container.add([motorcar,brakeLights]);
     return {
       residentId,
       container,
@@ -381,31 +395,32 @@ export class TownScene extends Scene {
     };
   }
 
-  private drawHouse(g: Phaser.GameObjects.Graphics, home: typeof HOMES[number]): void {
-    const resident = store.residents[home.id];
-    const point = worldPoint(home);
-    const x = point.x, y = point.y;
-    const ink = !resident?.occupied ? palette.danger
-      : resident.irritation >= 72 ? palette.gold : palette.chalk;
-    g.fillStyle(0x1c2220, 0.98);
-    g.fillRect(x - 14, y - 9, 28, 25);
-    g.lineStyle(1.5, ink, 0.9);
-    g.strokeRect(x - 14, y - 9, 28, 25);
-    g.strokeTriangle(x - 19, y - 9, x, y - 24, x + 19, y - 9);
-    g.strokeRect(x - 4, y + 3, 8, 13);
-    g.strokeRect(x + 6, y - 3, 5, 6);
-    g.fillStyle(!resident?.occupied ? palette.danger
-      : resident.irritation >= 72 ? palette.gold
-      : resident.irritation >= 45 ? 0xd5bb85 : palette.mint, 0.9);
-    g.fillCircle(x + 17, y - 20, 3);
-    if (store.selectedResident === home.id) {
-      g.lineStyle(1.6, palette.gold, 0.95);
-      g.strokeRoundedRect(x - 23, y - 31, 46, 54, 5);
+  private drawHouse(g: Phaser.GameObjects.Graphics,home:typeof HOMES[number]):void {
+    const resident=store.residents[home.id];
+    const point=worldPoint(home);
+    const house=this.houseSprites[home.id];
+    if(house)house.setAlpha(resident?.occupied ? 1 : .48);
+    // Occupancy, mood and selection remain distinct *live* game indicators,
+    // not baked into the static architectural textures.
+    const status=!resident?.occupied?palette.danger:
+      resident.irritation>=72?palette.gold:
+      resident.irritation>=45?0xd5bb85:palette.mint;
+    g.fillStyle(0x121A14,.97);
+    g.fillCircle(point.x+24,point.y-37,5.3);
+    g.lineStyle(1,palette.chalk,.83);
+    g.strokeCircle(point.x+24,point.y-37,5.3);
+    g.fillStyle(status,.97);
+    g.fillCircle(point.x+24,point.y-37,2.9);
+    if(store.selectedResident===home.id){
+      g.lineStyle(1.45,palette.gold,.96);
+      g.strokeRoundedRect(point.x-29,point.y-49,58,75,4);
+      g.lineStyle(.8,palette.chalk,.71);
+      g.strokeRoundedRect(point.x-26,point.y-46,52,69,3);
     }
-    if (!resident?.occupied) {
-      g.lineStyle(2, palette.danger, 0.8);
-      g.lineBetween(x - 10, y - 4, x + 10, y + 12);
-      g.lineBetween(x + 10, y - 4, x - 10, y + 12);
+    if(!resident?.occupied){
+      g.lineStyle(1.7,palette.danger,.91);
+      g.lineBetween(point.x-13,point.y-4,point.x+13,point.y+13);
+      g.lineBetween(point.x+13,point.y-4,point.x-13,point.y+13);
     }
   }
 
