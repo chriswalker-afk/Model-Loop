@@ -125,17 +125,6 @@
   text-shadow: 0 1px 1px #080a09;
 }
 .vintage-header .brand-name .brand-name-accent { color: var(--vintage-brass); }
-.vintage-brand-car {
-  position: absolute;
-  z-index: 1;
-  top: 11px;
-  right: 8px;
-  width: clamp(60px,7vw,100px);
-  height: auto;
-  color: var(--vintage-detail);
-  opacity: .27;
-  pointer-events: none;
-}
 .vintage-header .vintage-era {
   min-height: 64px;
   padding: 9px 25px 8px;
@@ -491,6 +480,21 @@
 
 /* Compact/laptop: keep the existing two-row HUD and the game's large canvas. */
 @media (min-width:701px) and (max-width:1100px) {
+  /* The old compact layout reset grid-column to auto after naming an area.
+   * Explicit rows prevent gauges and controls from landing on top of each
+   * other on 844px landscape and smaller tablets. */
+  .vintage-header {
+    grid-template-areas: "brand era controls" "meters meters meters";
+    grid-template-columns: minmax(145px,1fr) minmax(155px,190px) minmax(175px,1fr);
+  }
+  .vintage-header .vintage-brand { grid-area: brand; grid-row: 1; grid-column: 1; }
+  .vintage-header .vintage-era { grid-area: era; grid-row: 1; grid-column: 2; }
+  .vintage-header .vintage-instruments {
+    grid-area: meters; grid-row: 2; grid-column: 1 / -1; width: 100%;
+  }
+  .vintage-header .vintage-controls {
+    grid-area: controls; grid-row: 1; grid-column: 3;
+  }
   .vintage-header .vintage-brand,
   .vintage-header .vintage-era,
   .vintage-header .vintage-instruments { min-height: 60px; }
@@ -512,10 +516,26 @@
 }
 /* Small screen: the new antique plate must not flatten or hide instruments. */
 @media (max-width:700px) {
+  /* Keep the four gauges in a full-width 2x2 instrument case. A half-width
+   * case with controls beside it made the labels and values collide. */
+  .vintage-header {
+    grid-template-areas: "brand era" "meters meters" "controls controls";
+    grid-template-columns: minmax(0,1fr) minmax(120px,.75fr);
+    grid-template-rows: auto auto auto;
+  }
+  .vintage-header .vintage-brand { grid-area: brand; grid-row: 1; grid-column: 1; }
+  .vintage-header .vintage-era { grid-area: era; grid-row: 1; grid-column: 2; }
+  .vintage-header .vintage-instruments {
+    grid-area: meters; grid-row: 2; grid-column: 1 / -1; width: 100%;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+  .vintage-header .vintage-controls {
+    grid-area: controls; grid-row: 3; grid-column: 1 / -1; width: 100%;
+    justify-content: space-between;
+  }
   .vintage-header .vintage-brand,
   .vintage-header .vintage-era { min-height: 68px; }
   .vintage-header .vintage-brand { padding: 9px 11px; }
-  .vintage-brand-car { display: none; }
   .vintage-header .vintage-era { padding: 8px 13px; }
   .vintage-header .vintage-era strong { font-size: clamp(18px,5.1vw,23px); }
   .vintage-header .vintage-era .eyebrow { font-size: 8px; }
