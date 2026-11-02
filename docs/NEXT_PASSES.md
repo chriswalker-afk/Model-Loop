@@ -1,5 +1,18 @@
 # The Generational Cycle — Next passes
 
+## Pass 6C implemented — real incidents and restoration (November 2026)
+
+Pass 6B is merged. **Pass 6C** adds grounded, rare left-verge
+collisions, a distinct intact/damaged/broken condition on purchased
+miniatures, visual scuffs and debris, temporary accident slowdowns,
+honest repair costs, real Hale restorations and practical Ward assistance.
+See [ACCIDENTS_RESTORATION_PASS6C.md](ACCIDENTS_RESTORATION_PASS6C.md).
+
+**Next: Pass 6D — household interactions and balancing:** Connect residents'
+reactions to one another's incidents and activities, stress-test repair
+fairness, event probabilities, traffic flow and finances over many seeded
+runs, and finish compact/mobile/accessibility polish.
+
 ## Pass 6B complete — staged roadside activities (November 2026)
 
 **Pass 6A** is merged. **Pass 6B** adds eight small, household-specific

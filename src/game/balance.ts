@@ -37,12 +37,18 @@ export interface RunLedger {
   maximumEnvironmentalEffects: number;
   largestQueue: number;
   secondsLostInTraffic: number;
+  /** Pass 6C fields are optional for backwards-compatible older ledgers. */
+  roadsideAccidents?: number;
+  repairSpending?: number;
+  haleRestorations?: number;
+  wardAssists?: number;
 }
 export const newRunLedger = (): RunLedger => ({
   completedLaps: 0, coinsEarned: 0, carePaid: 0, miniaturePurchases: 0,
   helpfulActions: 0, troublesomeActions: 0, litterCaught: 0,
   overflowingBins: 0, manualClearances: 0, manualCollections: 0,
-  maximumEnvironmentalEffects: 0, largestQueue: 0, secondsLostInTraffic: 0
+  maximumEnvironmentalEffects: 0, largestQueue: 0, secondsLostInTraffic: 0,
+  roadsideAccidents: 0, repairSpending: 0, haleRestorations: 0, wardAssists: 0
 });
 
 export interface BalancedRunSummary {
@@ -57,6 +63,10 @@ export interface BalancedRunSummary {
   capturedPackaging: number;
   overflowEvents: number;
   maxEnvironmentalPatches: number;
+  roadsideAccidents: number;
+  repairSpending: number;
+  haleRestorations: number;
+  wardAssists: number;
 }
 export function summariseRun(ledger: Readonly<RunLedger>): BalancedRunSummary {
   const incidents = ledger.helpfulActions + ledger.troublesomeActions;
@@ -71,6 +81,10 @@ export function summariseRun(ledger: Readonly<RunLedger>): BalancedRunSummary {
     peakQueue: ledger.largestQueue,
     capturedPackaging: ledger.litterCaught,
     overflowEvents: ledger.overflowingBins,
-    maxEnvironmentalPatches: ledger.maximumEnvironmentalEffects
+    maxEnvironmentalPatches: ledger.maximumEnvironmentalEffects,
+    roadsideAccidents: ledger.roadsideAccidents ?? 0,
+    repairSpending: ledger.repairSpending ?? 0,
+    haleRestorations: ledger.haleRestorations ?? 0,
+    wardAssists: ledger.wardAssists ?? 0
   };
 }

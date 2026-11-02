@@ -1,7 +1,9 @@
 import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, type Cell, type ModelId } from './config';
 import { householdProfile, modelReactionPerTile } from './households';
-import { careName, FLOW_WINDOW_SECONDS, modelEffects, normalizedCare, summarizeFlow,
-  UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent } from './economy';
+import { careName, FLOW_WINDOW_SECONDS, modelEffects, modelRepairCost,
+  modelCondition, modelConditionFactor, normalizedCare, summarizeFlow,
+  UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent,
+  type ModelCondition } from './economy';
 import { LivingEnvironment, type EnvironmentKind, type EnvironmentalEvent, type LitterDiversion } from './environment';
 import {
   BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCatchChance,
@@ -19,6 +21,10 @@ import {
   ActivityEngine, activityDefinition, type ActivityKind,
   type ActivityCompletion, type ActivityOutcome
 } from './activities';
+import { RoadsideAccidentEngine, type RoadsideIncident,
+  type ImpactSeverity } from './damage';
+import { isBendApproach } from './driving';
+import type { RoadLane } from './traffic';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -49,6 +55,7 @@ export interface HouseholdEffect {
 export interface PlacedModel extends Cell {
   id: ModelId;
   care?: CareLevel; // Older prototype saves/tests without a care level default to full.
+  condition?: ModelCondition; // Physical state is independent of selected care.
   nextBillAt?: number;
   fill?: number; // Only bin models use these three collection fields.
   overflowed?: boolean;
@@ -128,6 +135,7 @@ export class GameStore {
   traffic = new RoadTraffic(1);
   behaviour = new HouseholdBehaviourEngine(1);
   activities = new ActivityEngine(1);
+  accidents = new RoadsideAccidentEngine(1);
   behaviourHistory: BehaviourReport[] = [];
   latestBehaviourReport: BehaviourReport | null = null;
   private nextBehaviourSequence = 1;
@@ -136,7 +144,8 @@ export class GameStore {
   get elapsedSeconds(): number { return this.clockSeconds; }
   get cashflow(): Cashflow {
     const scheduled = this.placements.reduce((total, item) =>
-      total + modelEffects(item.id, normalizedCare(item.care)).upkeep, 0);
+      total + modelEffects(item.id, normalizedCare(item.care),
+        modelCondition(item.condition)).upkeep, 0);
     return summarizeFlow(this.cashflowEvents, this.clockSeconds, scheduled, this.placements.length);
   }
   // Deliberately excludes purchase costs: income tracks regular money earned
@@ -148,6 +157,7 @@ export class GameStore {
     const environmentChanged = this.environment.tick(this.clockSeconds);
     const trafficCleared = this.traffic.tick(this.clockSeconds);
     const activityTick = this.activities.tick(this.clockSeconds);
+    const accidentChanged = this.accidents.tick(this.clockSeconds);
     for (const finished of activityTick.completed) this.finishActivity(finished);
     this.ledger.maximumEnvironmentalEffects = Math.max(
       this.ledger.maximumEnvironmentalEffects, this.environment.effects.length
@@ -156,7 +166,8 @@ export class GameStore {
     for (const placed of this.placements) {
       if (placed.nextBillAt === undefined) placed.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
       while (placed.nextBillAt <= this.clockSeconds) {
-        const price = modelEffects(placed.id, normalizedCare(placed.care)).upkeep;
+        const price = modelEffects(placed.id, normalizedCare(placed.care),
+          modelCondition(placed.condition)).upkeep;
         if (price > 0) {
           this.money -= price; // A temporary deficit is recoverable through later laps.
           billed += price;
@@ -165,6 +176,10 @@ export class GameStore {
         placed.nextBillAt += UPKEEP_INTERVAL_SECONDS;
       }
       if (placed.id !== 'bin') continue;
+      if (modelCondition(placed.condition) === 'broken') {
+        placed.nextCollectionAt = undefined;
+        continue;
+      }
       const interval = binCollectionInterval(normalizedCare(placed.care));
       if (interval === null) {
         placed.nextCollectionAt = undefined;
@@ -189,7 +204,7 @@ export class GameStore {
     }
     this.cashflowEvents = this.cashflowEvents.filter(
       entry => entry.at > this.clockSeconds - FLOW_WINDOW_SECONDS);
-    if (environmentChanged || trafficCleared || activityTick.changed) this.notify();
+    if (environmentChanged || trafficCleared || activityTick.changed || accidentChanged) this.notify();
     if (billed > 0) {
       this.publishNotice('Workshop care bill: −' + billed + ' coins. ' +
         (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' :
@@ -245,6 +260,7 @@ export class GameStore {
     this.traffic = new RoadTraffic(runSeed);
     this.behaviour = new HouseholdBehaviourEngine(runSeed);
     this.activities = new ActivityEngine(runSeed);
+    this.accidents = new RoadsideAccidentEngine(runSeed);
     this.behaviourHistory = [];
     this.latestBehaviourReport = null;
     this.nextBehaviourSequence = 1;
@@ -309,10 +325,12 @@ export class GameStore {
       const points = item.id === 'limit' ? 4 : item.id === 'lamp' ? 2 :
         item.id === 'police' ? 3 : 0;
       const care = normalizedCare(item.care);
-      return sum + points * (care === 'full' ? 1 : care === 'economy' ? 0.5 : 0.1);
+      return sum + points * (care === 'full' ? 1 : care === 'economy' ? 0.5 : 0.1)
+        * modelConditionFactor(item.condition);
     }, 0);
     return Math.round(clamp(90 + Math.min(10, protections) -
-      this.environment.hazardPenalty - Math.min(6, this.traffic.queuedCars.length * 2),
+      this.environment.hazardPenalty - this.accidents.hazardPenalty -
+      Math.min(6, this.traffic.queuedCars.length * 2),
       0, 100));
   }
 
@@ -321,6 +339,95 @@ export class GameStore {
     if (!cell) return null;
     return this.placements.find(item => item.x === cell.x && item.y === cell.y) || null;
   }
+  /** A deliberate, paid recovery; no coins or Progress are rewarded for
+   * causing accidents or fixing them. Broken minis stop accruing upkeep. */
+  repairModel(cell: Cell): boolean {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
+    const item = this.getPlacedModel(cell);
+    if (!item || modelCondition(item.condition)==='intact') return false;
+    const cost = modelRepairCost(item.id,item.condition);
+    if (this.money < cost) {
+      this.publishNotice('Need ' + cost + ' coins to repair the ' +
+        this.getModel(item.id).name + '.', 1);
+      this.notify();
+      return false;
+    }
+    const old = modelCondition(item.condition);
+    this.money -= cost;
+    this.recordCashflow(-cost,'upkeep');
+    this.ledger.repairSpending=(this.ledger.repairSpending??0)+cost;
+    item.condition = 'intact';
+    item.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
+    if(item.id === 'bin'){
+      const interval=binCollectionInterval(normalizedCare(item.care));
+      item.nextCollectionAt=interval === null ? undefined : this.clockSeconds+interval;
+    }
+    this.publishNotice(this.getModel(item.id).name + ' repaired from ' +
+      old + ' for ' + cost + ' coins. Its benefits have returned.', 1);
+    this.selected={x:item.x,y:item.y};
+    this.notify();
+    return true;
+  }
+
+  /** Only called for an actual tile crossing on the left driving lane.
+   * Safe overtaking/merging and stationary or parked vehicles cannot cause
+   * a random roadside impact. Geometry is checked again by the engine. */
+  considerRoadsideAccident(
+    residentId: number, road: Cell, actualSpeed: number,
+    lane: RoadLane, changingLane = false
+  ): RoadsideIncident | null {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen ||
+      lane !== 'left' || changingLane || actualSpeed < 48 ||
+      !isRoad(road.x,road.y) || !this.residents[residentId]?.occupied ||
+      this.activities.forResident(residentId) || this.traffic.shouldStop(residentId)) return null;
+    if(this.activities.active.some(activity =>
+      manhattanDistance(activity.roadCell,road)<=1))return null;
+    const idx=ROAD_CELLS.findIndex(cell=>cell.x===road.x&&cell.y===road.y);
+    const nearby=this.placements.filter(item=>manhattanDistance(item,road)<=2);
+    const obscured=this.environment.at(road,1).some(effect=>
+      effect.kind==='litter'||effect.kind==='display'||effect.kind==='skid') ||
+      nearby.some(item=>item.id==='tree'&&modelCondition(item.condition)!=='broken');
+    const protectedCorner=nearby.some(item=>
+      (item.id==='limit'||item.id==='lamp'||item.id==='police') &&
+      modelConditionFactor(item.condition)>.4 && normalizedCare(item.care)!=='bare');
+    const impact=this.accidents.consider(residentId,road,this.placements,this.clockSeconds,{
+      speed:actualSpeed,bend:idx>=0&&isBendApproach(idx),
+      obscured,protected:protectedCorner
+    });
+    if(impact)this.applyRoadsideImpact(impact);
+    return impact;
+  }
+  /** Developer-only force with the same left-verge physical contact rule. */
+  debugRoadsideAccident(
+    residentId: number, road: Cell, modelCell: Cell,
+    severity: ImpactSeverity = 'damage'
+  ): boolean {
+    if(this.phase!=='playing'||this.paused||this.workshopOpen ||
+      !this.residents[residentId]?.occupied) return false;
+    const model=this.getPlacedModel(modelCell);
+    if(!model)return false;
+    const incident=this.accidents.force(residentId,road,model,this.clockSeconds,severity);
+    if(!incident)return false;
+    this.applyRoadsideImpact(incident);
+    return true;
+  }
+  private applyRoadsideImpact(incident: RoadsideIncident): void {
+    const item=this.getPlacedModel(incident.model);
+    if(!item)return;
+    item.condition=incident.after;
+    this.ledger.roadsideAccidents=(this.ledger.roadsideAccidents??0)+1;
+    const resident=this.residents[incident.residentId];
+    resident.irritation=clamp(resident.irritation+(incident.after==='broken'?2.5:1.3),0,100);
+    resident.lastRemark=incident.residentId===0
+      ? 'That bend was tighter than I thought.'
+      : 'I should have given the roadside a little more room.';
+    const modelName=this.getModel(item.id).name;
+    this.publishNotice(resident.name + ' clipped the ' + modelName +
+      ' at a nearby corner. The miniature is now ' + incident.after +
+      '. Click it to arrange a repair.',2);
+    this.notify();
+  }
+
   careDueIn(item: PlacedModel): number {
     return Math.max(0, Math.ceil((item.nextBillAt ?? this.clockSeconds + UPKEEP_INTERVAL_SECONDS) - this.clockSeconds));
   }
@@ -335,7 +442,7 @@ export class GameStore {
       placed.nextCollectionAt = interval === null ? undefined
         : this.clockSeconds + interval;
     }
-    const price = modelEffects(placed.id, care).upkeep;
+    const price = modelEffects(placed.id, care, modelCondition(placed.condition)).upkeep;
     this.notice = this.getModel(placed.id).name + ': ' + careName(care) +
       '. Next service bill ' + price + ' coins per ' + UPKEEP_INTERVAL_SECONDS + 's.';
     this.selected = { x: placed.x, y: placed.y };
@@ -350,15 +457,17 @@ export class GameStore {
     const item = this.getPlacedModel(cell);
     if (!item || item.id !== 'bin') return null;
     const level = normalizedCare(item.care);
-    const interval = binCollectionInterval(level);
+    const interval = modelCondition(item.condition) === 'broken'
+      ? null : binCollectionInterval(level);
     return {
       fill: item.fill ?? 0, capacity: BIN_CAPACITY, overflowed: !!item.overflowed,
-      radius: BIN_CATCH_RADIUS, reliability: binCatchChance(level),
+      radius: BIN_CATCH_RADIUS,
+      reliability: binCatchChance(level) * modelConditionFactor(item.condition),
       collectionPrice: collectionCost(item.fill ?? 0, !!item.overflowed),
       collectionDueIn: interval === null ? null :
         Math.ceil(Math.max(0, (item.nextCollectionAt ??
           this.clockSeconds + interval) - this.clockSeconds)),
-      regularUpkeep: modelEffects('bin', level).upkeep
+      regularUpkeep: modelEffects('bin', level,modelCondition(item.condition)).upkeep
     };
   }
 
@@ -413,6 +522,7 @@ export class GameStore {
 
   private interceptLitter(roadCell: Cell): LitterDiversion | null {
     const covered = this.placements.filter(item => item.id === 'bin'
+      && modelCondition(item.condition) !== 'broken'
       && withinBinCatchment(item, roadCell))
       .sort((a, b) =>
         manhattanDistance(a, roadCell) - manhattanDistance(b, roadCell)
@@ -423,7 +533,8 @@ export class GameStore {
     // useful. Missed catches from poor maintenance still become roadside litter.
     for (const bin of covered) {
       if ((bin.fill ?? 0) >= BIN_CAPACITY) continue;
-      if (this.environment.rng.next() >= binCatchChance(normalizedCare(bin.care))) continue;
+      if (this.environment.rng.next() >= binCatchChance(normalizedCare(bin.care))
+        * modelConditionFactor(bin.condition)) continue;
       bin.fill = Math.min(BIN_CAPACITY, (bin.fill ?? 0) + 1);
       this.ledger.litterCaught++;
       return { status: 'captured', bin: { x: bin.x, y: bin.y } };
@@ -441,10 +552,11 @@ export class GameStore {
     let multiplier = 1;
     for (const placed of this.placements) {
       if (placed.id !== 'limit' || manhattanDistance(placed, tile) > EFFECT_RADIUS) continue;
-      multiplier = Math.min(multiplier, modelEffects(placed.id, normalizedCare(placed.care)).speedMultiplier);
+      multiplier = Math.min(multiplier, modelEffects(placed.id,
+        normalizedCare(placed.care),modelCondition(placed.condition)).speedMultiplier);
     }
     return Math.min(multiplier, this.environment.slowdownAt(tile),
-      this.activities.slowdownAt(tile));
+      this.activities.slowdownAt(tile), this.accidents.slowAt(tile));
   }
   selectResident(id: number | null): void {
     this.selectedResident = this.selectedResident === id ? null : id;
@@ -522,7 +634,7 @@ export class GameStore {
     }
     this.money -= model.cost;
     this.ledger.miniaturePurchases += model.cost;
-    this.placements.push({ ...cell, id, care: 'full',
+    this.placements.push({ ...cell, id, care: 'full', condition: 'intact',
       nextBillAt: this.clockSeconds + UPKEEP_INTERVAL_SECONDS,
       ...(id === 'bin' ? {
         fill: 0, overflowed: false, nextCollectionAt: this.clockSeconds + 60
@@ -548,15 +660,19 @@ export class GameStore {
     return {
       kind,
       beauty: 1 + environmental.beauty + activity.beauty - 2 * overflowing + nearby.reduce((total, item) =>
-        total + modelEffects(item.id, normalizedCare(item.care)).beauty, 0),
+        total + modelEffects(item.id, normalizedCare(item.care),
+          modelCondition(item.condition)).beauty, 0),
       noise: (isRoad(cell.x, cell.y) ? 2 : 0) + environmental.noise + activity.noise
         + Math.min(3, this.traffic.queuedNear(cell))
         + nearby.reduce((total, item) =>
-          total + modelEffects(item.id, normalizedCare(item.care)).noise, 0),
+          total + modelEffects(item.id, normalizedCare(item.care),
+            modelCondition(item.condition)).noise, 0),
       crime: Math.max(0, 2 + overflowing + nearby.reduce((total, item) =>
-        total + modelEffects(item.id, normalizedCare(item.care)).crime, 0)),
+        total + modelEffects(item.id, normalizedCare(item.care),
+          modelCondition(item.condition)).crime, 0)),
       roadSafety: Math.round(clamp(90 -
         this.environment.at(cell).filter(effect => effect.kind === 'skid').length * 12 -
+        this.accidents.atRoad(cell).length * 7 -
         this.traffic.queuedNear(cell) * 2, 0, 100))
     };
   }
@@ -616,7 +732,8 @@ export class GameStore {
     let strongestReaction = 0;
     for (const placed of this.placements) {
       if (manhattanDistance(placed, tile) > EFFECT_RADIUS) continue;
-      const impact = modelReactionPerTile(id, placed.id, normalizedCare(placed.care));
+      const impact = modelReactionPerTile(id, placed.id, normalizedCare(placed.care),
+        modelCondition(placed.condition));
       change += impact;
       const key = placed.id + ':' + placed.x + ',' + placed.y;
       if (resident.seenModels[key] !== resident.laps && Math.abs(impact) > Math.abs(strongestReaction)) {
@@ -696,6 +813,21 @@ export class GameStore {
     return reaction;
   }
 
+  /** One genuinely damaged miniature restored by the Hales, at most one
+   * condition step per action; a broken miniature needs two helping visits. */
+  private haleRestoreOne(road: Cell): {model: PlacedModel; before: ModelCondition} | null {
+    const model=this.placements.filter(placed =>
+      modelCondition(placed.condition)!=='intact' &&
+      manhattanDistance(placed,road)<=2)
+      .sort((a,b)=>manhattanDistance(a,road)-manhattanDistance(b,road) ||
+        a.x-b.x||a.y-b.y)[0];
+    if(!model)return null;
+    const before=modelCondition(model.condition);
+    model.condition=before==='broken'?'damaged':'intact';
+    this.ledger.haleRestorations=(this.ledger.haleRestorations??0)+1;
+    return {model,before};
+  }
+
   /**
    * Activities replace, never supplement, a family's one event opportunity
    * this circuit. Developer-forced legacy actions remain instantaneous, but
@@ -731,6 +863,12 @@ export class GameStore {
     } else {
       const kind = action.environmentKind;
       if (!kind) return false;
+      const haleRepair = action.id === 'restore' ? this.haleRestoreOne(road) : null;
+      if (haleRepair) {
+        message = 'The Hales restored ' + this.getModel(haleRepair.model.id).name +
+          ' from ' + haleRepair.before + ' to ' + haleRepair.model.condition + '.';
+        effectCell = {x:haleRepair.model.x,y:haleRepair.model.y};
+      } else {
       const occupiedVerge = [...this.placements,
         ...this.activities.active.map(activity => activity.cell)];
       const event = this.environment.force(kind, residentId, road,
@@ -749,8 +887,13 @@ export class GameStore {
           const cleared = this.environment.removeNearby('litter',road,3);
           if (cleared) message += ' A discarded wrapper was collected.';
         } else if (action.id === 'guide') {
-          // Wards genuinely manage a stopped queue. The adventurous
-          // Finches merely show a clearer line; they do not control others.
+          // Wards shorten a genuine collision-zone disruption, but cannot
+          // magically fix the damaged miniature itself.
+          const assisted = this.accidents.wardAssistance(road,this.clockSeconds);
+          if (assisted) {
+            this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
+            message += ' The damaged corner was cleared sooner.';
+          }
           const helped = this.traffic.activeStop?.residentId !== residentId &&
             this.traffic.shortenStop(this.clockSeconds, 3);
           if (helped) message += ' The queue began to clear sooner.';
@@ -758,6 +901,7 @@ export class GameStore {
         event.message = message;
       }
       this.lastEnvironmentEvent = event;
+      }
     }
     // The chosen activity's eventual cleanup, litter and bin interception are
     // resolved when its packing-away phase finishes, not before setup begins.
@@ -811,12 +955,26 @@ export class GameStore {
     const resident = this.residents[activity.residentId];
     if (!resident?.occupied) return;
     const definition = activityDefinition(activity.kind);
-    const effect = leavesLitter ? 'litter' : definition.cleanEffect;
+    // Visits are genuinely useful when damage or a real traffic hazard exists,
+    // without inventing a second random action or extra currency.
+    const haleRepair=activity.kind==='heritage-visit'
+      ? this.haleRestoreOne(activity.roadCell) : null;
+    const wardHelp=activity.kind==='safety-round'
+      ? this.accidents.wardAssistance(activity.roadCell,this.clockSeconds) : null;
+    const effect = haleRepair ? undefined :
+      leavesLitter ? 'litter' : definition.cleanEffect;
     const event = effect ? this.environment.force(effect, activity.residentId,
       activity.roadCell, this.clockSeconds, this.placements,
       tile => this.interceptLitter(tile), activity.cell) : null;
     let outcome: ActivityOutcome = leavesLitter ? 'none' : 'clean';
-    let message = definition.finished;
+    let message = haleRepair
+      ? 'The Hales repaired ' + this.getModel(haleRepair.model.id).name +
+        ' from ' + haleRepair.before + ' to ' + haleRepair.model.condition + '.'
+      : definition.finished;
+    if (wardHelp) {
+      this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
+      message += ' The accident site was made safer sooner.';
+    }
     if (effect && !event) {
       // A full environment sprite cap cannot create a ghost piece of litter
       // or pretend a new roadside improvement has appeared.
@@ -946,6 +1104,7 @@ export class GameStore {
     this.phase = won ? 'complete' : 'lost';
     // A finished chapter should not leave a frozen family picnic on screen.
     this.activities.cancelAll();
+    this.accidents.clearActive();
     this.closingLine = chooseClosingMoment(won, this.ledger, this.closedHomes);
     const reward = won ? 20 + this.occupiedHomes * 2 : 5 + Math.floor(this.progress / 20);
     this.legacy.blueprints += reward;
