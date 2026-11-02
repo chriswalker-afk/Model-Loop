@@ -24,7 +24,7 @@ import {
 import { RoadsideAccidentEngine, type RoadsideIncident,
   type ImpactSeverity } from './damage';
 import { isBendApproach } from './driving';
-import { NeighbourhoodStories, type NeighbourRequest } from './neighbours';
+import { NeighbourhoodStories } from './neighbours';
 import type { RoadLane } from './traffic';
 
 export type Phase = 'playing' | 'complete' | 'lost';
@@ -971,6 +971,8 @@ export class GameStore {
         message = 'The Hales restored ' + this.getModel(haleRepair.model.id).name +
           ' from ' + haleRepair.before + ' to ' + haleRepair.model.condition + '.';
         effectCell = {x:haleRepair.model.x,y:haleRepair.model.y};
+        this.neighbours.completeMatching('hale-restore',effectCell,
+          this.clockSeconds,message);
       } else {
       const occupiedVerge = [...this.placements,
         ...this.activities.active.map(activity => activity.cell)];
@@ -988,7 +990,11 @@ export class GameStore {
           if (repaired) message += ' The tyre scuffs have been cleared.';
         } else if (action.id === 'tidy') {
           const cleared = this.environment.removeNearby('litter',road,3);
-          if (cleared) message += ' A discarded wrapper was collected.';
+          if (cleared) {
+            message += ' A discarded wrapper was collected.';
+            this.neighbours.completeMatching('marsh-clean',cleared.cell,
+              this.clockSeconds,message);
+          }
         } else if (action.id === 'guide') {
           // Wards shorten a genuine collision-zone disruption, but cannot
           // magically fix the damaged miniature itself.
@@ -996,6 +1002,8 @@ export class GameStore {
           if (assisted) {
             this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
             message += ' The damaged corner was cleared sooner.';
+            this.neighbours.completeMatching('ward-visit',assisted.model,
+              this.clockSeconds,message);
           }
           const helped = this.traffic.activeStop?.residentId !== residentId &&
             this.traffic.shortenStop(this.clockSeconds, 3);
@@ -1077,7 +1085,12 @@ export class GameStore {
     if (wardHelp) {
       this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
       message += ' The accident site was made safer sooner.';
+      this.neighbours.completeMatching('ward-visit',wardHelp.model,
+        this.clockSeconds,message);
     }
+    if (haleRepair)
+      this.neighbours.completeMatching('hale-restore',haleRepair.model,
+        this.clockSeconds,message);
     if (effect && !event) {
       // A full environment sprite cap cannot create a ghost piece of litter
       // or pretend a new roadside improvement has appeared.
@@ -1099,6 +1112,22 @@ export class GameStore {
     if (event) {
       event.message = message;
       this.lastEnvironmentEvent = event;
+      const actualEffect=this.environment.effects.find(effect=>effect.id===event.effectId);
+      if(event.kind==='litter' && actualEffect && event.outcome!=='captured'){
+        const story=this.neighbours.begin('litter',activity.residentId,
+          actualEffect.cell,this.clockSeconds,
+          resident.name+' left some food or packaging scraps after a roadside visit.');
+        this.neighbours.request(story,'marsh-clean',activity.residentId,
+          activity.roadCell,actualEffect.cell,this.clockSeconds,
+          {effectId:actualEffect.id});
+      }else if(event.kind==='sketch' && actualEffect) {
+        const story=this.neighbours.begin('sketch',activity.residentId,
+          actualEffect.cell,this.clockSeconds,
+          'The Bells left a little streetside sketch for the neighbourhood.');
+        this.neighbours.request(story,'marsh-admire',activity.residentId,
+          activity.roadCell,actualEffect.cell,this.clockSeconds,
+          {effectId:actualEffect.id});
+      }
     }
     this.activities.recordCompletion(activity, this.clockSeconds, outcome, message);
     resident.lastRemark = leavesLitter && outcome === 'litter'
