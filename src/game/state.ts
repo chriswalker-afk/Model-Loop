@@ -570,15 +570,19 @@ export class GameStore {
     return {
       kind,
       beauty: 1 + environmental.beauty + activity.beauty - 2 * overflowing + nearby.reduce((total, item) =>
-        total + modelEffects(item.id, normalizedCare(item.care)).beauty, 0),
+        total + modelEffects(item.id, normalizedCare(item.care),
+          modelCondition(item.condition)).beauty, 0),
       noise: (isRoad(cell.x, cell.y) ? 2 : 0) + environmental.noise + activity.noise
         + Math.min(3, this.traffic.queuedNear(cell))
         + nearby.reduce((total, item) =>
-          total + modelEffects(item.id, normalizedCare(item.care)).noise, 0),
+          total + modelEffects(item.id, normalizedCare(item.care),
+            modelCondition(item.condition)).noise, 0),
       crime: Math.max(0, 2 + overflowing + nearby.reduce((total, item) =>
-        total + modelEffects(item.id, normalizedCare(item.care)).crime, 0)),
+        total + modelEffects(item.id, normalizedCare(item.care),
+          modelCondition(item.condition)).crime, 0)),
       roadSafety: Math.round(clamp(90 -
         this.environment.at(cell).filter(effect => effect.kind === 'skid').length * 12 -
+        this.accidents.atRoad(cell).length * 7 -
         this.traffic.queuedNear(cell) * 2, 0, 100))
     };
   }
@@ -638,7 +642,8 @@ export class GameStore {
     let strongestReaction = 0;
     for (const placed of this.placements) {
       if (manhattanDistance(placed, tile) > EFFECT_RADIUS) continue;
-      const impact = modelReactionPerTile(id, placed.id, normalizedCare(placed.care));
+      const impact = modelReactionPerTile(id, placed.id, normalizedCare(placed.care),
+        modelCondition(placed.condition));
       change += impact;
       const key = placed.id + ':' + placed.x + ',' + placed.y;
       if (resident.seenModels[key] !== resident.laps && Math.abs(impact) > Math.abs(strongestReaction)) {
@@ -753,6 +758,18 @@ export class GameStore {
     } else {
       const kind = action.environmentKind;
       if (!kind) return false;
+      const haleRepair = action.id === 'restore'
+        ? this.placements.filter(placed => modelCondition(placed.condition) !== 'intact'
+          && manhattanDistance(placed,road) <= 2)
+          .sort((a,b)=>manhattanDistance(a,road)-manhattanDistance(b,road) ||
+            a.x-b.x||a.y-b.y)[0] : undefined;
+      if (haleRepair) {
+        const before = modelCondition(haleRepair.condition);
+        haleRepair.condition = before === 'broken' ? 'damaged' : 'intact';
+        message = 'The Hales restored ' + this.getModel(haleRepair.id).name +
+          ' from ' + before + ' to ' + haleRepair.condition + '.';
+        effectCell = {x:haleRepair.x,y:haleRepair.y};
+      } else {
       const occupiedVerge = [...this.placements,
         ...this.activities.active.map(activity => activity.cell)];
       const event = this.environment.force(kind, residentId, road,
@@ -771,8 +788,10 @@ export class GameStore {
           const cleared = this.environment.removeNearby('litter',road,3);
           if (cleared) message += ' A discarded wrapper was collected.';
         } else if (action.id === 'guide') {
-          // Wards genuinely manage a stopped queue. The adventurous
-          // Finches merely show a clearer line; they do not control others.
+          // Wards shorten a genuine collision-zone disruption, but cannot
+          // magically fix the damaged miniature itself.
+          const assisted = this.accidents.wardAssistance(road,this.clockSeconds);
+          if (assisted) message += ' The damaged corner was cleared sooner.';
           const helped = this.traffic.activeStop?.residentId !== residentId &&
             this.traffic.shortenStop(this.clockSeconds, 3);
           if (helped) message += ' The queue began to clear sooner.';
@@ -780,6 +799,7 @@ export class GameStore {
         event.message = message;
       }
       this.lastEnvironmentEvent = event;
+      }
     }
     // The chosen activity's eventual cleanup, litter and bin interception are
     // resolved when its packing-away phase finishes, not before setup begins.
@@ -968,6 +988,7 @@ export class GameStore {
     this.phase = won ? 'complete' : 'lost';
     // A finished chapter should not leave a frozen family picnic on screen.
     this.activities.cancelAll();
+    this.accidents.clearActive();
     this.closingLine = chooseClosingMoment(won, this.ledger, this.closedHomes);
     const reward = won ? 20 + this.occupiedHomes * 2 : 5 + Math.floor(this.progress / 20);
     this.legacy.blueprints += reward;
