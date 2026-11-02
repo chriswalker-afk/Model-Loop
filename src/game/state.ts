@@ -355,6 +355,7 @@ export class GameStore {
     const old = modelCondition(item.condition);
     this.money -= cost;
     this.recordCashflow(-cost,'upkeep');
+    this.ledger.repairSpending=(this.ledger.repairSpending??0)+cost;
     item.condition = 'intact';
     item.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
     if(item.id === 'bin'){
@@ -414,6 +415,7 @@ export class GameStore {
     const item=this.getPlacedModel(incident.model);
     if(!item)return;
     item.condition=incident.after;
+    this.ledger.roadsideAccidents=(this.ledger.roadsideAccidents??0)+1;
     const resident=this.residents[incident.residentId];
     resident.irritation=clamp(resident.irritation+(incident.after==='broken'?2.5:1.3),0,100);
     resident.lastRemark=incident.residentId===0
@@ -822,6 +824,7 @@ export class GameStore {
     if(!model)return null;
     const before=modelCondition(model.condition);
     model.condition=before==='broken'?'damaged':'intact';
+    this.ledger.haleRestorations=(this.ledger.haleRestorations??0)+1;
     return {model,before};
   }
 
@@ -887,7 +890,10 @@ export class GameStore {
           // Wards shorten a genuine collision-zone disruption, but cannot
           // magically fix the damaged miniature itself.
           const assisted = this.accidents.wardAssistance(road,this.clockSeconds);
-          if (assisted) message += ' The damaged corner was cleared sooner.';
+          if (assisted) {
+            this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
+            message += ' The damaged corner was cleared sooner.';
+          }
           const helped = this.traffic.activeStop?.residentId !== residentId &&
             this.traffic.shortenStop(this.clockSeconds, 3);
           if (helped) message += ' The queue began to clear sooner.';
@@ -965,7 +971,10 @@ export class GameStore {
       ? 'The Hales repaired ' + this.getModel(haleRepair.model.id).name +
         ' from ' + haleRepair.before + ' to ' + haleRepair.model.condition + '.'
       : definition.finished;
-    if (wardHelp) message += ' The accident site was made safer sooner.';
+    if (wardHelp) {
+      this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
+      message += ' The accident site was made safer sooner.';
+    }
     if (effect && !event) {
       // A full environment sprite cap cannot create a ghost piece of litter
       // or pretend a new roadside improvement has appeared.
