@@ -116,6 +116,7 @@ export class GameStore {
     if (id && (this.phase !== 'playing' || this.paused || this.workshopOpen)) return;
     this.activeModel = id;
     this.hovered = null;
+    if (id) this.selected = null;
     this.notice = id
       ? this.getModel(id).name + ' lifted from its box. Hover over the town to preview, then click to place. Esc cancels.'
       : 'Miniature returned to its box. Choose another model to continue.';
