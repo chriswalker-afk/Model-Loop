@@ -24,6 +24,7 @@ import {
 import { RoadsideAccidentEngine, type RoadsideIncident,
   type ImpactSeverity } from './damage';
 import { isBendApproach } from './driving';
+import { NeighbourhoodStories, type NeighbourRequest } from './neighbours';
 import type { RoadLane } from './traffic';
 
 export type Phase = 'playing' | 'complete' | 'lost';
@@ -136,6 +137,8 @@ export class GameStore {
   behaviour = new HouseholdBehaviourEngine(1);
   activities = new ActivityEngine(1);
   accidents = new RoadsideAccidentEngine(1);
+  neighbours = new NeighbourhoodStories(1);
+  private cautiousUntil = new Map<number,number>();
   behaviourHistory: BehaviourReport[] = [];
   latestBehaviourReport: BehaviourReport | null = null;
   private nextBehaviourSequence = 1;
@@ -158,6 +161,7 @@ export class GameStore {
     const trafficCleared = this.traffic.tick(this.clockSeconds);
     const activityTick = this.activities.tick(this.clockSeconds);
     const accidentChanged = this.accidents.tick(this.clockSeconds);
+    const neighbourExpired = this.neighbours.tick(this.clockSeconds);
     for (const finished of activityTick.completed) this.finishActivity(finished);
     this.ledger.maximumEnvironmentalEffects = Math.max(
       this.ledger.maximumEnvironmentalEffects, this.environment.effects.length
@@ -204,7 +208,8 @@ export class GameStore {
     }
     this.cashflowEvents = this.cashflowEvents.filter(
       entry => entry.at > this.clockSeconds - FLOW_WINDOW_SECONDS);
-    if (environmentChanged || trafficCleared || activityTick.changed || accidentChanged) this.notify();
+    if (environmentChanged || trafficCleared || activityTick.changed ||
+        accidentChanged || neighbourExpired) this.notify();
     if (billed > 0) {
       this.publishNotice('Workshop care bill: −' + billed + ' coins. ' +
         (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' :
@@ -261,6 +266,8 @@ export class GameStore {
     this.behaviour = new HouseholdBehaviourEngine(runSeed);
     this.activities = new ActivityEngine(runSeed);
     this.accidents = new RoadsideAccidentEngine(runSeed);
+    this.neighbours = new NeighbourhoodStories(runSeed);
+    this.cautiousUntil.clear();
     this.behaviourHistory = [];
     this.latestBehaviourReport = null;
     this.nextBehaviourSequence = 1;
@@ -357,6 +364,7 @@ export class GameStore {
     this.recordCashflow(-cost,'upkeep');
     this.ledger.repairSpending=(this.ledger.repairSpending??0)+cost;
     item.condition = 'intact';
+    this.neighbours.cancel('hale-restore',cell);
     item.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
     if(item.id === 'bin'){
       const interval=binCollectionInterval(normalizedCare(item.care));
@@ -415,6 +423,17 @@ export class GameStore {
     const item=this.getPlacedModel(incident.model);
     if(!item)return;
     item.condition=incident.after;
+    // An accident is a concrete new thread, not an unconnected surprise.
+    const thread=this.neighbours.begin('accident',incident.residentId,
+      incident.model,this.clockSeconds,this.residents[incident.residentId].name+
+      ' clipped the '+this.getModel(item.id).name+' by the road.');
+    this.neighbours.request(thread,'ward-visit',incident.residentId,
+      incident.road,incident.model,this.clockSeconds,{incidentId:incident.id});
+    this.neighbours.request(thread,'hale-restore',incident.residentId,
+      incident.road,incident.model,this.clockSeconds,{incidentId:incident.id});
+    // Even an enthusiastic driver is a little more circumspect immediately
+    // after a mishap. Real driving speed uses this temporary factor.
+    this.cautiousUntil.set(incident.residentId,this.clockSeconds+26);
     this.ledger.roadsideAccidents=(this.ledger.roadsideAccidents??0)+1;
     const resident=this.residents[incident.residentId];
     resident.irritation=clamp(resident.irritation+(incident.after==='broken'?2.5:1.3),0,100);
@@ -426,6 +445,13 @@ export class GameStore {
       ' at a nearby corner. The miniature is now ' + incident.after +
       '. Click it to arrange a repair.',2);
     this.notify();
+  }
+
+  /** Short, observable post-incident caution; never overrides hard traffic
+   * safety, speed signs, overtaking lanes or the shared collision solver. */
+  driverCautionFactor(residentId:number):number {
+    return (this.cautiousUntil.get(residentId)??0)>this.clockSeconds
+      ? residentId===0?.82:.9 : 1;
   }
 
   careDueIn(item: PlacedModel): number {
@@ -514,6 +540,7 @@ export class GameStore {
     this.money -= LITTER_CLEANUP_COST;
     this.recordCashflow(-LITTER_CLEANUP_COST, 'upkeep');
     this.ledger.manualClearances++;
+    this.neighbours.cancel('marsh-clean',cell);
     this.publishNotice('A little roadside rubbish was cleared for ' +
       LITTER_CLEANUP_COST + ' coins.', 1);
     this.notify();
@@ -1105,6 +1132,7 @@ export class GameStore {
     // A finished chapter should not leave a frozen family picnic on screen.
     this.activities.cancelAll();
     this.accidents.clearActive();
+    this.neighbours.clearPending();
     this.closingLine = chooseClosingMoment(won, this.ledger, this.closedHomes);
     const reward = won ? 20 + this.occupiedHomes * 2 : 5 + Math.floor(this.progress / 20);
     this.legacy.blueprints += reward;
