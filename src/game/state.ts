@@ -13,6 +13,8 @@ import {
   previewBehaviourInfluence, type BehaviourReport, type BehaviourPreviewRow,
   type HouseholdAction, type HouseholdActionId
 } from './behaviors';
+import { VINTAGE_BALANCE, newRunLedger, summariseRun, type RunLedger } from './balance';
+import { chooseWorkshopMoment, chooseClosingMoment, type WorkshopMoment } from './workbench';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -104,6 +106,14 @@ export class GameStore {
   workshopOpen = false;
   selectedResident: number | null = null;
   workbenchLine = 'The boy lined up the little houses. His father adjusted one of them.';
+  workbenchMoments: WorkshopMoment[] = [];
+  closingLine = '';
+  ledger: RunLedger = newRunLedger();
+  /** Important happenings are announced once; routine lap payments are not. */
+  announcement = '';
+  announcementRevision = 0;
+  private noticeHoldUntil = 0;
+  private noticePriority = 0;
   private reachedMilestone = 0;
   private statusTick = 0;
   private clockSeconds = 0;
@@ -130,6 +140,9 @@ export class GameStore {
     this.clockSeconds += seconds;
     const environmentChanged = this.environment.tick(this.clockSeconds);
     const trafficCleared = this.traffic.tick(this.clockSeconds);
+    this.ledger.maximumEnvironmentalEffects = Math.max(
+      this.ledger.maximumEnvironmentalEffects, this.environment.effects.length
+    );
     let billed = 0;
     for (const placed of this.placements) {
       if (placed.nextBillAt === undefined) placed.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
@@ -169,8 +182,9 @@ export class GameStore {
       entry => entry.at > this.clockSeconds - FLOW_WINDOW_SECONDS);
     if (environmentChanged || trafficCleared) this.notify();
     if (billed > 0) {
-      this.notice = 'Workshop care bill: −' + billed + ' coins. ' +
-        (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' : 'Adjust each model’s care to manage expenses.');
+      this.publishNotice('Workshop care bill: −' + billed + ' coins. ' +
+        (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' :
+          'Adjust each model’s care to manage expenses.'), this.money < 0 ? 2 : 0);
       this.notify();
     }
     this.economyRefreshSeconds += seconds;
@@ -181,7 +195,32 @@ export class GameStore {
   }
   private recordCashflow(amount: number, category: CashflowEvent['category'], at = this.clockSeconds): void {
     this.cashflowEvents.push({ amount, category, at });
+    if (category === 'lap') {
+      this.ledger.completedLaps++;
+      this.ledger.coinsEarned += amount;
+    } else if (amount < 0) {
+      this.ledger.carePaid -= amount;
+    }
   }
+
+  /**
+   * Keep a meaningful incident visible for a few simulated seconds instead
+   * of immediately replacing it with a lap coin or routine bill. The public
+   * announcement stream excludes routine earnings to protect screen readers.
+   */
+  private publishNotice(message: string, priority: 0 | 1 | 2 = 0): void {
+    if (priority < this.noticePriority && this.clockSeconds < this.noticeHoldUntil) return;
+    this.notice = message;
+    this.noticePriority = priority;
+    this.noticeHoldUntil = this.clockSeconds +
+      (priority === 0 ? 0.7 : VINTAGE_BALANCE.significantActionNoticeSeconds);
+    if (priority > 0) {
+      this.announcement = message;
+      this.announcementRevision++;
+    }
+  }
+
+  get runSummary() { return summariseRun(this.ledger); }
 
   constructor() { this.newRun(); }
 
@@ -197,6 +236,13 @@ export class GameStore {
     this.traffic = new RoadTraffic(runSeed);
     this.behaviour = new HouseholdBehaviourEngine(runSeed);
     this.behaviourHistory = [];
+    this.ledger = newRunLedger();
+    this.workbenchMoments = [];
+    this.closingLine = '';
+    this.announcement = '';
+    this.announcementRevision++;
+    this.noticeHoldUntil = 0;
+    this.noticePriority = 0;
     this.lastCongestionNoticeAt = -Infinity;
     this.lastEnvironmentEvent = null;
     this.phase = 'playing';
@@ -326,7 +372,8 @@ export class GameStore {
     bin.overflowed = false;
     const interval = binCollectionInterval(normalizedCare(bin.care));
     bin.nextCollectionAt = interval === null ? undefined : this.clockSeconds + interval;
-    this.notice = 'The rubbish bin was emptied for ' + cost + ' coins.';
+    this.ledger.manualCollections++;
+    this.publishNotice('The rubbish bin was emptied for ' + cost + ' coins.', 1);
     this.notify();
     return true;
   }
@@ -345,8 +392,9 @@ export class GameStore {
     if (!this.environment.removeEffect(litter.id, 'litter')) return false;
     this.money -= LITTER_CLEANUP_COST;
     this.recordCashflow(-LITTER_CLEANUP_COST, 'upkeep');
-    this.notice = 'A little roadside rubbish was cleared for ' +
-      LITTER_CLEANUP_COST + ' coins.';
+    this.ledger.manualClearances++;
+    this.publishNotice('A little roadside rubbish was cleared for ' +
+      LITTER_CLEANUP_COST + ' coins.', 1);
     this.notify();
     return true;
   }
@@ -365,10 +413,12 @@ export class GameStore {
       if ((bin.fill ?? 0) >= BIN_CAPACITY) continue;
       if (this.environment.rng.next() >= binCatchChance(normalizedCare(bin.care))) continue;
       bin.fill = Math.min(BIN_CAPACITY, (bin.fill ?? 0) + 1);
+      this.ledger.litterCaught++;
       return { status: 'captured', bin: { x: bin.x, y: bin.y } };
     }
     const full = covered.find(bin => (bin.fill ?? 0) >= BIN_CAPACITY);
     if (full) {
+      if (!full.overflowed) this.ledger.overflowingBins++;
       full.overflowed = true;
       return { status: 'overflow', bin: { x: full.x, y: full.y } };
     }
@@ -445,6 +495,7 @@ export class GameStore {
       return false;
     }
     this.money -= model.cost;
+    this.ledger.miniaturePurchases += model.cost;
     this.placements.push({ ...cell, id, care: 'full',
       nextBillAt: this.clockSeconds + UPKEEP_INTERVAL_SECONDS,
       ...(id === 'bin' ? {
@@ -530,9 +581,9 @@ export class GameStore {
     const resident = this.residents[id];
     if (!resident?.occupied) return null;
     const profile = householdProfile(id);
-    let change = 0.27;
-    if (tile.x === 20 && tile.y >= 5) change += 0.2;
-    if (tile.x <= 3 && tile.y >= 7) change += 0.15;
+    let change = VINTAGE_BALANCE.ambientIrritationPerTile;
+    if (tile.x === 20 && tile.y >= 5) change += VINTAGE_BALANCE.eastBendIrritation;
+    if (tile.x <= 3 && tile.y >= 7) change += VINTAGE_BALANCE.westBendIrritation;
 
     let encountered: PlacedModel | null = null;
     let strongestReaction = 0;
@@ -579,23 +630,23 @@ export class GameStore {
       resident.lastRemark = text;
       reaction = { residentId: id, text, calmer: strongestReaction < 0 };
     }
-    if (resident.irritation >= 45 && !resident.unsettled) {
+    if (resident.irritation >= VINTAGE_BALANCE.firstWarningIrritation && !resident.unsettled) {
       resident.unsettled = true;
       if (!reaction) resident.lastRemark = profile.warning;
-      this.notice = resident.name + ' seem unsettled on their journeys.';
+      this.publishNotice(resident.name + ' seem unsettled on their journeys.', 1);
       this.notify();
     }
-    if (resident.irritation >= 72 && !resident.warned) {
+    if (resident.irritation >= VINTAGE_BALANCE.secondWarningIrritation && !resident.warned) {
       resident.warned = true;
       resident.lastRemark = profile.warning;
-      this.notice = resident.name + ' are close to leaving. Listen to what troubles them.';
+      this.publishNotice(resident.name + ' are close to leaving. Listen to what troubles them.', 2);
       reaction = { residentId: id, text: profile.warning, calmer: false };
       this.notify();
     }
     if (resident.irritation >= 100) {
       resident.occupied = false;
       resident.lastRemark = 'The house is quiet now.';
-      this.notice = resident.name + ' have moved away. Their home has closed.';
+      this.publishNotice(resident.name + ' have moved away. Their home has closed.', 2);
       if (this.closedHomes >= 3) this.endRun(false);
       this.notify();
       return null;
@@ -653,7 +704,7 @@ export class GameStore {
     // this one action, never a second roll for a separate household action.
     // Forced developer actions stay isolated for reproducible QA.
     if (naturally && action.tone === 'troublesome' && action.id !== 'litter' &&
-      this.environment.rng.next() < 0.22) {
+      this.environment.rng.next() < VINTAGE_BALANCE.incidentalLitterChance) {
       const wrapper = this.environment.force('litter', residentId, road,
         this.clockSeconds, this.placements, tile => this.interceptLitter(tile));
       if (wrapper) {
@@ -666,6 +717,10 @@ export class GameStore {
       }
     }
     this.behaviour.mark(residentId,this.clockSeconds);
+    this.ledger[action.tone === 'helpful' ? 'helpfulActions' : 'troublesomeActions']++;
+    this.ledger.maximumEnvironmentalEffects = Math.max(
+      this.ledger.maximumEnvironmentalEffects, this.environment.effects.length
+    );
     resident.lastRemark = action.tone === 'helpful'
       ? action.id === 'mend' ? 'That ought to last a little longer.'
         : action.id === 'guide' ? 'There we are. All moving again.'
@@ -679,7 +734,7 @@ export class GameStore {
     });
     if(this.behaviourHistory.length>BEHAVIOUR_MAX_HISTORY)
       this.behaviourHistory.length=BEHAVIOUR_MAX_HISTORY;
-    this.notice=message;
+    this.publishNotice(message, action.tone === 'troublesome' ? 2 : 1);
     this.notify();
     return true;
   }
@@ -707,17 +762,22 @@ export class GameStore {
       const resident = this.residents[item.residentId];
       if (!resident?.occupied) continue;
       resident.trafficDelay += item.delaySeconds;
+      this.ledger.secondsLostInTraffic += item.delaySeconds;
       const helpfulNearby = this.environment.at(item.cell).some(effect =>
         effect.kind === 'guidance' || effect.kind === 'courtesy');
       resident.irritation = clamp(resident.irritation +
-        item.delaySeconds * resident.temperament * (helpfulNearby ? 0.23 : 0.42),
+        item.delaySeconds * resident.temperament * (helpfulNearby ?
+          VINTAGE_BALANCE.queueIrritationWithHelp :
+          VINTAGE_BALANCE.queueIrritationPerLostSecond),
         0, 100);
     }
+    this.ledger.largestQueue = Math.max(this.ledger.largestQueue, queued.length);
     if (changed) {
       if (this.traffic.queuedCars.length >= 2 && prior < 2 &&
-        this.clockSeconds - this.lastCongestionNoticeAt >= 25) {
-        this.notice = this.traffic.queuedCars.length +
-          ' cars have queued behind slower traffic. Circuits are taking longer.';
+        this.clockSeconds - this.lastCongestionNoticeAt >=
+          VINTAGE_BALANCE.queueNoticeCooldownSeconds) {
+        this.publishNotice(this.traffic.queuedCars.length +
+          ' cars have queued behind slower traffic. Circuits are taking longer.', 1);
         this.lastCongestionNoticeAt = this.clockSeconds;
       }
       this.notify();
@@ -729,14 +789,17 @@ export class GameStore {
       !this.residents[id]?.occupied || !isRoad(cell.x, cell.y)) return false;
     const incident = this.traffic.forceStop(id, cell, this.clockSeconds, duration);
     if (!incident) return false;
-    this.notice = incident.message;
+    this.publishNotice(incident.message, 2);
     this.notify();
     return true;
   }
 
   private recordEnvironmentEvent(event: EnvironmentalEvent): void {
     this.lastEnvironmentEvent = event;
-    this.notice = event.message;
+    this.ledger.maximumEnvironmentalEffects = Math.max(
+      this.ledger.maximumEnvironmentalEffects, this.environment.effects.length
+    );
+    this.publishNotice(event.message, 1);
     this.notify();
   }
 
@@ -761,14 +824,20 @@ export class GameStore {
     const earned = resident.irritation < 65 ? 15 : 8;
     this.money += earned;
     this.recordCashflow(earned, 'lap');
-    this.notice = resident.name + ' completed a circuit: +' + earned + ' coins.';
+    this.publishNotice(resident.name + ' completed a circuit: +' + earned + ' coins.');
     this.progress = clamp(this.progress + (resident.irritation < 65 ? 3.0 : 1.7), 0, 100);
     const milestone = Math.min(3, Math.floor(this.progress / 25));
     if (milestone > this.reachedMilestone) {
+      for (let step = this.reachedMilestone + 1; step <= milestone; step++) {
+        const moment = chooseWorkshopMoment({
+          milestone: step as 1 | 2 | 3, ledger: this.ledger,
+          models: this.placements.map(item => item.id),
+          closedHomes: this.closedHomes, coins: this.money
+        });
+        this.workbenchMoments.push(moment);
+        this.workbenchLine = moment.line;
+      }
       this.reachedMilestone = milestone;
-      const mostRestless = this.residents.filter(home => home.occupied)
-        .sort((a, b) => b.irritation - a.irritation)[0];
-      if (mostRestless) this.workbenchLine = householdProfile(mostRestless.id).workbenchLine;
     }
     if (this.progress >= 100) this.endRun(true);
     this.notify();
@@ -778,11 +847,12 @@ export class GameStore {
   endRun(won: boolean): void {
     if (this.phase !== 'playing') return;
     this.phase = won ? 'complete' : 'lost';
+    this.closingLine = chooseClosingMoment(won, this.ledger, this.closedHomes);
     const reward = won ? 20 + this.occupiedHomes * 2 : 5 + Math.floor(this.progress / 20);
     this.legacy.blueprints += reward;
     this.save();
-    this.notice = won ? 'Vintage chapter complete. The family has new stories to tell.' :
-      'The town has fallen quiet. The family keeps what they learned.';
+    this.publishNotice(won ? 'Vintage chapter complete. The family has new stories to tell.' :
+      'The town has fallen quiet. The family keeps what they learned.', 2);
     this.workshopOpen = false;
     this.notify();
   }
