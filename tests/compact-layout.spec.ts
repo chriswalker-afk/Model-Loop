@@ -16,7 +16,7 @@ for (const size of sizes) {
       await page.goto('/');
       const canvas = page.locator('#game-container canvas');
       await expect(canvas).toBeVisible();
-      await expect(page.locator('.model-box')).toHaveCount(5);
+      await expect(page.locator('.model-box')).toHaveCount(6);
       await page.waitForTimeout(250); // allow Phaser's observed FIT scale to settle
 
       const g = await page.evaluate(() => {
