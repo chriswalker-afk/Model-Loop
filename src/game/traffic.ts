@@ -97,7 +97,7 @@ export function advanceTraffic(
     return normalise(ahead.position-v.position,roadLength);
   });
   const desired = ordered.map(v => Math.max(0, v.desiredSpeed));
-  const moves = ordered.map((v,i) => {
+  const moves = ordered.map((_,i) => {
     const unconstrained = desired[i]*dt;
     if(n<2) return unconstrained;
     const followingLimit = Math.max(0,(gaps[i]-TRAFFIC_MIN_GAP)/TRAFFIC_HEADWAY);
