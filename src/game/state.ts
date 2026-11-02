@@ -1,5 +1,7 @@
 import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, type Cell, type ModelId } from './config';
 import { householdProfile, modelReactionPerTile } from './households';
+import { careName, FLOW_WINDOW_SECONDS, modelEffects, normalizedCare, summarizeFlow,
+  UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent } from './economy';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -24,7 +26,11 @@ export interface HouseholdEffect {
   name: string;
   irritationChangePerLap: number;
 }
-export interface PlacedModel extends Cell { id: ModelId; }
+export interface PlacedModel extends Cell {
+  id: ModelId;
+  care?: CareLevel; // Older prototype saves/tests without a care level default to full.
+  nextBillAt?: number;
+}
 export interface PermanentUpgrades { savings: number; patience: number; }
 export interface Legacy { blueprints: number; upgrades: PermanentUpgrades; }
 export interface TileInfo { kind: string; beauty: number; noise: number; crime: number; }
@@ -82,6 +88,51 @@ export class GameStore {
   workbenchLine = 'The boy lined up the little houses. His father adjusted one of them.';
   private reachedMilestone = 0;
   private statusTick = 0;
+  private clockSeconds = 0;
+  private economyRefreshSeconds = 0;
+  private cashflowEvents: CashflowEvent[] = [];
+
+  get elapsedSeconds(): number { return this.clockSeconds; }
+  get cashflow(): Cashflow {
+    const scheduled = this.placements.reduce((total, item) =>
+      total + modelEffects(item.id, normalizedCare(item.care)).upkeep, 0);
+    return summarizeFlow(this.cashflowEvents, this.clockSeconds, scheduled, this.placements.length);
+  }
+  // Deliberately excludes purchase costs: income tracks regular money earned
+  // through completed circuits and lost to maintenance, not the coin balance.
+  tickEconomy(seconds: number): void {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen ||
+        !Number.isFinite(seconds) || seconds <= 0) return;
+    this.clockSeconds += seconds;
+    let billed = 0;
+    for (const placed of this.placements) {
+      if (placed.nextBillAt === undefined) placed.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
+      while (placed.nextBillAt <= this.clockSeconds) {
+        const price = modelEffects(placed.id, normalizedCare(placed.care)).upkeep;
+        if (price > 0) {
+          this.money -= price; // A temporary deficit is recoverable through later laps.
+          billed += price;
+          this.recordCashflow(-price, 'upkeep', placed.nextBillAt);
+        }
+        placed.nextBillAt += UPKEEP_INTERVAL_SECONDS;
+      }
+    }
+    this.cashflowEvents = this.cashflowEvents.filter(
+      entry => entry.at > this.clockSeconds - FLOW_WINDOW_SECONDS);
+    if (billed > 0) {
+      this.notice = 'Workshop care bill: −' + billed + ' coins. ' +
+        (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' : 'Adjust each model’s care to manage expenses.');
+      this.notify();
+    }
+    this.economyRefreshSeconds += seconds;
+    if (this.economyRefreshSeconds >= 1) {
+      this.economyRefreshSeconds %= 1;
+      this.notify();
+    }
+  }
+  private recordCashflow(amount: number, category: CashflowEvent['category'], at = this.clockSeconds): void {
+    this.cashflowEvents.push({ amount, category, at });
+  }
 
   constructor() { this.newRun(); }
 
@@ -105,6 +156,9 @@ export class GameStore {
     this.selectedResident = null;
     this.reachedMilestone = 0;
     this.statusTick = 0;
+    this.clockSeconds = 0;
+    this.economyRefreshSeconds = 0;
+    this.cashflowEvents = [];
     this.workbenchLine = 'The boy lined up the little houses. His father adjusted one of them.';
     this.residents = HOMES.map((home) => ({
       id: home.id,
@@ -135,6 +189,34 @@ export class GameStore {
   get safety(): number { return Math.round(clamp(100 - this.averageIrritation, 0, 100)); }
 
   getModel(id: ModelId) { return MODELS.find((model) => model.id === id)!; }
+  getPlacedModel(cell: Cell | null): PlacedModel | null {
+    if (!cell) return null;
+    return this.placements.find(item => item.x === cell.x && item.y === cell.y) || null;
+  }
+  careDueIn(item: PlacedModel): number {
+    return Math.max(0, Math.ceil((item.nextBillAt ?? this.clockSeconds + UPKEEP_INTERVAL_SECONDS) - this.clockSeconds));
+  }
+  setModelCare(cell: Cell, care: CareLevel): boolean {
+    if (this.phase !== 'playing' || this.workshopOpen) return false;
+    const placed = this.getPlacedModel(cell);
+    if (!placed) return false;
+    if (normalizedCare(placed.care) === care) return true;
+    placed.care = care;
+    const price = modelEffects(placed.id, care).upkeep;
+    this.notice = this.getModel(placed.id).name + ': ' + careName(care) +
+      '. Next service bill ' + price + ' coins per ' + UPKEEP_INTERVAL_SECONDS + 's.';
+    this.selected = { x: placed.x, y: placed.y };
+    this.notify();
+    return true;
+  }
+  speedMultiplierAt(tile: Cell): number {
+    let multiplier = 1;
+    for (const placed of this.placements) {
+      if (placed.id !== 'limit' || manhattanDistance(placed, tile) > EFFECT_RADIUS) continue;
+      multiplier = Math.min(multiplier, modelEffects(placed.id, normalizedCare(placed.care)).speedMultiplier);
+    }
+    return multiplier;
+  }
   selectResident(id: number | null): void {
     this.selectedResident = this.selectedResident === id ? null : id;
     this.notify();
@@ -195,7 +277,8 @@ export class GameStore {
       return false;
     }
     this.money -= model.cost;
-    this.placements.push({ ...cell, id });
+    this.placements.push({ ...cell, id, care: 'full',
+      nextBillAt: this.clockSeconds + UPKEEP_INTERVAL_SECONDS });
     this.activeModel = null;
     this.notice = model.name + ' added to the miniature town.';
     return true;
@@ -212,10 +295,13 @@ export class GameStore {
     const nearby = placements.filter((item) => manhattanDistance(item, cell) <= EFFECT_RADIUS);
     return {
       kind,
-      beauty: 1 + nearby.reduce((total, item) => total + this.getModel(item.id).beauty, 0),
+      beauty: 1 + nearby.reduce((total, item) =>
+        total + modelEffects(item.id, normalizedCare(item.care)).beauty, 0),
       noise: (isRoad(cell.x, cell.y) ? 2 : 0)
-        + nearby.reduce((total, item) => total + this.getModel(item.id).noise, 0),
-      crime: Math.max(0, 2 + nearby.reduce((total, item) => total + this.getModel(item.id).crime, 0))
+        + nearby.reduce((total, item) =>
+          total + modelEffects(item.id, normalizedCare(item.care)).noise, 0),
+      crime: Math.max(0, 2 + nearby.reduce((total, item) =>
+        total + modelEffects(item.id, normalizedCare(item.care)).crime, 0))
     };
   }
 
@@ -271,7 +357,7 @@ export class GameStore {
     let strongestReaction = 0;
     for (const placed of this.placements) {
       if (manhattanDistance(placed, tile) > EFFECT_RADIUS) continue;
-      const impact = modelReactionPerTile(id, placed.id);
+      const impact = modelReactionPerTile(id, placed.id, normalizedCare(placed.care));
       change += impact;
       const key = placed.id + ':' + placed.x + ',' + placed.y;
       if (resident.seenModels[key] !== resident.laps && Math.abs(impact) > Math.abs(strongestReaction)) {
@@ -320,12 +406,15 @@ export class GameStore {
     return reaction;
   }
 
-  finishLap(id: number): void {
-    if (this.phase !== 'playing') return;
+  finishLap(id: number): number {
+    if (this.phase !== 'playing') return 0;
     const resident = this.residents[id];
-    if (!resident?.occupied) return;
+    if (!resident?.occupied) return 0;
     resident.laps += 1;
-    this.money += resident.irritation < 65 ? 15 : 8;
+    const earned = resident.irritation < 65 ? 15 : 8;
+    this.money += earned;
+    this.recordCashflow(earned, 'lap');
+    this.notice = resident.name + ' completed a circuit: +' + earned + ' coins.';
     this.progress = clamp(this.progress + (resident.irritation < 65 ? 3.0 : 1.7), 0, 100);
     const milestone = Math.min(3, Math.floor(this.progress / 25));
     if (milestone > this.reachedMilestone) {
@@ -336,6 +425,7 @@ export class GameStore {
     }
     if (this.progress >= 100) this.endRun(true);
     this.notify();
+    return earned;
   }
 
   endRun(won: boolean): void {
