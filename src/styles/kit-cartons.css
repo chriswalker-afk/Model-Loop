@@ -565,8 +565,27 @@
   .kit-carton .box-upkeep { font-size: 7.5px; }
 }
 @media (max-width:385px) {
-  .model-box.kit-carton { flex-basis: 148px; }
-  .kit-carton > .box-title { font-size: 11.5px; }
+  /* Make room for the model itself on a 320px-wide phone, not another
+   * tiny label: compress dock header/folds before shrinking the art. */
+  .shop-section:has(.kit-carton) .shop-topline {
+    min-height: 39px;
+    padding-block: 4px 3px;
+  }
+  .shop-section:has(.kit-carton) .shop-track {
+    padding-top: 14px;
+    padding-bottom: 5px;
+  }
+  .model-box.kit-carton {
+    flex-basis: 148px;
+    padding-top: 10px;
+    padding-bottom: 5px;
+    grid-template-rows: 10px 17px minmax(0,1fr);
+  }
+  .kit-carton > .box-title {
+    margin-bottom: 2px;
+    padding-bottom: 3px;
+    font-size: 11.5px;
+  }
   .kit-carton .box-cost { font-size: 14px; }
 }
 /* Short landscape under 490px: the shop scrolls below the town, not over it. */
