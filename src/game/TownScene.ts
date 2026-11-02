@@ -4,7 +4,10 @@ import { store, type JourneyReaction } from './state';
 import { normalizedCare } from './economy';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
-import { HOME_TRAVEL_SECONDS, newCarCycle, stepCarCycle, type CarCycle } from './traffic';
+import {
+  HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, advanceTraffic, canReserveRoad,
+  newCarCycle, stepCarCycle, type CarCycle, type RoadVehicle
+} from './traffic';
 
 interface Car {
   residentId: number;
@@ -15,6 +18,7 @@ interface Car {
   speed: number;
   speedFactor: number;
   homeBadge: Phaser.GameObjects.Text;
+  brakeLights: Phaser.GameObjects.Graphics;
   lastThoughtAt: number;
 }
 
@@ -36,6 +40,9 @@ export class TownScene extends Scene {
   private highlightLayer!: Phaser.GameObjects.Graphics;
   private influenceLayer!: Phaser.GameObjects.Graphics;
   private ghostLayer!: Phaser.GameObjects.Graphics;
+  private trafficLayer!: Phaser.GameObjects.Graphics;
+  private trafficLabel!: Phaser.GameObjects.Text;
+  private lastStopId = 0;
   private lastPlacementCount = 0;
   private cars: Car[] = [];
 
@@ -54,6 +61,11 @@ export class TownScene extends Scene {
     this.influenceLayer = this.add.graphics();
     this.highlightLayer = this.add.graphics();
     this.ghostLayer = this.add.graphics().setAlpha(0.68);
+    this.trafficLayer = this.add.graphics().setDepth(19);
+    this.trafficLabel = this.add.text(0, 0, '', {
+      fontFamily: 'Georgia, serif', fontSize: '10px', color: '#eedab4',
+      backgroundColor: '#19221b', padding: { x: 5, y: 3 }
+    }).setOrigin(0.5).setDepth(22).setVisible(false);
     this.cars = HOMES.map((home, index) => this.createCar(home.id, index));
 
     this.lastPlacementCount = store.placements.length;
@@ -264,7 +276,12 @@ export class TownScene extends Scene {
     g.fillStyle(palette.gold, 1);
     g.fillCircle(12, -4, 2);
     g.fillCircle(12, 4, 2);
-    container.add(g);
+    const brakeLights = this.add.graphics();
+    brakeLights.fillStyle(palette.danger, 0.95);
+    brakeLights.fillCircle(-13, -5, 3);
+    brakeLights.fillCircle(-13, 5, 3);
+    brakeLights.setVisible(false);
+    container.add([g, brakeLights]);
     return {
       residentId,
       container,
@@ -274,6 +291,7 @@ export class TownScene extends Scene {
       speed: 85 + index * 4,
       speedFactor: 1,
       homeBadge,
+      brakeLights,
       lastThoughtAt: -20000
     };
   }
@@ -582,6 +600,32 @@ export class TownScene extends Scene {
     });
   }
 
+  /**
+   * Developer-only helper and integration-test hook. Uses the *real* car's
+   * position rather than spawning a roadside marker in a disconnected tile.
+   */
+  forceTrafficStop(residentId: number, duration = 4.2): boolean {
+    const car = this.cars.find(item => item.residentId === residentId);
+    if (!car || car.cycle.phase !== 'driving') return false;
+    const index = Math.floor((
+      car.startIndex * BOARD.tile + car.cycle.distance
+    ) % (ROAD_CELLS.length * BOARD.tile) / BOARD.tile);
+    return store.debugTrafficStop(residentId, ROAD_CELLS[index], duration);
+  }
+
+  trafficSnapshot() {
+    const length = ROAD_CELLS.length * BOARD.tile;
+    return this.cars.filter(car => store.residents[car.residentId]?.occupied)
+      .map(car => ({
+        residentId: car.residentId,
+        phase: car.cycle.phase,
+        position: (car.startIndex * BOARD.tile + car.cycle.distance) % length,
+        speed: car.speed * car.speedFactor,
+        travelled: car.cycle.distance,
+        visible: car.container.visible
+      }));
+  }
+
   update(_time: number, delta: number): void {
     if (store.paused || store.workshopOpen || store.phase !== 'playing') return;
     const length = ROAD_CELLS.length;
@@ -589,30 +633,82 @@ export class TownScene extends Scene {
     const dt = Math.min(delta, 60) / 1000 * store.gameSpeed;
     store.tickEconomy(dt);
 
-    this.cars.forEach((car) => {
+    // Calculate motion *simultaneously* for each car on the loop. Departing
+    // vehicles reserve a road space while moving down their driveway.
+    const vehicles: RoadVehicle[] = [];
+    for (const car of this.cars) {
+      if (!store.residents[car.residentId]?.occupied) continue;
+      const position = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+      if (car.cycle.phase === 'driving') {
+        const index = Math.min(length - 1, Math.floor(position / BOARD.tile));
+        const sign = store.speedMultiplierAt(ROAD_CELLS[index]);
+        car.speedFactor += (sign - car.speedFactor) * Math.min(1, dt * 7);
+        vehicles.push({
+          residentId: car.residentId, position,
+          desiredSpeed: store.traffic.shouldStop(car.residentId)
+            ? 0 : car.speed * car.speedFactor
+        });
+      } else if (car.cycle.phase === 'departing') {
+        vehicles.push({
+          residentId: car.residentId, position: car.startIndex * BOARD.tile,
+          desiredSpeed: 0
+        });
+      }
+    }
+
+    const grantedDepartures = new Set<number>();
+    for (const car of this.cars) {
+      if (!store.residents[car.residentId]?.occupied ||
+        car.cycle.phase !== 'at-home' ||
+        car.cycle.timer + dt < HOME_DWELL_SECONDS) continue;
+      const position = car.startIndex * BOARD.tile;
+      if (!canReserveRoad(position, vehicles, totalDistance)) continue;
+      grantedDepartures.add(car.residentId);
+      vehicles.push({ residentId: car.residentId, position, desiredSpeed: 0 });
+    }
+
+    const movements = advanceTraffic(vehicles, dt, totalDistance);
+    const byResident = new Map(movements.map(move => [move.residentId, move]));
+    const queued: Array<{ residentId: number; cell: Cell; delaySeconds: number }> = [];
+
+    for (const car of this.cars) {
       const resident = store.residents[car.residentId];
       if (!resident?.occupied) {
         car.container.setVisible(false);
         car.homeBadge.setVisible(false);
-        return;
+        car.brakeLights.setVisible(false);
+        continue;
       }
 
       const homePoint = worldPoint(HOMES[car.residentId]);
       const roadPoint = worldPoint(ROAD_CELLS[car.startIndex]);
-      const beforeDistance = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
-      const beforeIndex = Math.min(length - 1, Math.floor(beforeDistance / BOARD.tile));
-      // Care levels affect how clearly drivers heed the speed sign.
-      const targetFactor = store.speedMultiplierAt(ROAD_CELLS[beforeIndex]);
-      car.speedFactor += (targetFactor - car.speedFactor) * Math.min(1, dt * 7);
-      const completed = stepCarCycle(car.cycle, dt, car.speed * car.speedFactor * dt, totalDistance);
-      if (completed) {
-        const earned = store.finishLap(car.residentId);
-        this.showLapCoins(car, earned);
-        car.tileIndex = -1;
+      const movingBefore = car.cycle.phase === 'driving';
+      const movement = byResident.get(car.residentId);
+      if (movingBefore) {
+        const completed = stepCarCycle(car.cycle, dt, movement?.distance ?? 0, totalDistance);
+        if (completed) {
+          const earned = store.finishLap(car.residentId);
+          this.showLapCoins(car, earned);
+          car.tileIndex = -1;
+        } else if (movement?.queued && movement.delaySeconds > 0) {
+          const position = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+          const index = Math.min(length - 1, Math.floor(position / BOARD.tile));
+          queued.push({
+            residentId: car.residentId,
+            cell: ROAD_CELLS[index],
+            delaySeconds: movement.delaySeconds
+          });
+        }
+      } else {
+        stepCarCycle(car.cycle, dt, 0, totalDistance,
+          grantedDepartures.has(car.residentId));
       }
 
       car.container.setVisible(true);
       car.homeBadge.setVisible(car.cycle.phase === 'at-home');
+      car.brakeLights.setVisible(movingBefore && (
+        store.traffic.shouldStop(car.residentId) || !!movement?.queued
+      ));
 
       if (car.cycle.phase === 'driving') {
         const distance = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
@@ -645,6 +741,41 @@ export class TownScene extends Scene {
           Math.atan2(homePoint.y - roadPoint.y, homePoint.x - roadPoint.x) +
           (car.cycle.phase === 'departing' ? Math.PI : 0));
       }
-    });
+    }
+
+    store.reportTrafficFlow(queued);
+    this.trafficLayer.clear();
+    const stop = store.traffic.activeStop;
+    if (stop) {
+      const culprit = this.cars.find(car => car.residentId === stop.residentId);
+      if (culprit && culprit.cycle.phase === 'driving') {
+        const x = culprit.container.x, y = culprit.container.y;
+        this.trafficLayer.lineStyle(1.7, palette.gold, 0.85);
+        this.trafficLayer.strokeCircle(x, y, 20);
+        this.trafficLabel.setText(stop.kind === 'admiring' ? 'A MOMENT...' : 'CAREFUL...')
+          .setPosition(x, y - 36).setVisible(true);
+      } else {
+        this.trafficLabel.setVisible(false);
+      }
+      if (stop.id !== this.lastStopId) {
+        this.lastStopId = stop.id;
+        const spot = worldPoint(stop.cell);
+        const pulse = this.add.circle(spot.x, spot.y, 9, palette.gold, 0.11)
+          .setStrokeStyle(1.8, palette.gold, 0.78).setDepth(24);
+        this.tweens.add({
+          targets:pulse, scale:2.8, alpha:0, duration:800,
+          onComplete:() => pulse.destroy()
+        });
+      }
+    } else {
+      this.trafficLabel.setVisible(false);
+    }
+    // Small chalk-style congestion rings on actual queueing vehicles.
+    for (const waiting of queued) {
+      const car = this.cars.find(item => item.residentId === waiting.residentId);
+      if (!car) continue;
+      this.trafficLayer.lineStyle(1, palette.danger, 0.62);
+      this.trafficLayer.strokeEllipse(car.container.x, car.container.y, 40, 30);
+    }
   }
 }

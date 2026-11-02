@@ -200,7 +200,8 @@ function renderHouseholdDetail(): void {
       '<dl><dt>They appreciate</dt><dd>' + profile.feelsAtHomeWith + '</dd>' +
       '<dt>They find difficult</dt><dd>' + profile.findsDifficult + '</dd></dl>' +
       '<blockquote class="household-remark"></blockquote>' +
-      '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
+      '<p class="household-traffic-delay"></p>' +
+       '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
       '<span class="household-last-action"></span></div>' +
       '<p class="household-small-note">A little attention to the journey can make all the difference.</p>';
   }
@@ -211,6 +212,11 @@ function renderHouseholdDetail(): void {
     Math.round(resident.irritation) + ' / 100 irritation';
   panel.querySelector<HTMLElement>('.household-meter-fill')!.style.width =
     (resident.occupied ? 100 - resident.irritation : 0) + '%';
+  const delay = panel.querySelector<HTMLElement>('.household-traffic-delay')!;
+  delay.textContent = resident.trafficDelay > 0.1
+    ? 'Time lost waiting behind traffic: ' + resident.trafficDelay.toFixed(1) + ' seconds.'
+    : '';
+  delay.hidden = resident.trafficDelay <= 0.1;
   panel.querySelector<HTMLElement>('.household-remark')!.textContent =
     '“' + resident.lastRemark + '”';
   const latest = store.environment.history.find(event => event.residentId === id);
@@ -378,6 +384,9 @@ function renderTilePanel(): void {
     '<div class="tile-score"><span>Noise</span><b>' + signed(details.noise) + '</b></div>' +
     '<div class="tile-score"><span>Crime</span><b>' + signed(details.crime) + '</b></div>' +
     '<div class="tile-score"><span>Road safety</span><b>' + details.roadSafety + '%</b></div>' +
+    (store.traffic.queuedNear(tile) > 0
+      ? '<p class="traffic-tile-note">Cars are queueing nearby: slower journeys, higher noise and irritation.</p>'
+      : '') +
     environmentNotes(tile) +
     (store.environment.at(tile, 0).some(effect => effect.kind === 'litter') ?
       '<button type="button" class="clear-litter-button" data-action="clear-litter" data-x="' +
@@ -454,6 +463,13 @@ function render(): void {
   byId('coins').textContent = String(store.money);
   byId('coins').classList.toggle('debt', store.money < 0);
   byId('notice').textContent = store.notice;
+  const trafficTag = byId('traffic-status');
+  const queued = store.traffic.queuedCars.length;
+  const stop = store.traffic.activeStop;
+  trafficTag.hidden = !queued && !stop;
+  trafficTag.textContent = queued
+    ? queued + (queued === 1 ? ' CAR DELAYED' : ' CARS QUEUED')
+    : 'ROAD PAUSE';
   byId('pause').textContent = store.paused ? 'Resume' : 'Pause';
   byId('speed').textContent = store.gameSpeed + 'x';
   renderShop();
@@ -484,6 +500,8 @@ function cellFromClient(clientX: number, clientY: number): Cell | null {
 // __modelLoopDebug.trigger('litter', 2, 4, 3)
 // __modelLoopDebug.trigger('flowers', 1, 9, 3)
 // __modelLoopDebug.trigger('skid', 0, 12, 3)
+// __modelLoopDebug.trafficStop(1, 4.2) // stop the actual Bell car
+// __modelLoopDebug.trafficSnapshot()    // inspect gap, phase and current queue
 if (import.meta.env.DEV) {
   const debug = {
     seed(seed: number) { store.newRun(seed); },
@@ -495,7 +513,15 @@ if (import.meta.env.DEV) {
     snapshot() {
       return { seed: store.environment.seed, effects: store.environment.effects.map(x => ({ ...x })),
         events: store.environment.history.map(x => ({ ...x })),
-        safety: store.safety, irritation: store.averageIrritation };
+        safety: store.safety, irritation: store.averageIrritation,
+        activeStop: store.traffic.activeStop, queued: store.traffic.queuedCars.map(x => ({ ...x })) };
+    },
+    trafficStop(id: number, duration?: number): boolean {
+      if (!Number.isInteger(id) || id < 0 || id > 5) return false;
+      return (game.scene.getScene('TownScene') as TownScene).forceTrafficStop(id,duration);
+    },
+    trafficSnapshot() {
+      return (game.scene.getScene('TownScene') as TownScene).trafficSnapshot();
     }
   };
   (window as typeof window & { __modelLoopDebug?: typeof debug }).__modelLoopDebug = debug;
