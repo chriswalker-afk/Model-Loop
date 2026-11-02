@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "A hand-drawn miniature town roguelite built with Phaser 4, TypeScript and Vite.",
+  "description": "The Generational Cycle: a hand-drawn miniature town roguelite across generations.",
   "license": "MIT",
   "scripts": {
     "dev": "vite --config vite/config.dev.mjs",
