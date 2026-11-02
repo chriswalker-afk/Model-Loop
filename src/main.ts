@@ -1,4 +1,4 @@
-import { AUTO, Game } from 'phaser';
+import { AUTO, Game, Scale } from 'phaser';
 import { TownScene } from './game/TownScene';
 import { MODELS, type ModelId } from './game/config';
 import { store } from './game/state';
@@ -11,7 +11,7 @@ const game = new Game({
   backgroundColor: '#111515',
   antialias: true,
   render: { pixelArt: false },
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  scale: { mode: Scale.FIT, autoCenter: Scale.CENTER_BOTH },
   scene: [TownScene]
 });
 
