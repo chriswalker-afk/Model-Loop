@@ -49,7 +49,11 @@ export function stepCarCycle(
 }
 
 export const TRAFFIC_MIN_GAP = 38; // World pixels, a little longer than a vintage car.
-export const TRAFFIC_LEFT_LANE_OFFSET = 8; // The normal running position, in world pixels.
+export const TRAFFIC_LEFT_LANE_OFFSET = 11; // Normal left-hand side of the widened road.
+export const TRAFFIC_PASSING_LANE_OFFSET = -11;
+export const TRAFFIC_LANE_CHANGE_SECONDS = 0.65;
+export const TRAFFIC_OVERTAKE_LOOKAHEAD = 160;
+export type RoadLane = 'left' | 'passing';
 export const TRAFFIC_MERGE_GAP = 58;
 export const TRAFFIC_HEADWAY = 0.55; // Seconds of following space above the bumper gap.
 export const TRAFFIC_STOP_COOLDOWN = VINTAGE_BALANCE.stopPersonalCooldownSeconds;
@@ -61,6 +65,12 @@ export interface RoadVehicle {
   position: number;
   /** The speed this car would travel without a vehicle ahead. */
   desiredSpeed: number;
+  /** Two same-direction lanes. Older one-lane callers default to left. */
+  lane?: RoadLane;
+  /** A changing car temporarily occupies both lanes. */
+  changingTo?: RoadLane | null;
+  /** A departing driveway vehicle reserves the entry, never an overtaking target. */
+  drivewayReservation?: boolean;
 }
 export interface RoadMovement {
   residentId: number;
@@ -131,9 +141,8 @@ export function roadPoseAt(distance: number, offset = TRAFFIC_LEFT_LANE_OFFSET):
 
 /**
  * A roadside display or discarded packaging may encroach on the left edge.
- * Ease toward the road centre while passing it, and return left once clear.
- * Cars never cross/overtake a stopped vehicle: longitudinal following and
- * driveway gap reservations still control all physical traffic movement.
+ * Ease toward the centre when free; lateral overtakes are separately planned
+ * with front/rear clearance checks and safe longitudinal following.
  */
 export function preferredRoadLaneOffset(distance: number, leftEdgeObstructions: readonly Cell[]): number {
   if (leftEdgeObstructions.length === 0) return TRAFFIC_LEFT_LANE_OFFSET;
@@ -152,12 +161,113 @@ export function preferredRoadLaneOffset(distance: number, leftEdgeObstructions: 
   return blocked ? 0 : TRAFFIC_LEFT_LANE_OFFSET;
 }
 
+/** Is the verge obstructing the specified side of the road near this distance? */
+function vergeBlockedAt(distance: number, lane: RoadLane, blockedCells: readonly Cell[]): boolean {
+  if (!blockedCells.length) return false;
+  const centre = roadPoseAt(distance, 0);
+  const forwardX = Math.cos(centre.rotation);
+  const forwardY = Math.sin(centre.rotation);
+  return blockedCells.some(cell => {
+    const point = worldPoint(cell);
+    const dx = point.x - centre.x;
+    const dy = point.y - centre.y;
+    const along = dx * forwardX + dy * forwardY;
+    const left = dx * forwardY - dy * forwardX;
+    const towardSide = lane === 'left' ? left : -left;
+    return along > -BOARD.tile * 0.55 && along < BOARD.tile * 0.8 &&
+      towardSide > BOARD.tile * 0.3 && towardSide < BOARD.tile * 1.45;
+  });
+}
+
+export function passingLaneBlockedAhead(
+  distance: number, blockedCells: readonly Cell[], lookahead = 70
+): boolean {
+  for (let d = 0; d <= lookahead; d += BOARD.tile / 2) {
+    if (vergeBlockedAt(distance + d, 'passing', blockedCells)) return true;
+  }
+  return false;
+}
+
+/** No lane changing at a tight bend or towards roadside obstructions. */
+export function passingStretchClear(distance: number, blockedCells: readonly Cell[]): boolean {
+  const heading = roadPoseAt(distance, 0).rotation;
+  for (let ahead = -BOARD.tile * 0.45; ahead <= TRAFFIC_OVERTAKE_LOOKAHEAD; ahead += BOARD.tile / 2) {
+    const angle = roadPoseAt(distance + ahead, 0).rotation;
+    // First 1.5 tiles must be nearly straight for a sideways manoeuvre.
+    if (ahead <= BOARD.tile * 1.5 && Math.cos(angle - heading) < 0.94) return false;
+    if (vergeBlockedAt(distance + ahead, 'passing', blockedCells)) return false;
+  }
+  return true;
+}
+
+const laneOf = (vehicle: RoadVehicle): RoadLane => vehicle.lane ?? 'left';
+const occupies = (vehicle: RoadVehicle, lane: RoadLane): boolean =>
+  laneOf(vehicle) === lane || vehicle.changingTo === lane;
+const sharesLane = (a: RoadVehicle, b: RoadVehicle): boolean =>
+  (occupies(a, 'left') && occupies(b, 'left')) ||
+  (occupies(a, 'passing') && occupies(b, 'passing'));
+
+const forwardGap = (from: number, to: number, length: number): number =>
+  normalise(to - from, length);
 
 /**
- * Simultaneous, deterministic following along the *entire circular road*.
- * Includes temporarily stopped cars and driveway reservations (speed=0).
- * Iterative forward constraints allow a queue to flow once its leader moves,
- * but prevent one car from teleporting through another at wrap-around.
+ * Plan deliberate overtakes, without actually moving the vehicles yet.
+ * The faster car changes from left to the right-hand passing lane, passes,
+ * and returns left after opening a safe front and rear gap.
+ * An occupied lane, roadside obstruction, or sharp corner blocks the change.
+ * Existing lane changes reserve both lanes for their full animation.
+ */
+export function planLaneChanges(
+  vehicles: readonly RoadVehicle[], roadLength: number,
+  roadsideObstructions: readonly Cell[] = []
+): Map<number, RoadLane> {
+  const choices = new Map<number, RoadLane>();
+  if (roadLength <= 0) return choices;
+  // Work on a copy: later decisions must see earlier lane-change reservations.
+  const traffic = vehicles.map(vehicle => ({ ...vehicle }));
+  const sorted = [...traffic].sort((a, b) => a.residentId - b.residentId);
+  for (const car of sorted) {
+    if (car.drivewayReservation || car.changingTo) continue;
+    const lane = laneOf(car);
+    const destination: RoadLane = lane === 'left' ? 'passing' : 'left';
+    const others = traffic.filter(other => other.residentId !== car.residentId);
+    const inTarget = others.filter(other => occupies(other, destination));
+    const forward = inTarget.map(other => forwardGap(car.position, other.position, roadLength));
+    const backward = inTarget.map(other => forwardGap(other.position, car.position, roadLength));
+    const frontGap = Math.min(roadLength, ...forward);
+    const backGap = Math.min(roadLength, ...backward);
+    // Rear clearance is generous because a car may approach while the lane changes.
+    if (frontGap < 85 || backGap < 75 || !passingStretchClear(car.position, roadsideObstructions)) {
+      // Merging back to the left only needs a safe current stretch: a right-side
+      // display cannot stop a passing vehicle from retreating into the left lane.
+      if (lane === 'left' || frontGap < 85 || backGap < 75) continue;
+      const heading = roadPoseAt(car.position, 0).rotation;
+      const nextHeading = roadPoseAt(car.position + BOARD.tile, 0).rotation;
+      if (Math.cos(nextHeading - heading) < 0.94) continue;
+    }
+
+    if (lane === 'left') {
+      const ahead = others
+        .filter(other => occupies(other, 'left'))
+        .map(other => ({ other, gap: forwardGap(car.position, other.position, roadLength) }))
+        .sort((a,b) => a.gap - b.gap)[0];
+      if (!ahead || ahead.other.drivewayReservation) continue;
+      if (ahead.gap > TRAFFIC_OVERTAKE_LOOKAHEAD) continue;
+      if (car.desiredSpeed < ahead.other.desiredSpeed + 9) continue;
+      // Slower drivers must still queue until they actually have room to move out.
+    }
+    choices.set(car.residentId, destination);
+    car.changingTo = destination; // reserve both lanes for subsequent decisions
+  }
+  return choices;
+}
+
+
+/**
+ * Deterministic two-lane following across the entire circular road.
+ * Vehicles changing lanes occupy both lanes until their manoeuvre finishes.
+ * Minimum bumper gaps are enforced within every occupied lane, even around
+ * the loop seam; cars in separate lanes can genuinely overtake one another.
  */
 export function advanceTraffic(
   vehicles: readonly RoadVehicle[], dt: number, roadLength: number
@@ -172,25 +282,29 @@ export function advanceTraffic(
     || a.residentId - b.residentId
   );
   const n = ordered.length;
-  const gaps = ordered.map((v,i) => {
-    if(n<2) return roadLength;
-    const ahead=ordered[(i+1)%n];
-    return normalise(ahead.position-v.position,roadLength);
+  const leaders = ordered.map((vehicle,i) => {
+    let gap=roadLength, index=-1;
+    for(let j=0;j<n;j++){
+      if(i===j || !sharesLane(vehicle,ordered[j]))continue;
+      const distance=forwardGap(vehicle.position,ordered[j].position,roadLength);
+      if(distance<gap){gap=distance;index=j;}
+    }
+    return {gap,index};
   });
   const desired = ordered.map(v => Math.max(0, v.desiredSpeed));
   const moves = ordered.map((_,i) => {
     const unconstrained = desired[i]*dt;
-    if(n<2) return unconstrained;
-    const followingLimit = Math.max(0,(gaps[i]-TRAFFIC_MIN_GAP)/TRAFFIC_HEADWAY);
+    if(leaders[i].index<0)return unconstrained;
+    const followingLimit=Math.max(0,(leaders[i].gap-TRAFFIC_MIN_GAP)/TRAFFIC_HEADWAY);
     return Math.min(unconstrained,followingLimit*dt);
   });
-  // Each following vehicle can approach no closer than MIN_GAP to the
-  // *new* position of its leader. Repeat to propagate sudden braking back.
+  // Propagate braking through each lane (including cars changing lanes).
   for(let pass=0;pass<=n;pass++){
     let changed=false;
     for(let i=n-1;i>=0;i--){
-      const leader=(i+1)%n;
-      const allowance=n<2?Infinity:Math.max(0,gaps[i]-TRAFFIC_MIN_GAP+moves[leader]);
+      const leader=leaders[i].index;
+      if(leader<0)continue;
+      const allowance=Math.max(0,leaders[i].gap-TRAFFIC_MIN_GAP+moves[leader]);
       if(moves[i]>allowance+1e-8){moves[i]=allowance;changed=true;}
     }
     if(!changed)break;
@@ -199,13 +313,14 @@ export function advanceTraffic(
   for(let i=0;i<n;i++){
     const actual=moves[i]/dt;
     const isQueued=desired[i]>1 && actual<desired[i]*0.68
-      && gaps[i]<TRAFFIC_MIN_GAP+85;
+      && leaders[i].gap<TRAFFIC_MIN_GAP+85;
     byId.set(ordered[i].residentId,{
       residentId:ordered[i].residentId,
-      distance:moves[i], speed:actual, desiredSpeed:desired[i],
-      gapAhead:gaps[i],leaderId:n<2?null:ordered[(i+1)%n].residentId,
+      distance:moves[i],speed:actual,desiredSpeed:desired[i],
+      gapAhead:leaders[i].gap,
+      leaderId:leaders[i].index<0?null:ordered[leaders[i].index].residentId,
       queued:isQueued,
-      delaySeconds:desired[i]>0 ? dt*Math.max(0,1-actual/desired[i]) : 0
+      delaySeconds:desired[i]>0?dt*Math.max(0,1-actual/desired[i]):0
     });
   }
   return vehicles.map(v=>byId.get(v.residentId)!);
