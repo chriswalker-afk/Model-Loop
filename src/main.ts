@@ -212,6 +212,7 @@ function renderHouseholdDetail(): void {
       '<p class="household-small-note">' +
       activityOptionsFor(id).map(activity => activity.title).join(' · ') + '</p></details>' +
       '<p class="household-active-activity"></p>' +
+      '<p class="household-recovery" hidden>Driving a little more carefully after a roadside accident.</p>' +
       '<blockquote class="household-remark"></blockquote>' +
       '<p class="household-traffic-delay"></p>' +
        '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
@@ -239,14 +240,20 @@ function renderHouseholdDetail(): void {
     ? 'RIGHT NOW · ' + activityDefinition(currentActivity.kind).title +
       ' · ' + currentActivity.phase.replace('-', ' ')
     : '';
+  const recovery=panel.querySelector<HTMLElement>('.household-recovery')!;
+  recovery.hidden=store.driverCautionFactor(id)===1;
   panel.querySelector<HTMLElement>('.household-remark')!.textContent =
     '“' + resident.lastRemark + '”';
   const latest = store.behaviourHistory.find(event => event.residentId === id);
   const activity = store.activities.history.find(event => event.residentId === id);
   const older = store.environment.history.find(event => event.residentId === id);
+  const neighbour=store.neighbours.notesForResident(id)[0];
+  const otherLatest=activity && (!latest || activity.time >= latest.time)
+    ? activity : latest;
   panel.querySelector<HTMLElement>('.household-last-action')!.textContent =
-    activity && (!latest || activity.time >= latest.time) ? activity.message :
-      latest?.message ?? older?.message ?? 'Nothing unusual noticed so far.';
+    neighbour && (!otherLatest || neighbour.time >= otherLatest.time)
+      ? neighbour.message :
+    otherLatest?.message ?? older?.message ?? 'Nothing unusual noticed so far.';
   const shared=store.neighbours.notesForResident(id).slice(0,5);
   const storyBox=panel.querySelector<HTMLDetailsElement>('.family-neighbourhood')!;
   storyBox.hidden=shared.length===0;
