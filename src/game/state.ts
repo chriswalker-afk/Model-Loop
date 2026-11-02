@@ -339,6 +339,93 @@ export class GameStore {
     if (!cell) return null;
     return this.placements.find(item => item.x === cell.x && item.y === cell.y) || null;
   }
+  /** A deliberate, paid recovery; no coins or Progress are rewarded for
+   * causing accidents or fixing them. Broken minis stop accruing upkeep. */
+  repairModel(cell: Cell): boolean {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
+    const item = this.getPlacedModel(cell);
+    if (!item || modelCondition(item.condition)==='intact') return false;
+    const cost = modelRepairCost(item.id,item.condition);
+    if (this.money < cost) {
+      this.publishNotice('Need ' + cost + ' coins to repair the ' +
+        this.getModel(item.id).name + '.', 1);
+      this.notify();
+      return false;
+    }
+    const old = modelCondition(item.condition);
+    this.money -= cost;
+    this.recordCashflow(-cost,'upkeep');
+    item.condition = 'intact';
+    item.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
+    if(item.id === 'bin'){
+      const interval=binCollectionInterval(normalizedCare(item.care));
+      item.nextCollectionAt=interval === null ? undefined : this.clockSeconds+interval;
+    }
+    this.publishNotice(this.getModel(item.id).name + ' repaired from ' +
+      old + ' for ' + cost + ' coins. Its benefits have returned.', 1);
+    this.selected={x:item.x,y:item.y};
+    this.notify();
+    return true;
+  }
+
+  /** Only called for an actual tile crossing on the left driving lane.
+   * Safe overtaking/merging and stationary or parked vehicles cannot cause
+   * a random roadside impact. Geometry is checked again by the engine. */
+  considerRoadsideAccident(
+    residentId: number, road: Cell, actualSpeed: number,
+    lane: RoadLane, changingLane = false
+  ): RoadsideIncident | null {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen ||
+      lane !== 'left' || changingLane || actualSpeed < 48 ||
+      !isRoad(road.x,road.y) || !this.residents[residentId]?.occupied ||
+      this.activities.forResident(residentId) || this.traffic.shouldStop(residentId)) return null;
+    if(this.activities.active.some(activity =>
+      manhattanDistance(activity.roadCell,road)<=1))return null;
+    const idx=ROAD_CELLS.findIndex(cell=>cell.x===road.x&&cell.y===road.y);
+    const nearby=this.placements.filter(item=>manhattanDistance(item,road)<=2);
+    const obscured=this.environment.at(road,1).some(effect=>
+      effect.kind==='litter'||effect.kind==='display'||effect.kind==='skid') ||
+      nearby.some(item=>item.id==='tree'&&modelCondition(item.condition)!=='broken');
+    const protectedCorner=nearby.some(item=>
+      (item.id==='limit'||item.id==='lamp'||item.id==='police') &&
+      modelConditionFactor(item.condition)>.4 && normalizedCare(item.care)!=='bare');
+    const impact=this.accidents.consider(residentId,road,this.placements,this.clockSeconds,{
+      speed:actualSpeed,bend:idx>=0&&isBendApproach(idx),
+      obscured,protected:protectedCorner
+    });
+    if(impact)this.applyRoadsideImpact(impact);
+    return impact;
+  }
+  /** Developer-only force with the same left-verge physical contact rule. */
+  debugRoadsideAccident(
+    residentId: number, road: Cell, modelCell: Cell,
+    severity: ImpactSeverity = 'damage'
+  ): boolean {
+    if(this.phase!=='playing'||this.paused||this.workshopOpen ||
+      !this.residents[residentId]?.occupied) return false;
+    const model=this.getPlacedModel(modelCell);
+    if(!model)return false;
+    const incident=this.accidents.force(residentId,road,model,this.clockSeconds,severity);
+    if(!incident)return false;
+    this.applyRoadsideImpact(incident);
+    return true;
+  }
+  private applyRoadsideImpact(incident: RoadsideIncident): void {
+    const item=this.getPlacedModel(incident.model);
+    if(!item)return;
+    item.condition=incident.after;
+    const resident=this.residents[incident.residentId];
+    resident.irritation=clamp(resident.irritation+(incident.after==='broken'?2.5:1.3),0,100);
+    resident.lastRemark=incident.residentId===0
+      ? 'That bend was tighter than I thought.'
+      : 'I should have given the roadside a little more room.';
+    const modelName=this.getModel(item.id).name;
+    this.publishNotice(resident.name + ' clipped the ' + modelName +
+      ' at a nearby corner. The miniature is now ' + incident.after +
+      '. Click it to arrange a repair.',2);
+    this.notify();
+  }
+
   careDueIn(item: PlacedModel): number {
     return Math.max(0, Math.ceil((item.nextBillAt ?? this.clockSeconds + UPKEEP_INTERVAL_SECONDS) - this.clockSeconds));
   }
