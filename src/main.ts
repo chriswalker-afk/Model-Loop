@@ -1095,6 +1095,7 @@ document.addEventListener('keydown', (event) => {
       const first=controls[0],last=controls[controls.length-1];
       if(!first||!last){event.preventDefault();dialog.focus();return;}
       if(event.shiftKey&&(document.activeElement===first||
+        document.activeElement===dialog.querySelector('h2')||
         !dialog.contains(document.activeElement))){
         event.preventDefault();last.focus({preventScroll:true});
       }else if(!event.shiftKey&&(document.activeElement===last||
