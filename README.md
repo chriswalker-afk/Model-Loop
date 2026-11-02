@@ -4,6 +4,25 @@
 
 A miniature town-building roguelite about generations of fathers and sons making models together. Cars belonging to six households circle an irregular, grid-aligned road, generating coins and getting irritated by their surroundings. When too many houses close, the run ends, but permanent Blueprints persist.
 
+## Physical miniature-kit collection — Pass 7C
+
+The six collectible kits now have **real three-dimensional cardboard geometry**:
+folded top/front/right faces, punch-hole hanging tab, inset die-cut window,
+subtle clear-window reflection, raised display plinth, printed catalogue ID,
+prices, environmental effects and upkeep. The stock models are newly drawn
+as fine engraved 1908 miniatures (including a period roadside speed notice
+and constable post rather than anachronistic modern props).
+
+Crucially, `src/ui/modelArt.ts` is now the **one canonical drawing source**
+for both the shop and Phaser's placed model and placement preview textures.
+The new [carton theme](src/styles/kit-cartons.css) and
+[7C implementation notes](docs/art-direction/PASS_7C_PHYSICAL_KITS.md)
+describe the materials, depth, art sharing and screenshot quality gates.
+
+**Next visual pass: 7D**, replacing the generic cars, six houses and
+scenery with recognizably Edwardian line drawings, followed by **7E**
+all-state consistency, old CSS cleanup and final responsiveness/accessibility.
+
 ## Engraved Vintage interface — Pass 7B
 
 The first visual implementation follows the 1908 art direction: a double-line
