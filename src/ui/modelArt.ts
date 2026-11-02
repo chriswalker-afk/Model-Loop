@@ -39,6 +39,15 @@ export function miniatureSvg(id: ModelId): string {
       '<circle cx="65" cy="27" r="21" fill="none" stroke="#bf8c7d" stroke-width="5"/>' +
       '<text x="65" y="35" text-anchor="middle" font-size="23" font-weight="700" font-family="Georgia, serif" fill="#1b2420">20</text>' +
       '<path d="M59 75 72 75" stroke="#e1d8c2" stroke-width="2"/>';
+  } else if (id === 'bin') {
+    model =
+      '<path d="M48 76 42 32 84 32 80 76 65 82Z" fill="#5f7568" stroke="#e8e6ce" stroke-width="2"/>' +
+      '<path d="M65 38V80M49 45 65 49 83 45M51 63 65 67 81 63" stroke="#c9d2be" stroke-width="1.4" opacity=".8" fill="none"/>' +
+      '<path d="M39 31 45 20 82 20 89 31 66 39Z" fill="#9cae9c" stroke="#f0edcf" stroke-width="2"/>' +
+      '<path d="M48 19Q65 6 81 19" fill="none" stroke="#bfcbb3" stroke-width="2"/>' +
+      '<path d="M50 53h12v12H50z" fill="#d0c3a0" fill-opacity=".2" stroke="#e1d7b9"/>' +
+      '<path d="M54 56l5 5M59 56l-5 5" stroke="#e8e0c8"/>' +
+      '<path d="M54 80 49 86M77 80 82 86" fill="none" stroke="#d7d8c7" stroke-width="2"/>';
   } else {
     model =
       '<path d="M43 71V27L65 18 87 27V71L65 79Z" fill="#5c7381" fill-opacity=".8" stroke="#dbddce" stroke-width="2"/>' +

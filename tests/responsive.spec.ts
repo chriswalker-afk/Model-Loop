@@ -28,7 +28,7 @@ for (const screen of screens) {
     await page.goto('/');
     const canvas = page.locator('#game-container canvas');
     await expect(canvas).toBeVisible();
-    await expect(page.locator('.model-box')).toHaveCount(5);
+    await expect(page.locator('.model-box')).toHaveCount(6);
     await expect(page.locator('.household-ticket')).toHaveCount(6);
     await expect(page.locator('.meter')).toHaveCount(4);
 

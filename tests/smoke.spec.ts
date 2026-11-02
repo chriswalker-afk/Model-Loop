@@ -6,7 +6,7 @@ test('Vintage scene and controls initialize without browser errors', async ({ pa
   await page.goto('/');
   await expect(page.locator('#game-container canvas')).toBeVisible();
   await expect(page.locator('.meter')).toHaveCount(4);
-  await expect(page.locator('.model-box')).toHaveCount(5);
+  await expect(page.locator('.model-box')).toHaveCount(6);
   await expect(page.locator('#tile-panel')).toContainText('Every square tells a story');
   await expect(page.locator('#coins')).toHaveText('145');
 

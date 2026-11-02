@@ -19,9 +19,9 @@ test('docked model kits and world remain visible on a laptop without scrolling',
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await expect(page.locator('#game-container canvas')).toBeVisible();
-  await expect(page.locator('.model-box')).toHaveCount(5);
-  await expect(page.locator('.box-cost')).toHaveCount(5);
-  await expect(page.locator('.display-window svg')).toHaveCount(5);
+  await expect(page.locator('.model-box')).toHaveCount(6);
+  await expect(page.locator('.box-cost')).toHaveCount(6);
+  await expect(page.locator('.display-window svg')).toHaveCount(6);
   const shop = await page.locator('#shop-section').boundingBox();
   const world = await page.locator('.world-frame').boundingBox();
   const firstBox = await page.locator('.model-box').first().boundingBox();

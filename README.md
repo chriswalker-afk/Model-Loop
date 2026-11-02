@@ -1,4 +1,4 @@
-# Model Loop
+# The Generational Cycle
 
 *A little town. A lasting legacy.*
 
@@ -62,7 +62,7 @@ individual household temperament. Every household drives the same road loop.
 
 ## Adaptive screen layout
 
-Model Loop adjusts to screen width **and** available height, including
+The Generational Cycle adjusts to screen width **and** available height, including
 portrait/landscape rotation and browser-window resizing.
 
 - **Large desktop:** town, household strip and model kits form a single-screen
@@ -81,6 +81,37 @@ The Phaser canvas uses FIT scaling and an observed viewport size so clicks,
 tap positions and placement previews continue to match visible squares after
 the browser is resized or the device rotated. No manual zoom or settings
 change is required.
+
+## Rubbish bins and collection (Driver Behaviour Pass 2)
+
+The Vintage model-kit shelf now contains a **sixth boxed miniature: the
+Cast-Iron Rubbish Bin**. It costs 30 coins, covers road squares within a
+Manhattan radius of three, and holds six pieces of rubbish. Collected pieces
+do **not** appear as litter beside the road, but the visible level gauge
+fills as the residents use the bin.
+
+At full care the bin reliably catches litter, charges 3 coins every 20
+game seconds, and receives automatic collection every 60 game seconds.
+Economy care reduces upkeep to 2 coins every 20 game seconds, catches
+about 70% of rubbish, and collects every 120 game seconds.
+Minimal care has zero routine upkeep, about 25% reliability and no
+automatic collection.
+
+**Collection costs extra:** emptying costs 4 + 2 times the number of items,
+plus a surcharge of 8 coins for a completely full or overflowing bin.
+A bin that fills up stops catching rubbish and visibly overflows; nearby
+Beauty falls and Crime increases until it is serviced. Manual collection
+requires enough coins. Automatic collection happens even during a
+temporary debt and appears as a negative flow in Income. Select the bin
+to change its care level, see the fill gauge and choose **Empty now**.
+
+Rubbish that was already left on the road is not retroactively collected
+when a bin is placed. Inspect a rubbish-affected square and choose
+**Clear litter** (6 coins). Overlapping bins can share demand, so a
+second bin continues collecting when the first one is full.
+
+Read [the living-environment design](docs/LIVING_ENVIRONMENT.md) for
+testing details and remaining development passes.
 
 ## The living environment (Driver Behaviour Pass 1)
 
