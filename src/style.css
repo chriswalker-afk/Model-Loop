@@ -942,3 +942,99 @@ body { overflow: hidden; }
   .household-detail dl { display: none; }
   .preview-voices .quiet-note { display: none; }
 }
+
+
+/* Net-flow income is a signed, rolling cashflow, never the savings balance. */
+#coins.debt { color: #eaa69b; }
+.income-meter .meter-top { gap: 5px; }
+.income-meter .meter-top b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.income-meter .meter-top b small { margin-left: 1px; color: #aeb9a9; font-size: 8px; font-weight: normal; }
+.income-meter .meter-top b.negative-flow { color: #e5a097; }
+.income-meter .meter-top b.positive-flow { color: #b0dec1; }
+.flow-track {
+  position: relative;
+  height: 9px;
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid #707d70;
+  background: linear-gradient(90deg,rgba(165,71,71,.18) 0%,transparent 50%,rgba(81,168,117,.18) 100%);
+}
+.flow-center { position: absolute; left: calc(50% - .5px); top: 0; bottom: 0; width: 1px; z-index: 3; background: #e0d8ba; }
+.flow-fill { position: absolute; display: block; top: 1px; bottom: 1px; border-radius: 1px; transition: width .2s, left .2s; }
+.flow-fill.inflow { background: #b0d3b1; }
+.flow-fill.outflow { background: #df9c90; }
+.flow-breakdown { display: flex; justify-content: space-between; gap: 3px; color: #9eaea1; font: 9px/1.2 system-ui,sans-serif; margin-top: 3px; }
+.flow-breakdown span:first-child { color: #b0d5b2; }
+.flow-breakdown span:last-child { color: #d1aaa4; }
+
+.box-upkeep {
+  display: block;
+  flex: none;
+  color: #dac8a5;
+  margin-top: 2px;
+  border-top: 1px dashed rgba(210,195,165,.28);
+  padding-top: 2px;
+  font: 8px/1.12 system-ui,sans-serif;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-panel .care-heading { display: flex; justify-content: space-between; align-items: center; gap: 5px; font: 11px system-ui,sans-serif; margin: 6px 0 5px; }
+.tile-panel .care-heading span { color: #c7d8c6; font-weight: 700; }
+.tile-panel .care-heading strong { font: 600 10px system-ui,sans-serif; color: #d9ca9d; text-align: right; }
+.care-options { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.care-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: #1e2922;
+  color: #dfe5d7;
+  border: 1px solid #526657;
+  border-radius: 3px;
+  padding: 6px 8px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.care-option:hover { background: #2d3c30; border-color: #a2b9a8; }
+.care-option.active { background: #304537; border-color: #b1dec0; box-shadow: inset 0 0 0 1px rgba(142,202,159,.34); }
+.care-label { display: flex; justify-content: space-between; align-items: center; gap: 5px; }
+.care-label strong { font: 600 11px system-ui,sans-serif; color: #e8e5d6; }
+.care-label b { font: 700 10px system-ui,sans-serif; color: #e1c995; white-space: nowrap; }
+.care-description { font: 9px/1.2 system-ui,sans-serif; color: #b4c2b0; }
+.care-stats,.care-speed { font: 9px/1.25 system-ui,sans-serif; color: #a6cbaa; }
+.care-speed { color: #d7c194; }
+.tile-panel .care-now {
+  padding-top: 7px;
+  margin-top: 8px;
+  border-top: 1px solid #526355;
+  color: #cad7c5;
+  font: 10px/1.3 system-ui,sans-serif;
+}
+.tile-panel p.care-warning {
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px dashed #637061;
+  color: #cdb9a6;
+  font-size: 10px;
+}
+@media(max-width:800px) {
+  .flow-breakdown { font-size: 8px; }
+  .care-option { padding: 5px 7px; }
+}
+@media(max-width:680px) {
+  .tile-panel:has(.care-options) {
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .care-options { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 5px; }
+  .care-option { padding: 5px; }
+  .care-label { display: block; }
+  .care-label b { display: block; margin-top: 3px; }
+  .care-option .care-description { display: none; }
+  .care-stats,.care-speed { font-size: 8px; }
+  .income-meter .meter-top b { font-size: 11px; }
+}
