@@ -1,7 +1,8 @@
 import { Scene } from 'phaser';
 import { BOARD, EFFECT_RADIUS, HOMES, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
 import { store, type JourneyReaction } from './state';
-import { normalizedCare } from './economy';
+import { normalizedCare, modelCondition } from './economy';
+import type { RoadsideIncident } from './damage';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { householdActionPair, type BehaviourReport } from './behaviors';
@@ -48,6 +49,7 @@ export class TownScene extends Scene {
   private modelLayer!: Phaser.GameObjects.Graphics;
   private environmentLayer!: Phaser.GameObjects.Graphics;
   private lastEnvironmentalEventId = 0;
+  private lastRoadsideIncidentId = 0;
   private observedEnvironment: LivingEnvironment | null = null;
   private homeLayer!: Phaser.GameObjects.Graphics;
   private highlightLayer!: Phaser.GameObjects.Graphics;
@@ -92,12 +94,18 @@ export class TownScene extends Scene {
       if (this.observedEnvironment !== store.environment) {
         this.observedEnvironment = store.environment;
         this.lastEnvironmentalEventId = 0;
+        this.lastRoadsideIncidentId = 0;
       }
       this.drawDynamic();
       const environmentalEvent = store.lastEnvironmentEvent;
       if (environmentalEvent && environmentalEvent.effectId !== this.lastEnvironmentalEventId) {
         this.lastEnvironmentalEventId = environmentalEvent.effectId;
         this.animateEnvironmentEvent(environmentalEvent);
+      }
+      const impact = store.accidents.latest;
+      if (impact && impact.id !== this.lastRoadsideIncidentId) {
+        this.lastRoadsideIncidentId = impact.id;
+        this.animateRoadsideImpact(impact);
       }
       const action = store.latestBehaviourReport;
       if (action && action.sequence !== this.lastBehaviourSequence) {
@@ -574,6 +582,19 @@ export class TownScene extends Scene {
     // Tiny hand-drawn props make the activity physically visible throughout
     // setup, the main event and packing away; never a second floating HUD.
     for (const activity of store.activities.active) this.drawActivity(g, activity);
+    for (const incident of store.accidents.active) {
+      const point=worldPoint(incident.road);
+      const target=worldPoint(incident.model);
+      g.fillStyle(palette.danger,.18);
+      g.fillCircle(point.x,point.y,15);
+      g.lineStyle(1.7,palette.gold,.85);
+      g.strokeTriangle(point.x-11,point.y+9,point.x+11,point.y+9,point.x,point.y-12);
+      g.lineBetween(point.x,point.y-5,point.x,point.y+2);
+      g.fillCircle(point.x,point.y+5,1.5);
+      g.lineStyle(1.3,palette.danger,.7);
+      g.lineBetween(point.x,point.y,target.x,target.y);
+      g.strokeCircle(target.x,target.y,18);
+    }
     this.syncActivityLabels();
   }
 
@@ -687,6 +708,26 @@ export class TownScene extends Scene {
     }
   }
 
+  private animateRoadsideImpact(event: RoadsideIncident): void {
+    const impact=worldPoint(event.model);
+    const ripple=this.add.circle(impact.x,impact.y,8,palette.danger,.15)
+      .setStrokeStyle(2,palette.danger,.96).setDepth(32);
+    if(this.reduceMotion()){
+      this.time.delayedCall(750,()=>ripple.destroy());
+    }else{
+      this.tweens.add({targets:ripple,scale:3.2,alpha:0,duration:750,
+        onComplete:()=>ripple.destroy()});
+    }
+    const label=this.add.text(impact.x,impact.y-32,
+      event.after==='broken'?'BROKEN':'DAMAGED',{
+        fontFamily:'Georgia, serif',fontSize:'10px',color:'#f2c0ad',
+        backgroundColor:'#19221b',padding:{x:4,y:3}
+      }).setOrigin(.5).setDepth(45);
+    if(this.reduceMotion())this.time.delayedCall(850,()=>label.destroy());
+    else this.tweens.add({targets:label,alpha:0,y:label.y-12,delay:550,duration:900,
+      onComplete:()=>label.destroy()});
+  }
+
   private animateEnvironmentEvent(event: EnvironmentalEvent): void {
     const point = worldPoint(event.cell);
     const helpful = event.tone === 'helpful';
@@ -730,6 +771,30 @@ export class TownScene extends Scene {
     store.placements.forEach((placed) => {
       const point = worldPoint(placed);
       this.drawModel(this.modelLayer, point.x, point.y, placed.id);
+      const condition=modelCondition(placed.condition);
+      if (condition!=='intact') {
+        if(condition==='broken'){
+          // Darken the once-functional object and scatter a few actual shards.
+          this.modelLayer.fillStyle(0x101815,.6);
+          this.modelLayer.fillRoundedRect(point.x-19,point.y-29,38,47,2);
+          this.modelLayer.lineStyle(2.1,palette.danger,.92);
+          this.modelLayer.lineBetween(point.x-14,point.y-4,point.x+12,point.y+9);
+          this.modelLayer.lineBetween(point.x-9,point.y+12,point.x+5,point.y-11);
+          this.modelLayer.lineBetween(point.x-16,point.y+17,point.x-8,point.y+11);
+          this.modelLayer.lineBetween(point.x+6,point.y+16,point.x+16,point.y+13);
+        }else{
+          // A distinctive pencil crack, rather than confusing wear with care.
+          this.modelLayer.lineStyle(1.9,palette.gold,.94);
+          this.modelLayer.lineBetween(point.x-10,point.y-16,point.x-1,point.y-7);
+          this.modelLayer.lineBetween(point.x-1,point.y-7,point.x-6,point.y+2);
+          this.modelLayer.lineBetween(point.x-6,point.y+2,point.x+8,point.y+10);
+        }
+        this.modelLayer.fillStyle(condition==='broken'?palette.danger:palette.gold,.93);
+        this.modelLayer.fillCircle(point.x+17,point.y-21,6);
+        this.modelLayer.lineStyle(1.1,0x131c16,1);
+        this.modelLayer.lineBetween(point.x+17,point.y-24,point.x+17,point.y-20);
+        this.modelLayer.fillCircle(point.x+17,point.y-18,1);
+      }
       if (placed.id === 'bin') {
         const fill = Math.min(BIN_CAPACITY, Math.max(0, placed.fill ?? 0));
         const amount = fill / BIN_CAPACITY;
@@ -1072,6 +1137,8 @@ export class TownScene extends Scene {
           car.tileIndex = index;
           reaction = store.passTile(car.residentId, ROAD_CELLS[index],
             car.lane === 'left' && !car.changingTo);
+          store.considerRoadsideAccident(car.residentId,ROAD_CELLS[index],
+            movement?.speed??0,car.lane,!!car.changingTo);
         }
         if (car.changingTo) {
           car.laneChangeElapsed += dt;
