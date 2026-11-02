@@ -82,6 +82,42 @@ tap positions and placement previews continue to match visible squares after
 the browser is resized or the device rotated. No manual zoom or settings
 change is required.
 
+## Living traffic & real queues (Driver Behaviour Pass 3)
+
+All cars now share the same physical road. A passing vehicle must keep a
+safe gap from the vehicle ahead, including when a car stops unexpectedly
+or approaches from around the loop's wrap-around point. Slowing at a
+maintained Speed Sign can generate a genuine tailback rather than only
+changing a displayed value. Cars brake and subsequently accelerate as the
+queue clears; red tail-lamps and small chalk rings make waiting visible.
+
+The Bells sometimes stop for a little look at the town, and the Wards
+sometimes hesitate over a tricky bit of road. These events are seeded,
+bounded to a few seconds, and restricted by cooldowns and one event
+opportunity per circuit. While one road stop is active no second stop can
+start. The other families' helpful and troublesome driving acts are
+scheduled for Pass 4.
+
+A queue reduces lap frequency, which directly reduces earned coins per
+minute, and waiting adds modest irritation. Nearby traffic makes local
+Noise and road Safety worse while it lasts. There is no arbitrary "traffic
+tax": the only earnings are still from completed circuits, followed by
+the existing journey home and a short visit. Drivers departing their
+homes wait until there is a safe gap before reserving the driveway exit.
+
+A brief traffic label appears on the road and in the existing footer
+only when an incident or queue is happening. Household notes display time
+actually spent delayed. The game still fits phones and compact laptops.
+
+For repeatable local development tests, open the Vite dev server and
+call the following in the browser console:
+
+    __modelLoopDebug.trafficStop(1, 4.2)
+    __modelLoopDebug.trafficSnapshot()
+    __modelLoopDebug.snapshot()
+
+These developer controls are stripped from the production build.
+
 ## Rubbish bins and collection (Driver Behaviour Pass 2)
 
 The Vintage model-kit shelf now contains a **sixth boxed miniature: the
