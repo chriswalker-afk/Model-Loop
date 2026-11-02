@@ -1780,7 +1780,7 @@ body { overflow: hidden; }
   .shop-instructions strong { display: none; }
   .shop-instructions span { font-size: 10px; }
   .shop-instructions::after {
-    content: 'Scroll to browse all five kits ↓';
+    content: 'Scroll to browse all models ↓';
     display: block;
     color: #cdbd97;
     font: 10px/1.2 system-ui,sans-serif;

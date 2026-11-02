@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
-import { BOARD, EFFECT_RADIUS, HOMES, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
+import { BOARD, EFFECT_RADIUS, HOMES, MODELS, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
+import { miniatureDataUri, miniatureTextureKey, MODEL_ART_WIDTH, MODEL_ART_HEIGHT } from '../ui/modelArt';
 import { store, type JourneyReaction } from './state';
 import { normalizedCare, modelCondition } from './economy';
 import type { RoadsideIncident } from './damage';
@@ -65,8 +66,27 @@ export class TownScene extends Scene {
   private activityLabels = new Map<number, Phaser.GameObjects.Text>();
   private lastPlacementCount = 0;
   private cars: Car[] = [];
+  // Cached Phaser images from the EXACT same SVG source used in shop cartons.
+  // Existing sprites are reused on each state notification (never recreated
+  // per frame); a placed kit keeps its physical tile footprint unchanged.
+  private kitSprites = new Map<string, Phaser.GameObjects.Image>();
+  private kitGhost!: Phaser.GameObjects.Image;
 
   constructor() { super('TownScene'); }
+
+  preload(): void {
+    // Data SVGs need no network request. The loader decodes each once, caches
+    // a single texture per model and reuses it for all placements and ghosts.
+    // A scene restart must not enqueue duplicate keys.
+    for (const model of MODELS) {
+      const key = miniatureTextureKey(model.id);
+      if (!this.textures.exists(key)) {
+        this.load.svg(key, miniatureDataUri(model.id), {
+          width: MODEL_ART_WIDTH * 2, height: MODEL_ART_HEIGHT * 2
+        });
+      }
+    }
+  }
 
   create(): void {
     this.cameras.main.setBackgroundColor('#111515');
@@ -75,12 +95,15 @@ export class TownScene extends Scene {
     this.drawRoad();
 
     // Roadside changes are drawn above the road and below cars and models.
-    this.environmentLayer = this.add.graphics();
-    this.modelLayer = this.add.graphics();
-    this.homeLayer = this.add.graphics();
-    this.influenceLayer = this.add.graphics();
-    this.highlightLayer = this.add.graphics();
-    this.ghostLayer = this.add.graphics().setAlpha(0.68);
+    this.environmentLayer = this.add.graphics().setDepth(1);
+    this.modelLayer = this.add.graphics().setDepth(3);
+    this.homeLayer = this.add.graphics().setDepth(4);
+    this.influenceLayer = this.add.graphics().setDepth(1);
+    this.highlightLayer = this.add.graphics().setDepth(7);
+    this.ghostLayer = this.add.graphics().setDepth(6).setAlpha(0.68);
+    this.kitSprites.clear();
+    this.kitGhost = this.add.image(0, 0, miniatureTextureKey('lamp'))
+      .setDisplaySize(56, 45).setDepth(6).setVisible(false);
     this.trafficLayer = this.add.graphics().setDepth(19);
     this.trafficLabel = this.add.text(0, 0, '', {
       fontFamily: 'Georgia, serif', fontSize: '10px', color: '#eedab4',
@@ -131,7 +154,10 @@ export class TownScene extends Scene {
       }
       this.lastPlacementCount = store.placements.length;
     });
-    this.events.once('shutdown', unsubscribe);
+    this.events.once('shutdown', () => {
+      unsubscribe();
+      this.kitSprites.clear(); // Phaser scene shutdown destroys images.
+    });
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       store.setHovered(this.pointerCell(pointer));
@@ -299,7 +325,7 @@ export class TownScene extends Scene {
   private createCar(residentId: number, index: number): Car {
     const home = HOMES[index];
     const driver = drivingProfile(residentId);
-    const container = this.add.container(0, 0);
+    const container = this.add.container(0, 0).setDepth(5);
     const homeCell = worldPoint(home);
     const startIndex = ROAD_CELLS.findIndex(cell => manhattanDistance(cell, home) === 1);
     if (startIndex < 0) throw new Error('House without adjacent road: ' + home.name);
@@ -383,43 +409,51 @@ export class TownScene extends Scene {
     }
   }
 
-  private drawModel(g: Phaser.GameObjects.Graphics, x: number, y: number, id: ModelId): void {
-    g.fillStyle(0xc9b58f, 0.14);
-    g.fillEllipse(x, y + 11, 34, 12);
-    g.lineStyle(1.8, palette.chalk, 0.95);
-    if (id === 'lamp') {
-      g.lineBetween(x, y + 12, x, y - 15);
-      g.lineBetween(x - 6, y + 12, x + 6, y + 12);
-      g.strokeRect(x - 6, y - 23, 12, 11);
-      g.strokeTriangle(x - 8, y - 23, x, y - 31, x + 8, y - 23);
-      g.fillStyle(palette.gold, 0.55);
-      g.fillCircle(x, y - 18, 4);
-    } else if (id === 'tree') {
-      this.drawTree(g, x, y, 21);
-    } else if (id === 'bench') {
-      g.strokeRect(x - 17, y - 3, 34, 10);
-      g.lineBetween(x - 13, y + 7, x - 13, y + 15);
-      g.lineBetween(x + 13, y + 7, x + 13, y + 15);
-      g.lineBetween(x - 17, y - 7, x + 17, y - 7);
-    } else if (id === 'limit') {
-      g.lineBetween(x, y + 16, x, y - 9);
-      g.strokeCircle(x, y - 17, 12);
-      g.fillStyle(0xc9a66a, 0.8);
-      g.fillCircle(x, y - 17, 2);
-    } else if (id === 'bin') {
-      g.fillStyle(0x5c7565, 0.8);
-      g.fillRect(x - 10, y - 14, 20, 26);
-      g.lineStyle(1.8, palette.chalk, 0.95);
-      g.strokeRect(x - 10, y - 14, 20, 26);
-      g.strokeRoundedRect(x - 13, y - 19, 26, 7, 2);
-      g.lineBetween(x - 8, y - 1, x + 8, y - 1);
-      g.lineBetween(x - 6, y - 9, x + 6, y - 9);
-      g.lineBetween(x - 4, y + 5, x + 4, y + 5);
-    } else {
-      g.strokeRect(x - 12, y - 12, 24, 29);
-      g.strokeTriangle(x - 15, y - 12, x, y - 22, x + 15, y - 12);
-      g.strokeRect(x - 5, y - 4, 10, 8);
-      g.lineBetween(x - 15, y + 17, x + 15, y + 17);
+  /** Inspect the art pipeline from dev/Playwright without exposing simulation internals. */
+  miniatureArtSnapshot(): {
+    loaded: ModelId[]; placed: { cell: string; texture: string; alpha: number }[];
+    ghost: { texture: string; visible: boolean; alpha: number };
+  } {
+    return {
+      loaded: MODELS.filter(model =>
+        this.textures.exists(miniatureTextureKey(model.id))).map(model=>model.id),
+      placed: [...this.kitSprites.entries()].map(([cell,image])=>({
+        cell, texture: image.texture.key, alpha: image.alpha
+      })),
+      ghost: this.kitGhost ? {
+        texture: this.kitGhost.texture.key,
+        visible: this.kitGhost.visible, alpha: this.kitGhost.alpha
+      } : { texture: '', visible: false, alpha: 0 }
+    };
+  }
+
+  /** Sync board models to purchased state using the cached shop SVG textures. */
+  private syncKitSprites(): void {
+    const current = new Set<string>();
+    for (const placed of store.placements) {
+      const cellKey = placed.x + ',' + placed.y;
+      current.add(cellKey);
+      const point = worldPoint(placed);
+      const texture = miniatureTextureKey(placed.id);
+      let image = this.kitSprites.get(cellKey);
+      if (!image) {
+        image = this.add.image(point.x, point.y - 7, texture)
+          .setDepth(2).setDisplaySize(56, 45);
+        this.kitSprites.set(cellKey, image);
+      } else if (image.texture.key !== texture) {
+        image.setTexture(texture);
+      }
+      const condition = modelCondition(placed.condition);
+      image.setPosition(point.x, point.y - 7)
+        .setAlpha(condition === 'broken' ? .42 :
+          condition === 'damaged' ? .79 : 1);
+    }
+    // Old miniatures do not survive a new game, sale or scene reset.
+    for (const [cellKey, image] of this.kitSprites) {
+      if (!current.has(cellKey)) {
+        image.destroy();
+        this.kitSprites.delete(cellKey);
+      }
     }
   }
 
@@ -803,10 +837,11 @@ export class TownScene extends Scene {
     this.influenceLayer.clear();
     this.highlightLayer.clear();
     this.ghostLayer.clear();
+    this.kitGhost.setVisible(false);
+    this.syncKitSprites();
 
     store.placements.forEach((placed) => {
       const point = worldPoint(placed);
-      this.drawModel(this.modelLayer, point.x, point.y, placed.id);
       const condition=modelCondition(placed.condition);
       if (condition!=='intact') {
         if(condition==='broken'){
@@ -899,8 +934,10 @@ export class TownScene extends Scene {
         });
 
       const point = worldPoint(cell);
-      this.ghostLayer.setAlpha(preview.allowed ? 0.78 : 0.35);
-      this.drawModel(this.ghostLayer, point.x, point.y, store.activeModel!);
+      this.kitGhost.setTexture(miniatureTextureKey(store.activeModel!))
+        .setPosition(point.x, point.y - 7)
+        .setAlpha(preview.allowed ? 0.78 : 0.35)
+        .setVisible(true);
     }
 
     const x = BOARD.left + cell.x * BOARD.tile;

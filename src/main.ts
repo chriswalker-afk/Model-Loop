@@ -118,35 +118,60 @@ function renderShop(): void {
   const signature = [store.activeModel, store.money, store.phase, store.paused].join(':');
   if (signature === shopSignature) return;
   shopSignature = signature;
-  const accents = ['#c6ac79', '#a2bca3', '#bd9c7b', '#bba795', '#9cb6c3', '#95ad94'];
   byId('shop').innerHTML = MODELS.map((item, index) => {
     const picked = store.activeModel === item.id;
     const poor = store.money < item.cost;
     const disabled = store.phase !== 'playing' || store.paused;
-    const effects = '<span title="Beauty change">✿ ' + signed(item.beauty) +
-      '</span><span title="Noise change">◖ ' + signed(item.noise) +
-      '</span><span title="Crime change">◇ ' + signed(item.crime) + '</span>';
+    const effects = ([
+      ['Beauty', item.beauty, 'beauty'],
+      ['Noise', item.noise, 'noise'],
+      ['Crime', item.crime, 'crime']
+    ] as const).map(([label, value, icon]) =>
+      '<span class="kit-effect" title="' + label + ' change ' + signed(value) + '">' +
+      vintageIcon(icon) + '<span class="kit-effect-number">' + signed(value) +
+      '</span><span class="kit-effect-label sr-only">' + label + '</span></span>'
+    ).join('');
     return '<button type="button" draggable="' + !disabled +
-      '" class="model-box ' + (picked ? 'selected ' : '') +
+      '" class="model-box kit-carton ' + (picked ? 'selected ' : '') +
       (poor ? 'unaffordable ' : '') + '" data-model="' + item.id +
-      '" style="--kit-accent:' + accents[index] + '" aria-pressed="' + picked +
-      '" aria-label="Select ' + item.name + ', costs ' + item.cost + ' coins" ' +
+      '" aria-pressed="' + picked +
+      '" aria-label="Select ' + item.name + ', costs ' + item.cost +
+      ' coins; Beauty ' + signed(item.beauty) + ', Noise ' + signed(item.noise) +
+      ', Crime ' + signed(item.crime) + '; upkeep ' + item.upkeep +
+      ' coins every ' + UPKEEP_INTERVAL_SECONDS + ' seconds" ' +
       (disabled ? 'disabled' : '') + '>' +
-      '<span class="box-lip"><span class="box-hole"></span></span>' +
-      '<span class="box-series"><span>VINTAGE · 1908</span><span>KIT / 0' + (index + 1) + '</span></span>' +
+      // Each actual plane has its own shape, folded print and cast shadow.
+      // The box is a single button: art never intercepts a drag or a click.
+      '<span class="kit-side-face" aria-hidden="true"></span>' +
+      '<span class="kit-top-face" aria-hidden="true"></span>' +
+      '<span class="kit-front-face" aria-hidden="true"></span>' +
+      '<span class="kit-front-print" aria-hidden="true"></span>' +
+      '<span class="box-lip kit-hanger" aria-hidden="true">' +
+      '<span class="box-hole"></span></span>' +
+      '<span class="box-series"><span>1908 · SERIES I</span><span>No. 0' + (index + 1) +
+      '</span></span>' +
       '<strong class="box-title">' + item.name + '</strong>' +
-      '<span class="display-window"><span class="window-backdrop"></span>' +
-      miniatureSvg(item.id) + '<span class="window-glint"></span>' +
-      '<span class="kit-window-stamp">' + (picked ? 'LIFTED' : 'HANDMADE') + '</span></span>' +
-      '<span class="kit-band"><span class="box-cost"><span class="coin-icon">●</span> ' +
-      item.cost + '</span><span class="box-caption">MINIATURE MODEL</span></span>' +
+      '<span class="display-window">' +
+      '<span class="kit-window-cavity" aria-hidden="true"></span>' +
+      '<span class="window-backdrop" aria-hidden="true"></span>' +
+      miniatureSvg(item.id) +
+      '<span class="kit-window-rim" aria-hidden="true"></span>' +
+      '<span class="window-glint" aria-hidden="true"></span>' +
+      '<span class="kit-window-stamp">' + (picked ? 'LIFTED' : 'HANDMADE') +
+      '</span></span>' +
+      '<span class="kit-ledger">' +
+      '<span class="kit-band"><span class="box-cost"><span class="coin-icon" ' +
+      'aria-hidden="true">' + vintageIcon('income') + '</span>' + item.cost +
+      '</span><span class="box-caption">COINS</span></span>' +
       '<span class="box-effects" aria-label="Beauty ' + signed(item.beauty) +
       ', Noise ' + signed(item.noise) + ', Crime ' + signed(item.crime) + '">' +
-      effects + '</span><span class="box-description">' + item.caption + '</span>' +
+      effects + '</span>' +
+      '<span class="box-description">' + item.caption + '</span>' +
       '<span class="box-upkeep" title="Maintenance costs ' + item.upkeep +
       ' coins every ' + UPKEEP_INTERVAL_SECONDS +
-      ' game seconds at full care; reduce it after placement">Upkeep ' +
-      item.upkeep + ' coins / ' + UPKEEP_INTERVAL_SECONDS + 's</span></button>';
+      ' game seconds at full care; reduce after placement">CARE ' +
+      item.upkeep + ' / ' + UPKEEP_INTERVAL_SECONDS + 's</span>' +
+      '</span></button>';
   }).join('');
 }
 
@@ -868,6 +893,9 @@ if (import.meta.env.DEV) {
     },
     trafficSnapshot() {
       return (game.scene.getScene('TownScene') as TownScene).trafficSnapshot();
+    },
+    miniatureArt() {
+      return (game.scene.getScene('TownScene') as TownScene).miniatureArtSnapshot();
     },
     behaviourAction(id:number,action:HouseholdActionId,x:number,y:number):boolean {
       if(!Number.isInteger(id) || id<0 || id>5 ||
