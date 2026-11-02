@@ -106,3 +106,30 @@ test('workbench and readable incident feedback fit a narrow phone screen',async(
   const width=await page.evaluate(()=>document.documentElement.scrollWidth);
   expect(width).toBeLessThanOrEqual(392);
 });
+
+
+test('opened behaviour forecast survives income refreshes but resets for a new square',async({page})=>{
+  await page.setViewportSize({width:1440,height:900});
+  await page.goto('/');
+  await page.evaluate(async()=>{
+    const {store}=await import('/src/game/state.ts');
+    store.selectModel('limit');
+    store.setHovered({x:4,y:4});
+  });
+  const forecast=page.locator('#tile-panel .behaviour-forecast');
+  await expect(forecast).toBeVisible();
+  await forecast.locator('summary').click();
+  await expect(forecast).toHaveAttribute('open','');
+  await expect(forecast).toContainText('Chance of any incident');
+  await expect(forecast).toContainText('Helpful share');
+  await page.evaluate(async()=>{
+    const {store}=await import('/src/game/state.ts');
+    store.tickEconomy(1.2);
+  });
+  await expect(forecast).toHaveAttribute('open','');
+  await page.evaluate(async()=>{
+    const {store}=await import('/src/game/state.ts');
+    store.setHovered({x:7,y:3});
+  });
+  await expect(forecast).not.toHaveAttribute('open','');
+});
