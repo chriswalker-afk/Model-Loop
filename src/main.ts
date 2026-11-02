@@ -809,7 +809,8 @@ document.addEventListener('keydown', (event) => {
   }
   if (event.key === 'Enter' && store.hovered) {
     event.preventDefault();
-    store.selectTile(store.hovered);
+    if (event.shiftKey) store.inspectTile(store.hovered);
+    else store.selectTile(store.hovered);
   }
 });
 
