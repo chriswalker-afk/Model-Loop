@@ -7,6 +7,7 @@ export interface ModelDefinition {
   id: ModelId;
   name: string;
   cost: number;
+  upkeep: number; // coins due every care cycle at full maintenance
   beauty: number;
   noise: number;
   crime: number;
@@ -15,11 +16,11 @@ export interface ModelDefinition {
 }
 
 export const MODELS: ModelDefinition[] = [
-  { id: 'lamp', name: 'Gas Lamppost', cost: 35, beauty: 1, noise: 0, crime: -2, comfort: -0.63, caption: 'A little light for safer nights.' },
-  { id: 'tree', name: 'Oak Tree', cost: 40, beauty: 3, noise: -1, crime: 0, comfort: -0.67, caption: 'A quieter, greener journey.' },
-  { id: 'bench', name: 'Park Bench', cost: 25, beauty: 2, noise: 0, crime: 0, comfort: -0.43, caption: 'A place to stop and belong.' },
-  { id: 'limit', name: 'Speed Sign', cost: 30, beauty: 0, noise: -2, crime: 0, comfort: -0.56, caption: 'A gentler pace for the town.' },
-  { id: 'police', name: 'Police Box', cost: 55, beauty: 0, noise: 0, crime: -3, comfort: -0.79, caption: 'A reassuring local presence.' }
+  { id: 'lamp', name: 'Gas Lamppost', cost: 35, upkeep: 6, beauty: 1, noise: 0, crime: -2, comfort: -0.63, caption: 'A little light for safer nights.' },
+  { id: 'tree', name: 'Oak Tree', cost: 40, upkeep: 5, beauty: 3, noise: -1, crime: 0, comfort: -0.67, caption: 'A quieter, greener journey.' },
+  { id: 'bench', name: 'Park Bench', cost: 25, upkeep: 4, beauty: 2, noise: 0, crime: 0, comfort: -0.43, caption: 'A place to stop and belong.' },
+  { id: 'limit', name: 'Speed Sign', cost: 30, upkeep: 5, beauty: 0, noise: -2, crime: 0, comfort: -0.56, caption: 'A gentler pace for the town.' },
+  { id: 'police', name: 'Police Box', cost: 55, upkeep: 8, beauty: 0, noise: 0, crime: -3, comfort: -0.79, caption: 'A reassuring local presence.' }
 ];
 
 export const HOMES = [

@@ -1,13 +1,18 @@
 import { Scene } from 'phaser';
 import { BOARD, EFFECT_RADIUS, HOMES, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
 import { store, type JourneyReaction } from './state';
+import { normalizedCare } from './economy';
+import { HOME_TRAVEL_SECONDS, newCarCycle, stepCarCycle, type CarCycle } from './traffic';
 
 interface Car {
   residentId: number;
   container: Phaser.GameObjects.Container;
-  distance: number;
+  startIndex: number;
+  cycle: CarCycle;
   tileIndex: number;
   speed: number;
+  speedFactor: number;
+  homeBadge: Phaser.GameObjects.Text;
   lastThoughtAt: number;
 }
 
@@ -195,6 +200,18 @@ export class TownScene extends Scene {
   private createCar(residentId: number, index: number): Car {
     const home = HOMES[index];
     const container = this.add.container(0, 0);
+    const homeCell = worldPoint(home);
+    const startIndex = ROAD_CELLS.findIndex(cell => manhattanDistance(cell, home) === 1);
+    if (startIndex < 0) throw new Error('House without adjacent road: ' + home.name);
+    const start = worldPoint(ROAD_CELLS[startIndex]);
+    container.setPosition(start.x, start.y);
+    const homeBadge = this.add.text(homeCell.x, homeCell.y - 36, 'HOME', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '9px',
+      color: '#decba8',
+      backgroundColor: '#19251d',
+      padding: { x: 5, y: 3 }
+    }).setOrigin(0.5).setDepth(18).setVisible(false);
     const g = this.add.graphics();
     g.fillStyle(0x0a0e0e, 0.97);
     g.fillRoundedRect(-15, -10, 28, 20, 3);
@@ -215,9 +232,12 @@ export class TownScene extends Scene {
     return {
       residentId,
       container,
-      distance: (ROAD_CELLS.length * BOARD.tile / HOMES.length) * index,
+      startIndex,
+      cycle: newCarCycle(),
       tileIndex: -1,
       speed: 85 + index * 4,
+      speedFactor: 1,
+      homeBadge,
       lastThoughtAt: -20000
     };
   }
@@ -306,6 +326,18 @@ export class TownScene extends Scene {
     store.placements.forEach((placed) => {
       const point = worldPoint(placed);
       this.drawModel(this.modelLayer, point.x, point.y, placed.id);
+      const care = normalizedCare(placed.care);
+      if (care !== 'full') {
+        const wearColor = care === 'economy' ? palette.gold : palette.danger;
+        this.modelLayer.fillStyle(wearColor, 0.88);
+        this.modelLayer.fillCircle(point.x + 15, point.y + 14, 4.5);
+        this.modelLayer.lineStyle(1.2, 0x151a18, 0.9);
+        this.modelLayer.strokeCircle(point.x + 15, point.y + 14, 4.5);
+        if (care === 'bare') {
+          this.modelLayer.lineStyle(1.3, palette.danger, 0.82);
+          this.modelLayer.lineBetween(point.x - 12, point.y + 14, point.x + 10, point.y + 7);
+        }
+      }
     });
     HOMES.forEach((home) => this.drawHouse(this.homeLayer, home));
 
@@ -394,39 +426,98 @@ export class TownScene extends Scene {
     });
   }
 
+  private showLapCoins(car: Car, earned: number): void {
+    if (earned <= 0) return;
+    const x = car.container.x, y = car.container.y - 18;
+    const bubble = this.add.container(x, y).setDepth(45);
+    const ink = this.add.graphics();
+    ink.fillStyle(palette.gold, 0.97);
+    ink.fillCircle(-12, 1, 10);
+    ink.lineStyle(1.4, 0xebe5ce, 1);
+    ink.strokeCircle(-12, 1, 10);
+    ink.lineStyle(1, 0x65512c, 0.9);
+    ink.strokeCircle(-12, 1, 5);
+    const amount = this.add.text(3, 0, '+' + earned, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '18px',
+      color: '#f4e5ba',
+      stroke: '#121713',
+      strokeThickness: 3
+    }).setOrigin(0, 0.5);
+    bubble.add([ink, amount]);
+    this.tweens.add({
+      targets: bubble,
+      y: y - 43,
+      alpha: 0,
+      duration: 1700,
+      ease: 'Cubic.Out',
+      onComplete: () => bubble.destroy()
+    });
+  }
+
   update(_time: number, delta: number): void {
     if (store.paused || store.workshopOpen || store.phase !== 'playing') return;
     const length = ROAD_CELLS.length;
     const totalDistance = length * BOARD.tile;
     const dt = Math.min(delta, 60) / 1000 * store.gameSpeed;
+    store.tickEconomy(dt);
 
     this.cars.forEach((car) => {
       const resident = store.residents[car.residentId];
       if (!resident?.occupied) {
         car.container.setVisible(false);
+        car.homeBadge.setVisible(false);
         return;
       }
+
+      const homePoint = worldPoint(HOMES[car.residentId]);
+      const roadPoint = worldPoint(ROAD_CELLS[car.startIndex]);
+      const beforeDistance = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+      const beforeIndex = Math.min(length - 1, Math.floor(beforeDistance / BOARD.tile));
+      // Care levels affect how clearly drivers heed the speed sign.
+      const targetFactor = store.speedMultiplierAt(ROAD_CELLS[beforeIndex]);
+      car.speedFactor += (targetFactor - car.speedFactor) * Math.min(1, dt * 7);
+      const completed = stepCarCycle(car.cycle, dt, car.speed * car.speedFactor * dt, totalDistance);
+      if (completed) {
+        const earned = store.finishLap(car.residentId);
+        this.showLapCoins(car, earned);
+        car.tileIndex = -1;
+      }
+
       car.container.setVisible(true);
-      car.distance += car.speed * dt;
-      if (car.distance >= totalDistance) {
-        car.distance %= totalDistance;
-        store.finishLap(car.residentId);
+      car.homeBadge.setVisible(car.cycle.phase === 'at-home');
+
+      if (car.cycle.phase === 'driving') {
+        const distance = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+        const index = Math.min(length - 1, Math.floor(distance / BOARD.tile));
+        let reaction: JourneyReaction | null = null;
+        if (index !== car.tileIndex) {
+          car.tileIndex = index;
+          reaction = store.passTile(car.residentId, ROAD_CELLS[index]);
+        }
+        const part = (distance % BOARD.tile) / BOARD.tile;
+        const current = worldPoint(ROAD_CELLS[index]);
+        const next = worldPoint(ROAD_CELLS[(index + 1) % length]);
+        car.container.setPosition(
+          current.x + (next.x - current.x) * part,
+          current.y + (next.y - current.y) * part
+        );
+        car.container.setRotation(Math.atan2(next.y - current.y, next.x - current.x));
+        if (reaction) this.showCarThought(car, reaction);
+      } else {
+        const t = car.cycle.phase === 'at-home' ? 1 :
+          car.cycle.phase === 'returning'
+            ? Math.min(1, car.cycle.timer / HOME_TRAVEL_SECONDS)
+            : 1 - Math.min(1, car.cycle.timer / HOME_TRAVEL_SECONDS);
+        const smooth = t * t * (3 - 2 * t);
+        car.container.setPosition(
+          roadPoint.x + (homePoint.x - roadPoint.x) * smooth,
+          roadPoint.y + (homePoint.y - roadPoint.y) * smooth
+        );
+        car.container.setRotation(car.cycle.phase === 'at-home' ? 0 :
+          Math.atan2(homePoint.y - roadPoint.y, homePoint.x - roadPoint.x) +
+          (car.cycle.phase === 'departing' ? Math.PI : 0));
       }
-      const index = Math.floor(car.distance / BOARD.tile);
-      let reaction: JourneyReaction | null = null;
-      if (index !== car.tileIndex) {
-        car.tileIndex = index;
-        reaction = store.passTile(car.residentId, ROAD_CELLS[index]);
-      }
-      const part = (car.distance % BOARD.tile) / BOARD.tile;
-      const current = worldPoint(ROAD_CELLS[index]);
-      const next = worldPoint(ROAD_CELLS[(index + 1) % length]);
-      car.container.setPosition(
-        current.x + (next.x - current.x) * part,
-        current.y + (next.y - current.y) * part
-      );
-      car.container.setRotation(Math.atan2(next.y - current.y, next.x - current.x));
-      if (reaction) this.showCarThought(car, reaction);
     });
   }
 }

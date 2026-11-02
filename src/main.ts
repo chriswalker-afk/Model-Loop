@@ -3,6 +3,8 @@ import { TownScene } from './game/TownScene';
 import { BOARD, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
 import { miniatureSvg } from './ui/modelArt';
 import { store } from './game/state';
+import { CARE_LEVELS, careName, careDescription, modelEffects, normalizedCare,
+  UPKEEP_INTERVAL_SECONDS, type CareLevel } from './game/economy';
 import { householdProfile, moodClass, moodName } from './game/households';
 
 const game = new Game({
@@ -28,6 +30,28 @@ function meter(label: string, percent: number, symbol: string, color: string, va
     Math.max(0, Math.min(100, percent)) + '%"></div></div></div>';
 }
 
+
+function signedIncome(value: number): string {
+  return (value > 0 ? '+' : '') + value;
+}
+
+function incomeMeter(): string {
+  const flow = store.cashflow;
+  const width = Math.min(49, Math.abs(flow.net) / 120 * 49);
+  const debit = flow.net < 0;
+  return '<div class="meter income-meter" title="Rolling sixty-second cashflow. ' +
+    'Only completed car circuits generate earnings; placed models charge upkeep." ' +
+    'aria-label="Income: ' + signedIncome(flow.net) + ' net coins in the last sixty seconds, ' +
+    flow.gross + ' earned from laps and ' + flow.upkeep + ' spent on care.">' +
+    '<div class="meter-top"><span class="meter-icon">◉</span><span>Income</span>' +
+    '<b class="' + (debit ? 'negative-flow' : 'positive-flow') + '">' +
+    signedIncome(flow.net) + '<small>/60s</small></b></div>' +
+    '<div class="flow-track"><span class="flow-center"></span><span class="flow-fill ' +
+    (debit ? 'outflow' : 'inflow') + '" style="width:' + width +
+    '%;left:' + (debit ? 50 - width : 50) + '%"></span></div>' +
+    '<div class="flow-breakdown"><span>+' + flow.gross + ' laps</span>' +
+    '<span>−' + flow.upkeep + ' care</span></div></div>';
+}
 
 let shopSignature = '';
 let dragInProgress = false;
@@ -67,7 +91,9 @@ function renderShop(): void {
       item.cost + '</span><span class="box-caption">MINIATURE MODEL</span></span>' +
       '<span class="box-effects" aria-label="Beauty ' + signed(item.beauty) +
       ', Noise ' + signed(item.noise) + ', Crime ' + signed(item.crime) + '">' +
-      effects + '</span><span class="box-description">' + item.caption + '</span></button>';
+      effects + '</span><span class="box-description">' + item.caption + '</span>' +
+      '<span class="box-upkeep">Care: ' + item.upkeep + ' coins / ' + UPKEEP_INTERVAL_SECONDS +
+      's · adjustable after placement</span></button>';
   }).join('');
 }
 
@@ -185,7 +211,49 @@ function renderHouseholdReactions(
     '<small>Estimated irritation change each circuit</small></div>';
 }
 
+function renderPlacedModelCare(): boolean {
+  const placed = store.getPlacedModel(store.selected);
+  if (!placed || store.activeModel) return false;
+  const level = normalizedCare(placed.care);
+  const model = store.getModel(placed.id);
+  const current = modelEffects(placed.id, level);
+  const cell = store.selected!;
+  const info = store.tileInfo(cell);
+  const panel = byId('tile-panel');
+  panel.innerHTML =
+    '<span class="eyebrow">MODEL CARE · GRID ' + (cell.x + 1) + '/' + (cell.y + 1) + '</span>' +
+    '<h3>' + model.name + '</h3>' +
+    '<div class="care-heading"><span>' + careName(level) + '</span>' +
+    '<strong>' + current.upkeep + ' coins / ' + UPKEEP_INTERVAL_SECONDS + 's</strong></div>' +
+    '<p class="tile-tip">Next bill for this model in ' + store.careDueIn(placed) +
+    ' game seconds. Choose how carefully it is maintained.</p>' +
+    '<div class="care-options" role="group" aria-label="Maintenance level for ' + model.name + '">' +
+    CARE_LEVELS.map(care => {
+      const effects = modelEffects(placed.id, care);
+      return '<button type="button" class="care-option ' +
+        (care === level ? 'active' : '') + '" data-care="' + care +
+        '" aria-pressed="' + (care === level) + '">' +
+        '<span class="care-label"><strong>' + careName(care) + '</strong><b>' +
+        effects.upkeep + ' / ' + UPKEEP_INTERVAL_SECONDS + 's</b></span>' +
+        '<span class="care-description">' + careDescription(care) + '</span>' +
+        '<span class="care-stats">Beauty ' + signed(effects.beauty) +
+        ' · Noise ' + signed(effects.noise) +
+        ' · Crime ' + signed(effects.crime) + '</span>' +
+        (placed.id === 'limit' ?
+          '<span class="care-speed">Cars travel at ' +
+          Math.round(effects.speedMultiplier * 100) + '% of normal speed in range.</span>' : '') +
+        '</button>';
+    }).join('') +
+    '</div>' +
+    (info ? '<div class="care-now">Local conditions: Beauty ' + signed(info.beauty) +
+      ' · Noise ' + signed(info.noise) + ' · Crime ' + signed(info.crime) + '</div>' : '') +
+    '<p class="care-warning">A reduced care bill can mean less beauty, more noise or more crime. ' +
+    'The effects on residents change too.</p>';
+  return true;
+}
+
 function renderTilePanel(): void {
+  if (renderPlacedModelCare()) return;
   const tile = store.hovered || store.selected;
   const details = store.tileInfo(tile);
   if (!details || !tile) {
@@ -284,13 +352,13 @@ function render(): void {
   const progress = store.progress;
   const community = store.community;
   const safety = store.safety;
-  const income = Math.min(100, store.money / 3);
   byId('meters').innerHTML =
     meter('Progress',progress,'&#9874;','green',Math.round(progress) + '%') +
     meter('Community',community,'&#9829;','blue',store.occupiedHomes + '/6') +
     meter('Safety',safety,'&#9671;','red',Math.round(safety) + '%') +
-    meter('Income',income,'&#9679;','yellow',String(store.money));
+    incomeMeter();
   byId('coins').textContent = String(store.money);
+  byId('coins').classList.toggle('debt', store.money < 0);
   byId('notice').textContent = store.notice;
   byId('pause').textContent = store.paused ? 'Resume' : 'Pause';
   byId('speed').textContent = store.gameSpeed + 'x';
@@ -319,6 +387,14 @@ function cellFromClient(clientX: number, clientY: number): Cell | null {
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
+  const careButton = target.closest<HTMLElement>('[data-care]');
+  if (careButton && store.selected) {
+    const value = careButton.dataset.care;
+    if (value && CARE_LEVELS.some(level => level === value)) {
+      store.setModelCare(store.selected, value as CareLevel);
+    }
+    return;
+  }
   const familyButton = target.closest<HTMLElement>('[data-resident]');
   if (familyButton) {
     const id = Number(familyButton.dataset.resident);
