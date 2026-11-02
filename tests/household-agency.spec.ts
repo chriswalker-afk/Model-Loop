@@ -264,3 +264,27 @@ test('compact and phone layouts preserve readable behaviour details and usual sh
   const bodyWidth=await page.evaluate(()=>document.documentElement.scrollWidth);
   expect(bodyWidth).toBeLessThanOrEqual(392);
 });
+
+
+test('non-Miller roadside pauses can generate incidental litter without a second action',()=>{
+  const store=make(441);
+  const bin={x:4,y:4};
+  expect(store.place(bin,'bin')).toBe(true);
+  store.residents[1].nextEventOffset=0;
+  // Force the normal opportunity's result while preserving the *natural*
+  // action path. A tiny wrapper is a consequence of the same Bell pause.
+  store.behaviour.choose=()=>householdActionPair(1).troublesome;
+  store.environment.rng.next=()=>0;
+  store.passTile(1,road);
+  expect(store.traffic.activeStop?.kind).toBe('admiring');
+  expect(store.behaviourHistory).toHaveLength(1);
+  expect(store.behaviourHistory[0]).toMatchObject({
+    residentId:1,action:'admire',tone:'troublesome'
+  });
+  expect(store.getBinStatus(bin)?.fill).toBe(1);
+  expect(store.environment.effects.filter(x=>x.kind==='litter')).toHaveLength(0);
+  expect(store.behaviourHistory[0].message).toContain('rubbish bin');
+  // The household's second lap over the same square produces no new act.
+  store.passTile(1,road);
+  expect(store.behaviourHistory).toHaveLength(1);
+});
