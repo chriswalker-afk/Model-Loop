@@ -11,6 +11,7 @@ import {
 import { MAX_ENVIRONMENT_EFFECTS, MAX_EFFECTS_BY_KIND } from '../src/game/environment';
 import { VINTAGE_BALANCE, summariseRun } from '../src/game/balance';
 import { chooseWorkshopMoment } from '../src/game/workbench';
+import { bendSpeedMultiplier, drivingProfile, type DrivingProfile } from '../src/game/driving';
 
 type Scenario = 'bare-town' | 'cared-for' | 'minimal-care';
 interface TestCar {
@@ -20,6 +21,7 @@ interface TestCar {
   tileIndex:number;
   speed:number;
   speedFactor:number;
+  driver:DrivingProfile;
   lane:RoadLane;
   changingTo:RoadLane|null;
   laneChangeElapsed:number;
@@ -58,12 +60,15 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
       if(scenario==='minimal-care')store.setModelCare(item.cell,'bare');
     }
   }
-  const cars:TestCar[]=HOMES.map((home,i)=>({
-    residentId:home.id,
-    startIndex:ROAD_CELLS.findIndex(cell=>manhattanDistance(cell,home)===1),
-    cycle:newCarCycle(), tileIndex:-1, speed:85+i*4,speedFactor:1,
-    lane:'left',changingTo:null,laneChangeElapsed:0
-  }));
+  const cars:TestCar[]=HOMES.map(home=>{
+    const driver=drivingProfile(home.id);
+    return {
+      residentId:home.id,
+      startIndex:ROAD_CELLS.findIndex(cell=>manhattanDistance(cell,home)===1),
+      cycle:newCarCycle(),tileIndex:-1,speed:driver.cruiseSpeed,speedFactor:1,
+      driver,lane:'left' as const,changingTo:null,laneChangeElapsed:0
+    };
+  });
   expect(cars.every(car=>car.startIndex>=0)).toBe(true);
   let clock=0,allStopped=0,worstStall=0;
   while(clock<timeout && store.phase==='playing'){
@@ -83,8 +88,8 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
         vehicles.push({residentId:car.residentId,position,
           desiredSpeed:store.traffic.shouldStop(car.residentId)||
             (car.lane==='passing'&&passingLaneBlockedAhead(position,vergeObstructions,30))
-            ?0:car.speed*car.speedFactor,
-          lane:car.lane,changingTo:car.changingTo});
+            ?0:car.speed*car.speedFactor*bendSpeedMultiplier(position,car.driver),
+          lane:car.lane,changingTo:car.changingTo,driver:car.driver});
       }else if(car.cycle.phase==='departing'){
         vehicles.push({residentId:car.residentId,
           position:car.startIndex*BOARD.tile,desiredSpeed:0,
@@ -258,7 +263,9 @@ test('pacing constants avoid guaranteed event outcomes and intrusive rapid inter
   expect(VINTAGE_BALANCE.behaviourOpportunityChance).toBeGreaterThan(.3);
   expect(VINTAGE_BALANCE.behaviourOpportunityChance).toBeLessThan(.45);
   expect(VINTAGE_BALANCE.behaviourCooldownSeconds).toBeGreaterThanOrEqual(50);
-  expect(VINTAGE_BALANCE.incidentalLitterChance).toBeLessThan(.25);
+  // Arbitrary litter from unrelated traffic incidents was removed in 6A;
+  // activity-generated picnic scraps belong to the following pass.
+  expect(VINTAGE_BALANCE.behaviourCooldownSeconds).toBeGreaterThanOrEqual(50);
   expect(VINTAGE_BALANCE.stopGlobalCooldownSeconds).toBeGreaterThanOrEqual(15);
 });
 
