@@ -110,8 +110,10 @@ function renderShop(): void {
       '<span class="box-effects" aria-label="Beauty ' + signed(item.beauty) +
       ', Noise ' + signed(item.noise) + ', Crime ' + signed(item.crime) + '">' +
       effects + '</span><span class="box-description">' + item.caption + '</span>' +
-      '<span class="box-upkeep">Care: ' + item.upkeep + ' coins / ' + UPKEEP_INTERVAL_SECONDS +
-      's · adjustable after placement</span></button>';
+      '<span class="box-upkeep" title="Maintenance costs ' + item.upkeep +
+      ' coins every ' + UPKEEP_INTERVAL_SECONDS +
+      ' game seconds at full care; reduce it after placement">Upkeep ' +
+      item.upkeep + ' coins / ' + UPKEEP_INTERVAL_SECONDS + 's</span></button>';
   }).join('');
 }
 
