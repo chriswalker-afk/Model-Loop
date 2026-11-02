@@ -7,6 +7,7 @@ import { CARE_LEVELS, careName, careDescription, modelEffects, normalizedCare,
   UPKEEP_INTERVAL_SECONDS, type CareLevel } from './game/economy';
 import { householdProfile, moodClass, moodName } from './game/households';
 import { environmentLabel, type EnvironmentKind } from './game/environment';
+import { BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCareDescription } from './game/bins';
 
 const game = new Game({
   type: AUTO,
@@ -86,7 +87,7 @@ function renderShop(): void {
   const signature = [store.activeModel, store.money, store.phase, store.paused].join(':');
   if (signature === shopSignature) return;
   shopSignature = signature;
-  const accents = ['#c6ac79', '#a2bca3', '#bd9c7b', '#bba795', '#9cb6c3'];
+  const accents = ['#c6ac79', '#a2bca3', '#bd9c7b', '#bba795', '#9cb6c3', '#95ad94'];
   byId('shop').innerHTML = MODELS.map((item, index) => {
     const picked = store.activeModel === item.id;
     const poor = store.money < item.cost;
@@ -251,7 +252,40 @@ function environmentNotes(tile: Cell): string {
         '<small>' + source + ' · fades in ' + timeLeft + 's</small></span></div>';
     }).join('') +
     '<p class="environment-hint">Roadside changes influence nearby journeys. ' +
-    'Collection and repairs will arrive in later passes.</p></div>';
+    'Bins prevent new litter; old rubbish can be cleared separately.</p></div>';
+}
+
+function binStatusPanel(cell: Cell): string {
+  const info = store.getBinStatus(cell);
+  if (!info) return '';
+  const item = store.getPlacedModel(cell)!;
+  const percent = Math.round(info.fill / info.capacity * 100);
+  const emptyDisabled = !info.collectionPrice || store.money < info.collectionPrice ||
+    store.paused || store.workshopOpen || store.phase !== 'playing';
+  return '<section class="bin-status" aria-label="Rubbish bin collection">' +
+    '<div class="bin-status-head"><strong>COLLECTION CAPACITY</strong><span>' +
+      info.fill + ' / ' + info.capacity + ' pieces</span></div>' +
+    '<div class="bin-fill-track" role="progressbar" aria-label="Bin fill" aria-valuemin="0"' +
+      ' aria-valuemax="' + BIN_CAPACITY + '" aria-valuenow="' + info.fill + '">' +
+      '<span style="width:' + percent + '%" class="' +
+      (info.overflowed ? 'overflow' : '') + '"></span></div>' +
+    (info.overflowed ? '<p class="bin-overflow"><strong>Overflow!</strong> This bin cannot catch litter. ' +
+      'Nearby Beauty and Crime are getting worse.</p>' :
+      info.fill === info.capacity
+        ? '<p class="bin-overflow">Full — the next piece of litter may overflow.</p>'
+        : '<p class="bin-hint">Intercepts litter within ' + BIN_CATCH_RADIUS +
+          ' squares · ' + Math.round(info.reliability * 100) + '% catch reliability.</p>') +
+    '<div class="bin-cost-line"><span>Routine care</span><b>' + info.regularUpkeep +
+      ' coins / 20s</b></div>' +
+    '<div class="bin-cost-line"><span>Automatic collection</span><b>' +
+      (info.collectionDueIn === null ? 'Disabled' :
+      'In ' + info.collectionDueIn + 's') + '</b></div>' +
+    '<button type="button" data-action="empty-bin" data-x="' + item.x +
+      '" data-y="' + item.y + '" class="empty-bin-button" ' +
+      (emptyDisabled ? 'disabled' : '') + '>Empty now · ' +
+      info.collectionPrice + ' coins</button>' +
+    '<small class="bin-hint">Collection costs appear in net Income. ' +
+      'Emptying a full or overflowing bin costs more.</small></section>';
 }
 
 function renderPlacedModelCare(): boolean {
@@ -279,7 +313,8 @@ function renderPlacedModelCare(): boolean {
         '" aria-pressed="' + (care === level) + '">' +
         '<span class="care-label"><strong>' + careName(care) + '</strong><b>' +
         effects.upkeep + ' / ' + UPKEEP_INTERVAL_SECONDS + 's</b></span>' +
-        '<span class="care-description">' + careDescription(care) + '</span>' +
+        '<span class="care-description">' +
+        (placed.id === 'bin' ? binCareDescription(care) : careDescription(care)) + '</span>' +
         '<span class="care-stats">Beauty ' + signed(effects.beauty) +
         ' · Noise ' + signed(effects.noise) +
         ' · Crime ' + signed(effects.crime) + '</span>' +
@@ -293,6 +328,7 @@ function renderPlacedModelCare(): boolean {
       ' · Noise ' + signed(info.noise) + ' · Crime ' + signed(info.crime) + '</div>' : '') +
     '<p class="care-warning">A reduced care bill can mean less beauty, more noise or more crime. ' +
     'The effects on residents change too.</p>' +
+    (placed.id === 'bin' ? binStatusPanel(cell) : '') +
     environmentNotes(cell);
   return true;
 }
@@ -329,6 +365,9 @@ function renderTilePanel(): void {
         '<span>Estimated irritation change per lap: <strong>' +
         signed(preview.irritationChangePerLap) + '</strong> on average across occupied homes.</span></div>' +
         renderHouseholdReactions(preview.householdEffects) : '') +
+      (model.id === 'bin' ? '<p class="bin-hint">Catches up to ' +
+         BIN_CAPACITY + ' items within ' + BIN_CATCH_RADIUS +
+         ' squares. Collection bills are additional to upkeep; existing litter needs separate cleaning.</p>' : '') +
       '<p class="tile-tip">' + preview.reason + '</p>';
     return;
   }
@@ -340,6 +379,11 @@ function renderTilePanel(): void {
     '<div class="tile-score"><span>Crime</span><b>' + signed(details.crime) + '</b></div>' +
     '<div class="tile-score"><span>Road safety</span><b>' + details.roadSafety + '%</b></div>' +
     environmentNotes(tile) +
+    (store.environment.at(tile, 0).some(effect => effect.kind === 'litter') ?
+      '<button type="button" class="clear-litter-button" data-action="clear-litter" data-x="' +
+      tile.x + '" data-y="' + tile.y + '"' +
+      (store.money < LITTER_CLEANUP_COST || store.paused ? ' disabled' : '') +
+      '>Clear litter · ' + LITTER_CLEANUP_COST + ' coins</button>' : '') +
     '<p class="tile-tip">' + (store.canPlace(tile)
       ? 'Free building square. Pick a model kit to see its effect.'
       : 'Existing part of the miniature town.') + '</p>';
@@ -494,6 +538,14 @@ document.addEventListener('click', (event) => {
   const actionButton = target.closest<HTMLElement>('[data-action]');
   if (!actionButton) return;
   const action = actionButton.dataset.action;
+  if (action === 'empty-bin' || action === 'clear-litter') {
+    const x = Number(actionButton.dataset.x), y = Number(actionButton.dataset.y);
+    if (Number.isInteger(x) && Number.isInteger(y) && isOnBoard(x,y)) {
+      if (action === 'empty-bin') store.emptyBin({ x,y });
+      else store.cleanLitter({ x,y });
+    }
+    return;
+  }
   if (action === 'pause') store.togglePause();
   if (action === 'speed') store.toggleSpeed();
   if (action === 'workshop') store.toggleWorkshop();
