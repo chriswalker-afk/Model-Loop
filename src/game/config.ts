@@ -23,11 +23,11 @@ export const MODELS: ModelDefinition[] = [
 ];
 
 export const HOMES = [
-  { id: 0, x: 3, y: 2, name: 'The Finch family', color: 0xc9b48e, temperament: 1.0 },
-  { id: 1, x: 7, y: 1, name: 'The Parkers', color: 0xacc1bb, temperament: 0.9 },
+  { id: 0, x: 3, y: 2, name: 'The Finches', color: 0xc9b48e, temperament: 1.0 },
+  { id: 1, x: 7, y: 1, name: 'The Bells', color: 0xacc1bb, temperament: 0.9 },
   { id: 2, x: 14, y: 1, name: 'The Millers', color: 0xc8977e, temperament: 1.05 },
   { id: 3, x: 21, y: 5, name: 'The Marshes', color: 0xe4c9a0, temperament: 1.1 },
-  { id: 4, x: 14, y: 11, name: 'The Bennetts', color: 0x8fae9c, temperament: 0.95 },
+  { id: 4, x: 14, y: 11, name: 'The Hales', color: 0x8fae9c, temperament: 0.95 },
   { id: 5, x: 1, y: 7, name: 'The Wards', color: 0xada6be, temperament: 1.15 }
 ] as const;
 

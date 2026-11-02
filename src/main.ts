@@ -3,6 +3,7 @@ import { TownScene } from './game/TownScene';
 import { BOARD, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
 import { miniatureSvg } from './ui/modelArt';
 import { store } from './game/state';
+import { householdProfile, moodClass, moodName } from './game/households';
 
 const game = new Game({
   type: AUTO,
@@ -98,6 +99,92 @@ function projectedRow(title: string, before: number, after: number, lowerIsBette
     '<em class="' + changeClass(change,lowerIsBetter) + '">' + signed(change) + '</em></div></div>';
 }
 
+let shownHouseholdId: number | null = null;
+function renderHouseholds(): void {
+  const list = byId('household-list');
+  if (list.children.length !== store.residents.length) {
+    list.innerHTML = store.residents.map(resident =>
+      '<button type="button" class="household-ticket" data-resident="' + resident.id +
+      '" aria-pressed="false"><span class="ticket-house" aria-hidden="true">⌂</span>' +
+      '<span class="ticket-copy"><span class="family-name"></span>' +
+      '<span class="ticket-track"><span class="ticket-fill"></span></span></span>' +
+      '<span class="family-status"></span></button>'
+    ).join('');
+  }
+  for (const resident of store.residents) {
+    const ticket = list.querySelector<HTMLButtonElement>('[data-resident="' + resident.id + '"]');
+    if (!ticket) continue;
+    const mood = moodName(resident.irritation, resident.occupied);
+    ticket.className = 'household-ticket ' + moodClass(resident.irritation, resident.occupied) +
+      (store.selectedResident === resident.id ? ' active' : '');
+    ticket.setAttribute('aria-pressed', String(store.selectedResident === resident.id));
+    ticket.setAttribute('aria-label', resident.name + ': ' + mood +
+      ', irritation ' + Math.round(resident.irritation) + ' out of 100. View household.');
+    ticket.querySelector<HTMLElement>('.family-name')!.textContent = resident.name;
+    ticket.querySelector<HTMLElement>('.family-status')!.textContent = mood;
+    ticket.querySelector<HTMLElement>('.ticket-fill')!.style.width =
+      (resident.occupied ? 100 - resident.irritation : 0) + '%';
+  }
+}
+
+function renderHouseholdDetail(): void {
+  const panel = byId('household-detail');
+  const id = store.selectedResident;
+  if (id === null) {
+    panel.hidden = true;
+    shownHouseholdId = null;
+    return;
+  }
+  const resident = store.residents[id];
+  if (!resident) return;
+  panel.hidden = false;
+  const profile = householdProfile(id);
+  if (shownHouseholdId !== id) {
+    shownHouseholdId = id;
+    panel.innerHTML =
+      '<div class="household-detail-header"><span class="eyebrow">A HOUSE ON THE LOOP</span>' +
+      '<button class="household-close" data-action="close-household" aria-label="Close household details">×</button></div>' +
+      '<h3>' + resident.name + '</h3>' +
+      '<p class="household-intro">' + profile.introduction + '</p>' +
+      '<div class="household-mood-row"><span class="household-mood"></span>' +
+      '<strong class="household-irritation"></strong></div>' +
+      '<div class="household-meter"><span class="household-meter-fill"></span></div>' +
+      '<dl><dt>They appreciate</dt><dd>' + profile.feelsAtHomeWith + '</dd>' +
+      '<dt>They find difficult</dt><dd>' + profile.findsDifficult + '</dd></dl>' +
+      '<blockquote class="household-remark"></blockquote>' +
+      '<p class="household-small-note">A little attention to the journey can make all the difference.</p>';
+  }
+  panel.className = 'household-detail ' + moodClass(resident.irritation, resident.occupied);
+  panel.querySelector<HTMLElement>('.household-mood')!.textContent =
+    moodName(resident.irritation, resident.occupied);
+  panel.querySelector<HTMLElement>('.household-irritation')!.textContent =
+    Math.round(resident.irritation) + ' / 100 irritation';
+  panel.querySelector<HTMLElement>('.household-meter-fill')!.style.width =
+    (resident.occupied ? 100 - resident.irritation : 0) + '%';
+  panel.querySelector<HTMLElement>('.household-remark')!.textContent =
+    '“' + resident.lastRemark + '”';
+}
+
+function renderHouseholdReactions(
+  effects: { residentId: number; name: string; irritationChangePerLap: number }[]
+): string {
+  if (!effects.length) return '';
+  const moreAtEase = effects.filter(effect => effect.irritationChangePerLap < -0.05)
+    .sort((a, b) => a.irritationChangePerLap - b.irritationChangePerLap)[0];
+  const lessAtEase = effects.filter(effect => effect.irritationChangePerLap > 0.05)
+    .sort((a, b) => b.irritationChangePerLap - a.irritationChangePerLap)[0];
+  const line = (effect: typeof moreAtEase, label: string, klass: string) => effect
+    ? '<div class="voice-line ' + klass + '"><span>' + label + ' · ' + effect.name +
+      '</span><strong>' + signed(effect.irritationChangePerLap) + '</strong></div>'
+    : '';
+  return '<div class="preview-voices" aria-label="Different households react differently">' +
+    '<div class="preview-voices-heading">Different journeys, different reactions</div>' +
+    line(moreAtEase, 'Most relieved', 'good') +
+    line(lessAtEase, 'Less comfortable', 'wary') +
+    (!lessAtEase ? '<span class="quiet-note">No household expects to mind this model.</span>' : '') +
+    '<small>Estimated irritation change each circuit</small></div>';
+}
+
 function renderTilePanel(): void {
   const tile = store.hovered || store.selected;
   const details = store.tileInfo(tile);
@@ -124,7 +211,8 @@ function renderTilePanel(): void {
         ' household cars</b> use this loop. <b>' + preview.affectedRoadTiles +
         ' road squares</b> are in range.' +
         '<span>Estimated irritation change per lap: <strong>' +
-        signed(preview.irritationChangePerLap) + '</strong> before individual temperament.</span></div>' : '') +
+        signed(preview.irritationChangePerLap) + '</strong> on average across occupied homes.</span></div>' +
+        renderHouseholdReactions(preview.householdEffects) : '') +
       '<p class="tile-tip">' + preview.reason + '</p>';
     return;
   }
@@ -209,6 +297,9 @@ function render(): void {
   renderShop();
   renderPlacementStatus();
   renderTilePanel();
+  renderHouseholds();
+  renderHouseholdDetail();
+  byId('workbench-note').textContent = 'AT THE WORKBENCH · ' + store.workbenchLine;
   renderModal();
 }
 
@@ -228,6 +319,14 @@ function cellFromClient(clientX: number, clientY: number): Cell | null {
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
+  const familyButton = target.closest<HTMLElement>('[data-resident]');
+  if (familyButton) {
+    const id = Number(familyButton.dataset.resident);
+    if (Number.isInteger(id) && id >= 0 && id < store.residents.length) {
+      store.selectResident(id);
+    }
+    return;
+  }
   const modelButton = target.closest<HTMLElement>('[data-model]');
   if (modelButton) {
     const id = modelButton.dataset.model || null;
@@ -250,6 +349,7 @@ document.addEventListener('click', (event) => {
   if (action === 'speed') store.toggleSpeed();
   if (action === 'workshop') store.toggleWorkshop();
   if (action === 'cancel-model') store.cancelModel();
+  if (action === 'close-household') store.selectResident(null);
   if (action === 'new-run') {
     store.newRun();
     game.scene.getScene('TownScene').scene.restart();

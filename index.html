@@ -34,7 +34,15 @@
     <section class="world-frame" aria-label="The miniature town">
       <div id="game-container" tabindex="0" role="application" aria-label="Miniature town. Select a model box, then use your mouse or arrow keys to find a square. Press Enter to build, Escape to cancel."></div>
       <aside id="tile-panel" class="tile-panel" aria-live="polite"></aside>
+      <aside id="household-detail" class="household-detail" aria-label="Selected household" hidden></aside>
       <div class="board-stamp">NO. 001 &mdash; HANDCRAFTED TOWNS</div>
+    </section>
+    <section class="households-shelf" aria-label="Neighbourhood households">
+      <div class="households-heading">
+        <span>THE NEIGHBOURHOOD</span>
+        <small>Choose a household to hear how they find the journey</small>
+      </div>
+      <div id="household-list" class="household-list"></div>
     </section>
     <section class="shop-section" id="shop-section" aria-label="Miniature model shop">
       <div class="shop-topline">
@@ -52,7 +60,7 @@
     <footer class="footer">
       <span class="live-dot" aria-hidden="true"></span>
       <p id="notice" aria-live="polite">The workshop is open.</p>
-      <span class="footer-mark">A STORY MADE ONE MODEL AT A TIME</span>
+      <span id="workbench-note" class="workbench-note" title="From the family workbench"></span>
     </footer>
   </main>
   <div id="modal" class="modal" hidden></div>

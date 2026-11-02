@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { BOARD, EFFECT_RADIUS, HOMES, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
-import { store } from './state';
+import { store, type JourneyReaction } from './state';
 
 interface Car {
   residentId: number;
@@ -8,6 +8,7 @@ interface Car {
   distance: number;
   tileIndex: number;
   speed: number;
+  lastThoughtAt: number;
 }
 
 const palette = {
@@ -62,9 +63,14 @@ export class TownScene extends Scene {
       const cell = this.pointerCell(pointer);
       if (cell && store.phase === 'playing' && !store.paused && !store.workshopOpen) {
         store.selectTile(cell);
+        const home = HOMES.find(item => item.x === cell.x && item.y === cell.y);
+        if (home && !store.activeModel) store.selectResident(home.id);
       }
     });
-    this.input.on('gameout', () => store.setHovered(null));
+    // Keep the last preview in view while the player reads the forecast.
+    this.input.on('gameout', () => {
+      if (!store.activeModel) store.setHovered(null);
+    });
   }
 
   private pointerCell(pointer: Phaser.Input.Pointer): Cell | null {
@@ -211,7 +217,8 @@ export class TownScene extends Scene {
       container,
       distance: (ROAD_CELLS.length * BOARD.tile / HOMES.length) * index,
       tileIndex: -1,
-      speed: 85 + index * 4
+      speed: 85 + index * 4,
+      lastThoughtAt: -20000
     };
   }
 
@@ -219,7 +226,8 @@ export class TownScene extends Scene {
     const resident = store.residents[home.id];
     const point = worldPoint(home);
     const x = point.x, y = point.y;
-    const ink = resident?.occupied ? palette.chalk : palette.danger;
+    const ink = !resident?.occupied ? palette.danger
+      : resident.irritation >= 72 ? palette.gold : palette.chalk;
     g.fillStyle(0x1c2220, 0.98);
     g.fillRect(x - 14, y - 9, 28, 25);
     g.lineStyle(1.5, ink, 0.9);
@@ -227,8 +235,14 @@ export class TownScene extends Scene {
     g.strokeTriangle(x - 19, y - 9, x, y - 24, x + 19, y - 9);
     g.strokeRect(x - 4, y + 3, 8, 13);
     g.strokeRect(x + 6, y - 3, 5, 6);
-    g.fillStyle(resident?.occupied ? palette.mint : palette.danger, 0.9);
+    g.fillStyle(!resident?.occupied ? palette.danger
+      : resident.irritation >= 72 ? palette.gold
+      : resident.irritation >= 45 ? 0xd5bb85 : palette.mint, 0.9);
     g.fillCircle(x + 17, y - 20, 3);
+    if (store.selectedResident === home.id) {
+      g.lineStyle(1.6, palette.gold, 0.95);
+      g.strokeRoundedRect(x - 23, y - 31, 46, 54, 5);
+    }
     if (!resident?.occupied) {
       g.lineStyle(2, palette.danger, 0.8);
       g.lineBetween(x - 10, y - 4, x + 10, y + 12);
@@ -351,6 +365,35 @@ export class TownScene extends Scene {
     this.highlightLayer.lineBetween(x + BOARD.tile - 1, y + BOARD.tile - 1, x + BOARD.tile - 1, y + BOARD.tile - tick);
   }
 
+  private showCarThought(car: Car, reaction: JourneyReaction): void {
+    if (this.time.now - car.lastThoughtAt < 12000) return;
+    car.lastThoughtAt = this.time.now;
+    const message = reaction.text.length > 35 ? reaction.text.slice(0, 32) + '…' : reaction.text;
+    const width = Math.min(186, Math.max(92, message.length * 5.3 + 17));
+    const bubble = this.add.container(car.container.x, car.container.y - 29).setDepth(20);
+    const background = this.add.graphics();
+    background.fillStyle(0x161d19, 0.97);
+    background.fillRoundedRect(-width / 2, -24, width, 22, 5);
+    background.lineStyle(1, reaction.calmer ? palette.mint : palette.gold, 0.78);
+    background.strokeRoundedRect(-width / 2, -24, width, 22, 5);
+    background.strokeTriangle(-5, -2, 2, 6, 8, -2);
+    const label = this.add.text(0, -13, message, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '10px',
+      color: '#e5e4d7'
+    }).setOrigin(0.5);
+    bubble.add([background, label]);
+    this.tweens.add({
+      targets: bubble,
+      y: bubble.y - 16,
+      alpha: 0,
+      delay: 1150,
+      duration: 1200,
+      ease: 'Sine.Out',
+      onComplete: () => bubble.destroy()
+    });
+  }
+
   update(_time: number, delta: number): void {
     if (store.paused || store.workshopOpen || store.phase !== 'playing') return;
     const length = ROAD_CELLS.length;
@@ -370,9 +413,10 @@ export class TownScene extends Scene {
         store.finishLap(car.residentId);
       }
       const index = Math.floor(car.distance / BOARD.tile);
+      let reaction: JourneyReaction | null = null;
       if (index !== car.tileIndex) {
         car.tileIndex = index;
-        store.passTile(car.residentId, ROAD_CELLS[index]);
+        reaction = store.passTile(car.residentId, ROAD_CELLS[index]);
       }
       const part = (car.distance % BOARD.tile) / BOARD.tile;
       const current = worldPoint(ROAD_CELLS[index]);
@@ -382,6 +426,7 @@ export class TownScene extends Scene {
         current.y + (next.y - current.y) * part
       );
       car.container.setRotation(Math.atan2(next.y - current.y, next.x - current.x));
+      if (reaction) this.showCarThought(car, reaction);
     });
   }
 }
