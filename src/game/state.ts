@@ -24,6 +24,7 @@ import {
 import { RoadsideAccidentEngine, type RoadsideIncident,
   type ImpactSeverity } from './damage';
 import { isBendApproach } from './driving';
+import { NeighbourhoodStories } from './neighbours';
 import type { RoadLane } from './traffic';
 
 export type Phase = 'playing' | 'complete' | 'lost';
@@ -136,6 +137,8 @@ export class GameStore {
   behaviour = new HouseholdBehaviourEngine(1);
   activities = new ActivityEngine(1);
   accidents = new RoadsideAccidentEngine(1);
+  neighbours = new NeighbourhoodStories(1);
+  private cautiousUntil = new Map<number,number>();
   behaviourHistory: BehaviourReport[] = [];
   latestBehaviourReport: BehaviourReport | null = null;
   private nextBehaviourSequence = 1;
@@ -158,6 +161,7 @@ export class GameStore {
     const trafficCleared = this.traffic.tick(this.clockSeconds);
     const activityTick = this.activities.tick(this.clockSeconds);
     const accidentChanged = this.accidents.tick(this.clockSeconds);
+    const neighbourExpired = this.neighbours.tick(this.clockSeconds);
     for (const finished of activityTick.completed) this.finishActivity(finished);
     this.ledger.maximumEnvironmentalEffects = Math.max(
       this.ledger.maximumEnvironmentalEffects, this.environment.effects.length
@@ -204,7 +208,8 @@ export class GameStore {
     }
     this.cashflowEvents = this.cashflowEvents.filter(
       entry => entry.at > this.clockSeconds - FLOW_WINDOW_SECONDS);
-    if (environmentChanged || trafficCleared || activityTick.changed || accidentChanged) this.notify();
+    if (environmentChanged || trafficCleared || activityTick.changed ||
+        accidentChanged || neighbourExpired) this.notify();
     if (billed > 0) {
       this.publishNotice('Workshop care bill: −' + billed + ' coins. ' +
         (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' :
@@ -261,6 +266,8 @@ export class GameStore {
     this.behaviour = new HouseholdBehaviourEngine(runSeed);
     this.activities = new ActivityEngine(runSeed);
     this.accidents = new RoadsideAccidentEngine(runSeed);
+    this.neighbours = new NeighbourhoodStories(runSeed);
+    this.cautiousUntil.clear();
     this.behaviourHistory = [];
     this.latestBehaviourReport = null;
     this.nextBehaviourSequence = 1;
@@ -357,6 +364,7 @@ export class GameStore {
     this.recordCashflow(-cost,'upkeep');
     this.ledger.repairSpending=(this.ledger.repairSpending??0)+cost;
     item.condition = 'intact';
+    this.neighbours.cancel('hale-restore',cell);
     item.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
     if(item.id === 'bin'){
       const interval=binCollectionInterval(normalizedCare(item.care));
@@ -415,6 +423,17 @@ export class GameStore {
     const item=this.getPlacedModel(incident.model);
     if(!item)return;
     item.condition=incident.after;
+    // An accident is a concrete new thread, not an unconnected surprise.
+    const thread=this.neighbours.begin('accident',incident.residentId,
+      incident.model,this.clockSeconds,this.residents[incident.residentId].name+
+      ' clipped the '+this.getModel(item.id).name+' by the road.');
+    this.neighbours.request(thread,'ward-visit',incident.residentId,
+      incident.road,incident.model,this.clockSeconds,{incidentId:incident.id});
+    this.neighbours.request(thread,'hale-restore',incident.residentId,
+      incident.road,incident.model,this.clockSeconds,{incidentId:incident.id});
+    // Even an enthusiastic driver is a little more circumspect immediately
+    // after a mishap. Real driving speed uses this temporary factor.
+    this.cautiousUntil.set(incident.residentId,this.clockSeconds+26);
     this.ledger.roadsideAccidents=(this.ledger.roadsideAccidents??0)+1;
     const resident=this.residents[incident.residentId];
     resident.irritation=clamp(resident.irritation+(incident.after==='broken'?2.5:1.3),0,100);
@@ -426,6 +445,13 @@ export class GameStore {
       ' at a nearby corner. The miniature is now ' + incident.after +
       '. Click it to arrange a repair.',2);
     this.notify();
+  }
+
+  /** Short, observable post-incident caution; never overrides hard traffic
+   * safety, speed signs, overtaking lanes or the shared collision solver. */
+  driverCautionFactor(residentId:number):number {
+    return (this.cautiousUntil.get(residentId)??0)>this.clockSeconds
+      ? residentId===0?.82:.9 : 1;
   }
 
   careDueIn(item: PlacedModel): number {
@@ -514,6 +540,7 @@ export class GameStore {
     this.money -= LITTER_CLEANUP_COST;
     this.recordCashflow(-LITTER_CLEANUP_COST, 'upkeep');
     this.ledger.manualClearances++;
+    this.neighbours.cancel('marsh-clean',cell);
     this.publishNotice('A little roadside rubbish was cleared for ' +
       LITTER_CLEANUP_COST + ' coins.', 1);
     this.notify();
@@ -758,6 +785,7 @@ export class GameStore {
     const home = HOMES.find(home => home.id === id)!;
     const startIndex = ROAD_CELLS.findIndex(road => manhattanDistance(road, home) === 1);
     const tileIndex = ROAD_CELLS.findIndex(road => road.x === tile.x && road.y === tile.y);
+    let actedThisTile=false;
     if (tileIndex >= 0 && startIndex >= 0 &&
       resident.lastEventLap !== resident.laps) {
       const offset = (tileIndex - startIndex + ROAD_CELLS.length) % ROAD_CELLS.length;
@@ -770,11 +798,12 @@ export class GameStore {
         if (action) {
           const success = this.performHouseholdAction(id, action, tile, true,
             canParkForActivity && !this.traffic.shouldStop(id));
+          actedThisTile=success;
           if (!success && action.mechanic === 'activity') {
             // A full verge should not turn a picnic into invisible litter.
             const alternative = householdActionPair(id)[action.tone];
             if (alternative.id !== 'litter')
-              this.performHouseholdAction(id, alternative, tile, false, false);
+              actedThisTile=this.performHouseholdAction(id, alternative, tile, false, false);
           }
         }
       }
@@ -798,6 +827,11 @@ export class GameStore {
       reaction = { residentId: id, text: profile.warning, calmer: false };
       this.notify();
     }
+    // Optional linked response is checked once per real tile crossing, not
+    // every frame. Passing cars, parked cars and stopped drivers are excluded.
+    if (canParkForActivity && !actedThisTile && !this.paused && !this.workshopOpen &&
+        !this.activities.forResident(id) && !this.traffic.shouldStop(id))
+      this.respondToNeighbourhood(id,tile);
     if (resident.irritation >= 100) {
       resident.occupied = false;
       this.activities.cancelResident(id);
@@ -815,10 +849,11 @@ export class GameStore {
 
   /** One genuinely damaged miniature restored by the Hales, at most one
    * condition step per action; a broken miniature needs two helping visits. */
-  private haleRestoreOne(road: Cell): {model: PlacedModel; before: ModelCondition} | null {
+  private haleRestoreOne(road: Cell, target?: Cell): {model: PlacedModel; before: ModelCondition} | null {
     const model=this.placements.filter(placed =>
       modelCondition(placed.condition)!=='intact' &&
-      manhattanDistance(placed,road)<=2)
+      manhattanDistance(placed,road)<=2 &&
+      (!target || (placed.x===target.x && placed.y===target.y)))
       .sort((a,b)=>manhattanDistance(a,road)-manhattanDistance(b,road) ||
         a.x-b.x||a.y-b.y)[0];
     if(!model)return null;
@@ -826,6 +861,76 @@ export class GameStore {
     model.condition=before==='broken'?'damaged':'intact';
     this.ledger.haleRestorations=(this.ledger.haleRestorations??0)+1;
     return {model,before};
+  }
+
+  /**
+   * A chance encounter with a *real* outstanding need, on the actor's
+   * actual left-lane route. These small responses consume no coins and
+   * award no circuits, Progress or additional official helpful action.
+   * They have their own seed, cooldown, maximum requests and expiry.
+   */
+  private respondToNeighbourhood(residentId:number,road:Cell):boolean {
+    const task=this.neighbours.candidate(residentId,road,this.clockSeconds);
+    if(!task)return false;
+    const source=this.residents[task.sourceResidentId];
+    let message:string|null=null;
+    const model=this.getPlacedModel(task.target);
+    if(task.kind==='ward-visit'){
+      if(!model||modelCondition(model.condition)==='intact'){
+        this.neighbours.discard(task.id);return false;
+      }
+      const helped=this.accidents.active.find(event=>event.id===task.incidentId);
+      const assisted=helped?.wardHelped ? null :
+        this.accidents.wardAssistance(road,this.clockSeconds,task.incidentId);
+      if(assisted){
+        this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
+        message='The Wards came past the damaged '+this.getModel(model.id).name+
+          ' and helped traffic through the corner.';
+      }else{
+        message='The Wards slowed to check the damaged '+
+          this.getModel(model.id).name+' and the nearby sightline.';
+      }
+    }else if(task.kind==='hale-restore'){
+      if(!model||modelCondition(model.condition)==='intact'){
+        this.neighbours.discard(task.id);return false;
+      }
+      const repaired=this.haleRestoreOne(road,task.target);
+      if(!repaired){this.neighbours.discard(task.id);return false;}
+      message='The Hales noticed the damaged '+this.getModel(repaired.model.id).name+
+        ' and restored it from '+repaired.before+' to '+repaired.model.condition+'.';
+    }else if(task.kind==='marsh-clean'){
+      const litter=this.environment.effects.find(effect=>
+        effect.id===task.effectId && effect.kind==='litter' &&
+        effect.cell.x===task.target.x&&effect.cell.y===task.target.y);
+      if(!litter){this.neighbours.discard(task.id);return false;}
+      if(!this.environment.removeEffect(litter.id,'litter'))return false;
+      message='The Marshes collected the scraps left after a neighbour’s visit.';
+    }else if(task.kind==='marsh-admire'){
+      const sketch=this.environment.effects.find(effect=>
+        effect.id===task.effectId&&effect.kind==='sketch');
+      if(!sketch){this.neighbours.discard(task.id);return false;}
+      message='The Marshes paused to admire the Bells’ sketch of the town.';
+    }
+    if(!message)return false;
+    const note=this.neighbours.complete(task,this.clockSeconds,message);
+    if(!note)return false;
+    this.ledger.neighbourResponses=(this.ledger.neighbourResponses??0)+1;
+    if(source?.occupied && source.id!==residentId) {
+      source.irritation=clamp(source.irritation-.38,0,100);
+      source.lastRemark=task.kind==='hale-restore'
+        ? 'It was good of them to mend what was damaged.'
+        : task.kind==='ward-visit' ? 'Someone checked that everything was safe.'
+        : 'A neighbour noticed. That was thoughtful.';
+    }
+    const actor=this.residents[residentId];
+    if(actor)actor.lastRemark=task.kind==='marsh-clean'
+      ? 'A shared space deserves a little care.'
+      : task.kind==='hale-restore' ? 'We should look after things worth keeping.'
+      : task.kind==='ward-visit' ? 'Best to make sure everyone can get past safely.'
+      : 'It is lovely when someone shares their work.';
+    this.publishNotice(message,1);
+    this.notify();
+    return true;
   }
 
   /**
@@ -868,6 +973,8 @@ export class GameStore {
         message = 'The Hales restored ' + this.getModel(haleRepair.model.id).name +
           ' from ' + haleRepair.before + ' to ' + haleRepair.model.condition + '.';
         effectCell = {x:haleRepair.model.x,y:haleRepair.model.y};
+        this.neighbours.completeMatching('hale-restore',effectCell,
+          this.clockSeconds,message);
       } else {
       const occupiedVerge = [...this.placements,
         ...this.activities.active.map(activity => activity.cell)];
@@ -885,7 +992,11 @@ export class GameStore {
           if (repaired) message += ' The tyre scuffs have been cleared.';
         } else if (action.id === 'tidy') {
           const cleared = this.environment.removeNearby('litter',road,3);
-          if (cleared) message += ' A discarded wrapper was collected.';
+          if (cleared) {
+            message += ' A discarded wrapper was collected.';
+            this.neighbours.completeMatching('marsh-clean',cleared.cell,
+              this.clockSeconds,message);
+          }
         } else if (action.id === 'guide') {
           // Wards shorten a genuine collision-zone disruption, but cannot
           // magically fix the damaged miniature itself.
@@ -893,6 +1004,8 @@ export class GameStore {
           if (assisted) {
             this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
             message += ' The damaged corner was cleared sooner.';
+            this.neighbours.completeMatching('ward-visit',assisted.model,
+              this.clockSeconds,message);
           }
           const helped = this.traffic.activeStop?.residentId !== residentId &&
             this.traffic.shortenStop(this.clockSeconds, 3);
@@ -974,7 +1087,12 @@ export class GameStore {
     if (wardHelp) {
       this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
       message += ' The accident site was made safer sooner.';
+      this.neighbours.completeMatching('ward-visit',wardHelp.model,
+        this.clockSeconds,message);
     }
+    if (haleRepair)
+      this.neighbours.completeMatching('hale-restore',haleRepair.model,
+        this.clockSeconds,message);
     if (effect && !event) {
       // A full environment sprite cap cannot create a ghost piece of litter
       // or pretend a new roadside improvement has appeared.
@@ -996,6 +1114,22 @@ export class GameStore {
     if (event) {
       event.message = message;
       this.lastEnvironmentEvent = event;
+      const actualEffect=this.environment.effects.find(effect=>effect.id===event.effectId);
+      if(event.kind==='litter' && actualEffect && event.outcome!=='captured'){
+        const story=this.neighbours.begin('litter',activity.residentId,
+          actualEffect.cell,this.clockSeconds,
+          resident.name+' left some food or packaging scraps after a roadside visit.');
+        this.neighbours.request(story,'marsh-clean',activity.residentId,
+          activity.roadCell,actualEffect.cell,this.clockSeconds,
+          {effectId:actualEffect.id});
+      }else if(event.kind==='sketch' && actualEffect) {
+        const story=this.neighbours.begin('sketch',activity.residentId,
+          actualEffect.cell,this.clockSeconds,
+          'The Bells left a little streetside sketch for the neighbourhood.');
+        this.neighbours.request(story,'marsh-admire',activity.residentId,
+          activity.roadCell,actualEffect.cell,this.clockSeconds,
+          {effectId:actualEffect.id});
+      }
     }
     this.activities.recordCompletion(activity, this.clockSeconds, outcome, message);
     resident.lastRemark = leavesLitter && outcome === 'litter'
@@ -1105,6 +1239,7 @@ export class GameStore {
     // A finished chapter should not leave a frozen family picnic on screen.
     this.activities.cancelAll();
     this.accidents.clearActive();
+    this.neighbours.clearPending();
     this.closingLine = chooseClosingMoment(won, this.ledger, this.closedHomes);
     const reward = won ? 20 + this.occupiedHomes * 2 : 5 + Math.floor(this.progress / 20);
     this.legacy.blueprints += reward;

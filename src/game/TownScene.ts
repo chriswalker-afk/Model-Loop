@@ -7,6 +7,7 @@ import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { householdActionPair, type BehaviourReport } from './behaviors';
 import { type ActiveActivity } from './activities';
+import type { NeighbourNote } from './neighbours';
 import { bendSpeedMultiplier, drivingProfile, type DrivingProfile } from './driving';
 import {
   HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, TRAFFIC_LANE_CHANGE_SECONDS,
@@ -50,6 +51,7 @@ export class TownScene extends Scene {
   private environmentLayer!: Phaser.GameObjects.Graphics;
   private lastEnvironmentalEventId = 0;
   private lastRoadsideIncidentId = 0;
+  private lastNeighbourNoteId = 0;
   private observedEnvironment: LivingEnvironment | null = null;
   private homeLayer!: Phaser.GameObjects.Graphics;
   private highlightLayer!: Phaser.GameObjects.Graphics;
@@ -89,12 +91,14 @@ export class TownScene extends Scene {
     this.lastPlacementCount = store.placements.length;
     this.observedEnvironment = store.environment;
     this.lastBehaviourSequence = store.latestBehaviourReport?.sequence ?? 0;
+    this.lastNeighbourNoteId = store.neighbours.history[0]?.id ?? 0;
     this.drawDynamic();
     const unsubscribe = store.subscribe(() => {
       if (this.observedEnvironment !== store.environment) {
         this.observedEnvironment = store.environment;
         this.lastEnvironmentalEventId = 0;
         this.lastRoadsideIncidentId = 0;
+        this.lastNeighbourNoteId = 0;
       }
       this.drawDynamic();
       const environmentalEvent = store.lastEnvironmentEvent;
@@ -106,6 +110,15 @@ export class TownScene extends Scene {
       if (impact && impact.id !== this.lastRoadsideIncidentId) {
         this.lastRoadsideIncidentId = impact.id;
         this.animateRoadsideImpact(impact);
+      }
+      const neighbour = store.neighbours.history[0];
+      if (neighbour && neighbour.id !== this.lastNeighbourNoteId) {
+        this.lastNeighbourNoteId = neighbour.id;
+        if (neighbour.kind === 'ward-visit' ||
+            neighbour.kind === 'hale-restore' ||
+            neighbour.kind === 'marsh-clean' ||
+            neighbour.kind === 'marsh-admire')
+          this.animateNeighbourResponse(neighbour);
       }
       const action = store.latestBehaviourReport;
       if (action && action.sequence !== this.lastBehaviourSequence) {
@@ -708,6 +721,29 @@ export class TownScene extends Scene {
     }
   }
 
+  /** A response happens where a car genuinely passes, without creating
+   * a new floating permanent HUD element or an unbounded particle system. */
+  private animateNeighbourResponse(note: NeighbourNote): void {
+    const pos=worldPoint(note.cell);
+    const label=note.kind==='hale-restore'?'A REPAIR' :
+      note.kind==='ward-visit'?'A SAFER CORNER' :
+        note.kind==='marsh-clean'?'TIDIED UP':'A KIND WORD';
+    const pulse=this.add.circle(pos.x,pos.y,10,palette.mint,.08)
+      .setStrokeStyle(1.8,palette.mint,.88).setDepth(33);
+    const text=this.add.text(pos.x,pos.y-29,label,{
+      fontFamily:'Georgia, serif',fontSize:'9px',color:'#c3dfbb',
+      backgroundColor:'#1a231e',padding:{x:4,y:2}
+    }).setOrigin(.5).setDepth(40);
+    if(this.reduceMotion()){
+      this.time.delayedCall(650,()=>{pulse.destroy();text.destroy();});
+    }else{
+      this.tweens.add({targets:pulse,scale:2.1,alpha:0,duration:760,
+        onComplete:()=>pulse.destroy()});
+      this.tweens.add({targets:text,y:text.y-8,alpha:0,delay:450,
+        duration:730,onComplete:()=>text.destroy()});
+    }
+  }
+
   private animateRoadsideImpact(event: RoadsideIncident): void {
     const impact=worldPoint(event.model);
     const ripple=this.add.circle(impact.x,impact.y,8,palette.danger,.15)
@@ -1011,7 +1047,8 @@ export class TownScene extends Scene {
           desiredSpeed: store.traffic.shouldStop(car.residentId) ||
             (car.lane === 'passing' &&
               passingLaneBlockedAhead(position, vergeObstructions, 30))
-            ? 0 : car.speed * car.speedFactor * bendSpeedMultiplier(position, car.driver),
+            ? 0 : car.speed * car.speedFactor * bendSpeedMultiplier(position, car.driver)
+              * store.driverCautionFactor(car.residentId),
           lane: car.lane, changingTo: car.changingTo, driver: car.driver
         });
       } else if (car.cycle.phase === 'departing') {

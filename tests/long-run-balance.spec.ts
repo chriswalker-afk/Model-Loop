@@ -95,7 +95,8 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
         vehicles.push({residentId:car.residentId,position,
           desiredSpeed:store.traffic.shouldStop(car.residentId)||
             (car.lane==='passing'&&passingLaneBlockedAhead(position,vergeObstructions,30))
-            ?0:car.speed*car.speedFactor*bendSpeedMultiplier(position,car.driver),
+            ?0:car.speed*car.speedFactor*bendSpeedMultiplier(position,car.driver)
+              *store.driverCautionFactor(car.residentId),
           lane:car.lane,changingTo:car.changingTo,driver:car.driver});
       }else if(car.cycle.phase==='departing'){
         vehicles.push({residentId:car.residentId,
@@ -200,6 +201,9 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
         r.irritation>=0&&r.irritation<=100)).toBe(true);
       expect(store.environment.effects.length).toBeLessThanOrEqual(MAX_ENVIRONMENT_EFFECTS);
       expect(store.accidents.active.length).toBeLessThanOrEqual(2);
+      expect(store.neighbours.pending.length).toBeLessThanOrEqual(9);
+      expect(store.neighbours.history.length).toBeLessThanOrEqual(18);
+      expect(store.runSummary.neighbourResponses).toBeGreaterThanOrEqual(0);
       expect(store.placements.every(model=>
         ['intact','damaged','broken'].includes(model.condition??'intact'))).toBe(true);
       for(const kind of Object.keys(MAX_EFFECTS_BY_KIND) as Array<keyof typeof MAX_EFFECTS_BY_KIND>){
@@ -226,6 +230,12 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
     .toBeLessThanOrEqual(report.completedLaps+6);
   expect(store.workbenchMoments.length).toBeLessThanOrEqual(3);
   expect(report.maxEnvironmentalPatches).toBeLessThanOrEqual(MAX_ENVIRONMENT_EFFECTS);
+  expect(report.neighbourResponses).toBeGreaterThanOrEqual(0);
+  expect(report.repairSpending).toBeGreaterThanOrEqual(0);
+  expect(report.roadsideAccidents).toBeGreaterThanOrEqual(0);
+  // Chained responses are not new household actions, free coins or blueprints.
+  expect(report.neighbourResponses).toBeLessThanOrEqual(
+    report.roadsideAccidents*2+report.incidentCount+10);
   expect(report.peakQueue).toBeLessThanOrEqual(6);
   expect(worstStall).toBeLessThan(12);
   // The original traffic separation constants remain the same.
@@ -240,7 +250,7 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
 }
 
 test('long seeded runs keep traffic, incidents, money and rewards bounded',()=>{
-  const seeds=[11,29,67];
+  const seeds=[11,29,67,113,197];
   const summary:TrialResult[]=[];
   for(const seed of seeds){
     for(const scenario of ['bare-town','cared-for','minimal-care'] as const){

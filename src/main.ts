@@ -212,10 +212,13 @@ function renderHouseholdDetail(): void {
       '<p class="household-small-note">' +
       activityOptionsFor(id).map(activity => activity.title).join(' · ') + '</p></details>' +
       '<p class="household-active-activity"></p>' +
+      '<p class="household-recovery" hidden>Driving a little more carefully after a roadside accident.</p>' +
       '<blockquote class="household-remark"></blockquote>' +
       '<p class="household-traffic-delay"></p>' +
        '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
       '<span class="household-last-action"></span></div>' +
+      '<details class="family-neighbourhood"><summary>Shared moments</summary>' +
+      '<ol class="neighbourhood-story-list"></ol></details>' +
       '<p class="household-small-note">A little attention to the journey can make all the difference.</p>';
   }
   panel.className = 'household-detail ' + moodClass(resident.irritation, resident.occupied);
@@ -237,14 +240,26 @@ function renderHouseholdDetail(): void {
     ? 'RIGHT NOW · ' + activityDefinition(currentActivity.kind).title +
       ' · ' + currentActivity.phase.replace('-', ' ')
     : '';
+  const recovery=panel.querySelector<HTMLElement>('.household-recovery')!;
+  recovery.hidden=store.driverCautionFactor(id)===1;
   panel.querySelector<HTMLElement>('.household-remark')!.textContent =
     '“' + resident.lastRemark + '”';
   const latest = store.behaviourHistory.find(event => event.residentId === id);
   const activity = store.activities.history.find(event => event.residentId === id);
   const older = store.environment.history.find(event => event.residentId === id);
+  const neighbour=store.neighbours.notesForResident(id)[0];
+  const otherLatest=activity && (!latest || activity.time >= latest.time)
+    ? activity : latest;
   panel.querySelector<HTMLElement>('.household-last-action')!.textContent =
-    activity && (!latest || activity.time >= latest.time) ? activity.message :
-      latest?.message ?? older?.message ?? 'Nothing unusual noticed so far.';
+    neighbour && (!otherLatest || neighbour.time >= otherLatest.time)
+      ? neighbour.message :
+    otherLatest?.message ?? older?.message ?? 'Nothing unusual noticed so far.';
+  const shared=store.neighbours.notesForResident(id).slice(0,5);
+  const storyBox=panel.querySelector<HTMLDetailsElement>('.family-neighbourhood')!;
+  storyBox.hidden=shared.length===0;
+  const storyList=panel.querySelector<HTMLOListElement>('.neighbourhood-story-list')!;
+  const markup=renderNeighbourhoodItems(shared);
+  if(storyList.innerHTML!==markup)storyList.innerHTML=markup;
 }
 
 function renderHouseholdReactions(
@@ -289,6 +304,26 @@ function renderBehaviourForecast(
       '<small>'+row.reasons.join(' ')+'</small></div>'
     ).join('')+
     '</details>';
+}
+
+function renderNeighbourhoodItems(notes: readonly {
+  time:number;sourceResidentId:number;actorId:number;message:string
+}[]): string {
+  return notes.map(note=>
+    '<li><span class="neighbour-meta">' +
+    Math.floor(note.time) + 's · ' +
+    (store.residents[note.actorId]?.name ?? 'A neighbour') +
+    '</span><span class="neighbour-text">' + note.message + '</span></li>'
+  ).join('');
+}
+
+/** Only a click reveals a local event history, never the persistent HUD. */
+function neighbourhoodNotes(tile:Cell):string {
+  const notes=store.neighbours.notesNear(tile).slice(0,4);
+  if(!notes.length)return '';
+  return '<details class="neighbourhood-stories"><summary>What happened nearby · ' +
+    notes.length + '</summary><ol class="neighbourhood-story-list">' +
+    renderNeighbourhoodItems(notes) + '</ol></details>';
 }
 
 function accidentNotes(tile: Cell): string {
@@ -397,19 +432,25 @@ function updateTilePanelMarkup(content: string, key: string): void {
   const sameSelection = panel.dataset.detailKey === key;
   const oldForecast = panel.querySelector<HTMLDetailsElement>('.behaviour-forecast');
   const keepForecast = sameSelection && !!oldForecast?.open;
+  const oldStories=panel.querySelector<HTMLDetailsElement>('.neighbourhood-stories');
+  const keepStories=sameSelection && !!oldStories?.open;
   const focused = sameSelection && panel.contains(document.activeElement)
     ? document.activeElement as HTMLElement : null;
   const focusedCare = focused?.getAttribute('data-care');
   const focusedAction = focused?.getAttribute('data-action');
   const focusedForecast = focused === oldForecast?.querySelector('summary');
+  const focusedStories = focused === oldStories?.querySelector('summary');
   const oldScroll = sameSelection ? panel.scrollTop : 0;
 
   panel.innerHTML = content;
   panel.dataset.detailKey = key;
   const forecast = panel.querySelector<HTMLDetailsElement>('.behaviour-forecast');
   if (keepForecast && forecast) forecast.open = true;
+  const stories=panel.querySelector<HTMLDetailsElement>('.neighbourhood-stories');
+  if (keepStories && stories) stories.open=true;
   panel.scrollTop = oldScroll;
-  const focusTarget = focusedForecast ? forecast?.querySelector('summary') :
+  const focusTarget = focusedStories ? stories?.querySelector('summary') :
+    focusedForecast ? forecast?.querySelector('summary') :
     focusedCare ? panel.querySelector('[data-care="' + focusedCare + '"]') :
     focusedAction ? panel.querySelector('[data-action="' + focusedAction + '"]') : null;
   if (focusTarget instanceof HTMLElement) focusTarget.focus({ preventScroll: true });
@@ -546,7 +587,8 @@ function renderPlacedModelCare(): boolean {
     '<p class="care-warning">A reduced care bill can mean less beauty, more noise or more crime. ' +
     'The effects on residents change too.</p>' +
     (placed.id === 'bin' ? binStatusPanel(cell) : '') +
-    activityNotes(cell) + accidentNotes(cell) + environmentNotes(cell);
+    activityNotes(cell) + accidentNotes(cell) + environmentNotes(cell) +
+    neighbourhoodNotes(cell);
   updateTilePanelMarkup(content, 'care:' + cell.x + ',' + cell.y);
   return true;
 }
@@ -600,6 +642,7 @@ function renderTilePanel(): void {
       ? '<p class="traffic-tile-note">Cars are queueing nearby: slower journeys, higher noise and irritation.</p>'
       : '') +
     activityNotes(tile) + accidentNotes(tile) + environmentNotes(tile) +
+    neighbourhoodNotes(tile) +
     (store.environment.at(tile, 0).some(effect => effect.kind === 'litter') ?
       '<button type="button" class="clear-litter-button" data-action="clear-litter" data-x="' +
       tile.x + '" data-y="' + tile.y + '"' +
@@ -651,6 +694,7 @@ function renderRunLedger(): string {
     '<dt>Roadside impacts</dt><dd>' + numbers.roadsideAccidents + '</dd>' +
     '<dt>Hale restorations / Ward assists</dt><dd>' +
       numbers.haleRestorations + ' / ' + numbers.wardAssists + '</dd>' +
+    '<dt>Neighbourly follow-ups</dt><dd>' + numbers.neighbourResponses + '</dd>' +
     '<dt>Longest traffic queue</dt><dd>' + numbers.peakQueue + ' cars</dd>' +
     '</dl><p class="ledger-hint">These are totals for this run; the Income meter shows ' +
     'only the last 60 seconds.</p></details>';
@@ -779,6 +823,8 @@ if (import.meta.env.DEV) {
         activityHistory: store.activities.history.map(x => ({ ...x })),
         accidents: store.accidents.history.map(x => ({ ...x })),
         activeAccidents: store.accidents.active.map(x => ({ ...x })),
+        neighbours: store.neighbours.history.map(x => ({ ...x })),
+        pendingNeighbours: store.neighbours.pending.map(x => ({ ...x })),
         modelConditions: store.placements.map(item => ({
           x:item.x,y:item.y,id:item.id,condition:modelCondition(item.condition)})),
         summary: store.runSummary, workbench: store.workbenchMoments.map(x => ({ ...x })) };

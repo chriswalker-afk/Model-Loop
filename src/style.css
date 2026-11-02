@@ -2480,3 +2480,76 @@ summary:focus-visible {
   .model-condition { padding: 9px; }
   .repair-model-button { min-height: 42px; }
 }
+
+
+/* Pass 6D: quiet, optionally expanded story histories, never another HUD tile. */
+.family-neighbourhood,
+.neighbourhood-stories {
+  margin-block: 8px 4px;
+  padding: 6px 9px;
+  border: 1px solid rgba(211,202,172,.28);
+  border-radius: 7px;
+  background: rgba(21,31,28,.40);
+  min-width: 0;
+}
+.family-neighbourhood summary,
+.neighbourhood-stories summary {
+  color: #d2c39f;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.35;
+}
+.family-neighbourhood summary:focus-visible,
+.neighbourhood-stories summary:focus-visible {
+  outline: 2px solid #c9a66a;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+.neighbourhood-story-list {
+  list-style: none;
+  margin: 7px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.neighbourhood-story-list li {
+  display: grid;
+  gap: 2px;
+  padding: 0 0 6px 8px;
+  border-left: 2px solid rgba(201,166,106,.5);
+  border-bottom: 1px solid rgba(215,215,200,.10);
+  overflow-wrap: anywhere;
+}
+.neighbour-meta {
+  color: #bea984;
+  font-size: 10px;
+  line-height: 1.2;
+}
+.neighbour-text {
+  color: #e1e0d5;
+  font-size: 11px;
+  line-height: 1.42;
+}
+@media (max-width:700px) {
+  .family-neighbourhood,
+  .neighbourhood-stories { padding: 6px 8px; }
+  .neighbourhood-story-list { max-height: 120px; }
+  .neighbour-text { font-size: 10.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .neighbourhood-stories, .family-neighbourhood { scroll-behavior: auto; }
+}
+
+.household-recovery:not([hidden]) {
+  margin: 6px 0;
+  padding: 5px 8px;
+  color: #d6c59f;
+  font-size: 10.5px;
+  line-height: 1.4;
+  border-left: 2px solid rgba(201,166,106,.72);
+  background: rgba(201,166,106,.07);
+}

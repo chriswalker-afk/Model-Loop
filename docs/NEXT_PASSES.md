@@ -1,5 +1,21 @@
 # The Generational Cycle — Next passes
 
+## Pass 6D — connected stories and balancing (November 2026)
+
+Pass 6C is merged. **Pass 6D** links concrete collisions and activity
+consequences to meaningful responses by other households, only when
+their cars actually pass the site. It adds a bounded, deterministic story
+timeline, non-guaranteed neighbour help, a short period of more cautious
+driving after an impact, compact optional detail panels and balance
+regression tests. See
+[NEIGHBOURHOOD_STORIES_PASS6D.md](NEIGHBOURHOOD_STORIES_PASS6D.md).
+
+**Next: Pass 7 — end-to-end Vintage playtesting and the second
+generation.** Finish real-device and keyboard/reduced-motion checks,
+review incident and repair affordability across complete games, then
+plan the post-war model catalogue, heritage shelf and branching
+workshop choices before introducing another era.
+
 ## Pass 6C implemented — real incidents and restoration (November 2026)
 
 Pass 6B is merged. **Pass 6C** adds grounded, rare left-verge
