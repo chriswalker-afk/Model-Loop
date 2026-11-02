@@ -54,6 +54,17 @@ for (const screen of screens) {
         shopPosition: getComputedStyle(document.getElementById('shop-section')!).position
       };
     });
+    if (screen.label === 'phone portrait') {
+      console.log('PHONE_ALIGN', JSON.stringify(await page.evaluate(() => {
+        const get = (q: string) => {
+          const el = document.querySelector(q) as HTMLElement;
+          const r = el.getBoundingClientRect();
+          const s = getComputedStyle(el);
+          return { x:r.x, width:r.width, display:s.display, marginLeft:s.marginLeft, justifyContent:s.justifyContent };
+        };
+        return {pan:get('#town-pan'), host:get('#game-container'), canvas:get('#game-container canvas')};
+      })));
+    }
     expect(geometry.docWidth, 'Page must not scroll sideways').toBeLessThanOrEqual(screen.width + 2);
     for (const key of ['brand', 'era', 'meters', 'controls'] as const) {
       expect(geometry[key].x, key + ' starts inside screen').toBeGreaterThanOrEqual(-2);
