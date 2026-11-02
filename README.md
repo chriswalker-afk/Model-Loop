@@ -110,6 +110,25 @@ continue to depend on actual movement. New regression tests cover lane
 continuity, overtaking a stopped car, blocked passes, safe merging and
 wrap-around traffic.
 
+## Living roadside activities (Pass 6B)
+
+Families sometimes pull off the left-hand road for a real staged miniature
+activity: the Marshes host picnics or neighbourhood gatherings, the Millers
+make deliveries or stop for a working lunch, the Bells sketch, the Hales tend
+old landmarks, the Wards inspect dangerous corners and the Finches explore.
+Activities unfold as **setting up → underway → packing up**, with on-board
+chalk props and small, short-lived effects on nearby conditions.
+
+Scraps now come from these actual food or delivery activities and are
+resolved **when everyone packs up**. Bins can catch them; full bins overflow;
+otherwise litter appears where the activity occurred, not at an unrelated
+road tile. Drivers pull over and return to the left lane only when a safe
+gap opens. Activity locations are reserved from model placement. Inspect
+an activity tile or household for more information without adding a new HUD.
+
+See [Pass 6B — Living Activities](docs/LIVING_ACTIVITIES_PASS6B.md) for
+the full rules, deterministic tests and the next accidents/restoration pass.
+
 ## Distinct driver personalities (Pass 6A)
 
 Each household now has its own **actual driving profile**: preferred speed,

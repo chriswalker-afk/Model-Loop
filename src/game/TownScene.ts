@@ -5,6 +5,7 @@ import { normalizedCare } from './economy';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { householdActionPair, type BehaviourReport } from './behaviors';
+import { type ActiveActivity } from './activities';
 import { bendSpeedMultiplier, drivingProfile, type DrivingProfile } from './driving';
 import {
   HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, TRAFFIC_LANE_CHANGE_SECONDS,
@@ -27,6 +28,8 @@ interface Car {
   changingTo: RoadLane | null;
   laneChangeElapsed: number;
   laneOffset: number;
+  parkedForActivity: boolean;
+  parkingCell: Cell | null;
   homeBadge: Phaser.GameObjects.Text;
   brakeLights: Phaser.GameObjects.Graphics;
   lastThoughtAt: number;
@@ -55,6 +58,7 @@ export class TownScene extends Scene {
   private lastStopId = 0;
   private lastBehaviourSequence = 0;
   private feedbackChips: Phaser.GameObjects.Text[] = [];
+  private activityLabels = new Map<number, Phaser.GameObjects.Text>();
   private lastPlacementCount = 0;
   private cars: Car[] = [];
 
@@ -322,6 +326,8 @@ export class TownScene extends Scene {
       changingTo: null,
       laneChangeElapsed: 0,
       laneOffset: TRAFFIC_LEFT_LANE_OFFSET,
+      parkedForActivity: false,
+      parkingCell: null,
       homeBadge,
       brakeLights,
       lastThoughtAt: -20000
@@ -544,6 +550,18 @@ export class TownScene extends Scene {
         g.lineBetween(x - 9, y + 1, x + 6, y + 1);
         g.lineBetween(x - 9, y + 9, x - 9, y + 16);
         g.lineBetween(x + 9, y + 9, x + 9, y + 16);
+      } else if (effect.kind === 'sketch') {
+        // The Bells have left a small framed, pencil-drawn streetscape.
+        g.fillStyle(0x343c35, 0.85);
+        g.fillRoundedRect(x - 13, y - 14, 26, 25, 2);
+        g.lineStyle(2.1, palette.gold, 0.88);
+        g.strokeRoundedRect(x - 13, y - 14, 26, 25, 2);
+        g.lineStyle(1.2, palette.chalk, 0.9);
+        g.lineBetween(x - 8, y + 4, x - 2, y - 4);
+        g.lineBetween(x - 2, y - 4, x + 5, y + 1);
+        g.lineBetween(x + 5, y + 1, x + 9, y - 6);
+        g.strokeCircle(x - 6, y - 7, 2);
+        g.lineBetween(x, y + 11, x, y + 16);
       } else if (effect.kind === 'guidance') {
         // The Wards leave a small, temporary safe-way marker.
         g.lineStyle(2, palette.mint, 0.94);
@@ -552,6 +570,120 @@ export class TownScene extends Scene {
         g.lineBetween(x + 12, y + 2, x + 5, y + 10);
         g.strokeCircle(x - 8, y - 7, 4);
       }
+    }
+    // Tiny hand-drawn props make the activity physically visible throughout
+    // setup, the main event and packing away; never a second floating HUD.
+    for (const activity of store.activities.active) this.drawActivity(g, activity);
+    this.syncActivityLabels();
+  }
+
+  private drawActivity(g: Phaser.GameObjects.Graphics, activity: ActiveActivity): void {
+    const { x, y } = worldPoint(activity.cell);
+    const preparing = activity.phase === 'setting-up';
+    const packing = activity.phase === 'packing-up';
+    const social = activity.kind === 'picnic' || activity.kind === 'gathering';
+    const meal = social || activity.kind === 'working-lunch';
+    g.fillStyle(0x39483b, .27);
+    g.fillRoundedRect(x - 17, y - 13, 34, 27, 4);
+    g.lineStyle(1, palette.chalk, .42);
+    g.strokeRoundedRect(x - 17, y - 13, 34, 27, 4);
+    if (social) {
+      // Checked picnic blanket with a basket and two small place settings.
+      g.fillStyle(0x829c82, .45);
+      g.fillRoundedRect(x - 14, y - 9, 28, 19, 2);
+      g.lineStyle(1, palette.gold, .7);
+      for (let d = -8; d <= 8; d += 8) {
+        g.lineBetween(x + d, y - 9, x + d, y + 10);
+      }
+      g.fillStyle(0xb9a47d, .93);
+      g.fillRoundedRect(x - 2, y - 7, 12, 9, 2);
+      g.lineStyle(1.3, palette.chalk, .95);
+      g.strokeCircle(x + 4, y - 6, 4);
+      if (!preparing && !packing) {
+        for (const dx of [-9, 11]) {
+          g.fillStyle(0xd9d9cd, .95);
+          g.fillCircle(x + dx, y + 5, 3.2);
+        }
+      }
+      if (activity.kind === 'gathering') {
+        g.lineStyle(2, palette.gold, .9);
+        g.lineBetween(x - 13, y - 15, x - 8, y - 20);
+        g.lineBetween(x + 13, y - 15, x + 8, y - 20);
+      }
+    } else if (activity.kind === 'delivery') {
+      // Delivery crates are stacked, then carried away one at a time.
+      g.fillStyle(0x947f64, .85);
+      g.fillRect(x - 13, y - 8, 13, 14);
+      if (!packing) g.fillRect(x + 2, y - 3, 12, 11);
+      g.lineStyle(1.3, palette.chalk, .8);
+      g.strokeRect(x - 13, y - 8, 13, 14);
+      if (!packing) g.strokeRect(x + 2, y - 3, 12, 11);
+      g.lineBetween(x - 13, y - 8, x, y + 6);
+    } else if (activity.kind === 'sketch') {
+      // A tiny easel, paper and a pencil.
+      g.lineStyle(1.6, palette.chalk, .95);
+      g.lineBetween(x, y - 9, x - 9, y + 14);
+      g.lineBetween(x, y - 9, x + 9, y + 14);
+      g.strokeRect(x - 10, y - 11, 20, 17);
+      g.lineBetween(x - 6, y + 1, x, y - 6);
+      g.lineBetween(x, y - 6, x + 5, y - 1);
+    } else if (activity.kind === 'heritage-visit') {
+      g.lineStyle(2, palette.gold, .9);
+      g.strokeRect(x - 10, y - 12, 20, 21);
+      g.lineStyle(1, palette.chalk, .85);
+      g.lineBetween(x - 7, y - 5, x + 7, y - 5);
+      g.lineBetween(x - 7, y + 1, x + 4, y + 1);
+      g.lineBetween(x + 11, y + 8, x + 16, y + 14);
+    } else if (activity.kind === 'safety-round') {
+      g.lineStyle(1.6, palette.mint, .93);
+      g.strokeCircle(x, y - 3, 8);
+      g.lineBetween(x - 12, y + 10, x + 12, y + 10);
+      g.lineBetween(x + 12, y + 10, x + 6, y + 4);
+      g.strokeCircle(x, y - 3, 3);
+    } else if (activity.kind === 'explore') {
+      g.lineStyle(1.4, palette.gold, .86);
+      g.strokeRoundedRect(x - 11, y - 11, 22, 23, 2);
+      g.lineBetween(x - 7, y - 6, x - 1, y + 2);
+      g.lineBetween(x - 1, y + 2, x + 8, y - 5);
+      g.strokeCircle(x - 7, y - 6, 2);
+      g.strokeCircle(x + 8, y - 5, 2);
+    } else if (meal) {
+      g.fillStyle(0xbca989, .9);
+      g.fillRoundedRect(x - 11, y - 7, 22, 15, 3);
+      g.lineStyle(1.2, palette.chalk, .93);
+      g.strokeRoundedRect(x - 11, y - 7, 22, 15, 3);
+      g.strokeCircle(x, y, 5);
+      g.lineBetween(x + 9, y - 9, x + 13, y - 12);
+    }
+    // The small dotted phase indicator shows work in progress without
+    // relying on text or colour alone.
+    const dots = activity.phase === 'setting-up' ? 1 :
+      activity.phase === 'underway' ? 2 : 3;
+    for (let i = 0; i < dots; i++) {
+      g.fillStyle(palette.gold, .95);
+      g.fillCircle(x - 5 + i * 5, y + 19, 1.8);
+    }
+  }
+
+  private syncActivityLabels(): void {
+    const active = new Set(store.activities.active.map(activity => activity.id));
+    for (const [id, label] of this.activityLabels) {
+      if (active.has(id)) continue;
+      label.destroy();
+      this.activityLabels.delete(id);
+    }
+    for (const activity of store.activities.active) {
+      const name = activity.kind.replace(/-/g, ' ').toUpperCase();
+      const stage = activity.phase === 'setting-up' ? 'ARRIVING' :
+        activity.phase === 'underway' ? 'UNDERWAY' : 'PACKING';
+      const point = worldPoint(activity.cell);
+      const label = this.activityLabels.get(activity.id) ??
+        this.add.text(point.x, point.y - 29, '', {
+          fontFamily: 'Georgia, serif', fontSize: '9px', color: '#e7d9bc',
+          backgroundColor: '#1a231e', padding: {x: 4, y: 2}
+        }).setOrigin(.5).setDepth(18);
+      label.setText(name + ' · ' + stage);
+      this.activityLabels.set(activity.id, label);
     }
   }
 
@@ -775,6 +907,8 @@ export class TownScene extends Scene {
         lane: car.lane,
         changingTo: car.changingTo,
         laneOffset: car.laneOffset,
+        parkedForActivity: car.parkedForActivity,
+        activity: store.activities.forResident(car.residentId)?.kind ?? null,
         x: car.container.x,
         y: car.container.y,
         visible: car.container.visible
@@ -797,6 +931,12 @@ export class TownScene extends Scene {
     for (const car of this.cars) {
       if (!store.residents[car.residentId]?.occupied) continue;
       const position = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+      if (car.cycle.phase === 'driving' &&
+        (car.parkedForActivity || store.activities.forResident(car.residentId))) {
+        // A family taking part in an activity is OFF the road; keeping a
+        // stopped car in the traffic solver would manufacture a false queue.
+        continue;
+      }
       if (car.cycle.phase === 'driving') {
         const index = Math.min(length - 1, Math.floor(position / BOARD.tile));
         const sign = store.speedMultiplierAt(ROAD_CELLS[index]);
@@ -829,6 +969,23 @@ export class TownScene extends Scene {
         lane: 'left', drivewayReservation: true });
     }
 
+    // At the end of an activity, a parked driver may ONLY rejoin when there
+    // is a safe gap in both directions. No jump into a passing vehicle.
+    for (const car of this.cars) {
+      if (!car.parkedForActivity || store.activities.forResident(car.residentId) ||
+        !store.residents[car.residentId]?.occupied || car.cycle.phase !== 'driving') continue;
+      const position = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+      if (!canReserveRoad(position, vehicles, totalDistance)) continue;
+      car.parkedForActivity = false;
+      car.parkingCell = null;
+      car.lane = 'left';
+      car.changingTo = null;
+      car.laneChangeElapsed = 0;
+      car.laneOffset = TRAFFIC_LEFT_LANE_OFFSET;
+      vehicles.push({ residentId: car.residentId, position, desiredSpeed: 0,
+        lane: 'left', drivewayReservation: true, driver: car.driver });
+    }
+
     // Reserve each requested lane change before advancing any vehicle.
     // Changing cars occupy *both* lanes so neither a passing nor a following
     // vehicle can cross their path. Cars waiting for a clear lane simply queue.
@@ -856,6 +1013,29 @@ export class TownScene extends Scene {
 
       const homePoint = worldPoint(HOMES[car.residentId]);
       const roadPoint = roadPoseAt(car.startIndex * BOARD.tile, car.laneOffset);
+      const activeActivity = store.activities.forResident(car.residentId);
+      if (activeActivity) {
+        car.parkedForActivity = true;
+        car.parkingCell = activeActivity.cell;
+        car.lane = 'left';
+        car.changingTo = null;
+        car.laneChangeElapsed = 0;
+        car.laneOffset = TRAFFIC_LEFT_LANE_OFFSET;
+      }
+      if (car.parkedForActivity && car.cycle.phase === 'driving') {
+        // Pull over between the road and the activity props. A driver may
+        // wait here a little longer after packing up for a safe re-entry.
+        const parked = worldPoint(car.parkingCell ?? activeActivity!.cell);
+        const roadPosition = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+        const road = roadPoseAt(roadPosition);
+        car.container.setPosition(
+          road.x + (parked.x - road.x) * .48,
+          road.y + (parked.y - road.y) * .48
+        ).setRotation(road.rotation).setVisible(true);
+        car.homeBadge.setVisible(false);
+        car.brakeLights.setVisible(false);
+        continue;
+      }
       const movingBefore = car.cycle.phase === 'driving';
       const movement = byResident.get(car.residentId);
       if (movingBefore) {
@@ -890,7 +1070,8 @@ export class TownScene extends Scene {
         let reaction: JourneyReaction | null = null;
         if (index !== car.tileIndex) {
           car.tileIndex = index;
-          reaction = store.passTile(car.residentId, ROAD_CELLS[index]);
+          reaction = store.passTile(car.residentId, ROAD_CELLS[index],
+            car.lane === 'left' && !car.changingTo);
         }
         if (car.changingTo) {
           car.laneChangeElapsed += dt;
