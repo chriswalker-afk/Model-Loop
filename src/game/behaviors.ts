@@ -2,13 +2,14 @@ import { EFFECT_RADIUS, HOMES, manhattanDistance, type Cell, type ModelId } from
 import { carePreferenceScale, normalizedCare, type CareLevel } from './economy';
 import { SeededRandom, type EnvironmentKind } from './environment';
 import { VINTAGE_BALANCE } from './balance';
+import { bendOpportunityOffsets } from './driving';
 
 /**
  * Every family has two sides. Display the ordinary actions, never psychological
  * labels. One opportunity per family circuit is handled by GameStore.
  */
 export type HouseholdActionId =
-  | 'courtesy' | 'skid'
+  | 'scout' | 'skid'
   | 'flowers' | 'admire'
   | 'mend' | 'litter'
   | 'tidy' | 'chat'
@@ -47,14 +48,14 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
   {
     residentId: 0,
     helpful: {
-      id: 'courtesy', environmentKind: 'courtesy', tone: 'helpful', mechanic: 'roadside',
-      label: 'Offers a gap',
-      message: 'The Finches made room for another car to pass.'
+      id: 'scout', environmentKind: 'courtesy', tone: 'helpful', mechanic: 'roadside',
+      label: 'Finds a clear line through',
+      message: 'The Finches found a smooth line through the bend. Others took the easier route.'
     },
     troublesome: {
       id: 'skid', environmentKind: 'skid', tone: 'troublesome', mechanic: 'roadside',
-      label: 'Takes the bend sharply',
-      message: 'The Finches took the corner rather quickly. Fresh tyre marks remain.'
+      label: 'Takes a bend too sharply',
+      message: 'The Finches pushed through the corner too quickly. Fresh tyre marks remain.'
     }
   },
   {
@@ -79,8 +80,8 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
     },
     troublesome: {
       id: 'litter', environmentKind: 'litter', tone: 'troublesome', mechanic: 'roadside',
-      label: 'Leaves delivery packaging',
-      message: 'The Millers left some packaging by the road.'
+      label: 'Forgets delivery packaging',
+      message: 'The Millers hurried away from a delivery and left some packaging behind.'
     }
   },
   {
@@ -92,8 +93,8 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
     },
     troublesome: {
       id: 'chat', tone: 'troublesome', mechanic: 'stop',
-      label: 'Stops for a conversation',
-      message: 'The Marshes stopped for a chat. Cars are waiting behind them.'
+      label: 'Lingers for a neighbourly chat',
+      message: 'The Marshes stopped to catch up with a neighbour. Cars are waiting behind them.'
     }
   },
   {
@@ -146,13 +147,13 @@ export const MODEL_BEHAVIOUR_MODIFIERS: readonly ModelBehaviourModifier[] = [
   { modelId:'bench', residentId:4, helpfulShift:.08, troublesomeShift:.10,
     reason:'The Hales care for the place, and may put out small displays.' },
   { modelId:'limit', residentId:0, helpfulShift:.08, troublesomeShift:-.32,
-    reason:'The Finches take fewer hurried corners near a clear sign.' },
+    reason:'A clear sign helps the Finches judge a spirited corner, even if they dislike rules.' },
   { modelId:'limit', residentId:3, helpfulShift:0, troublesomeShift:-.08,
     reason:'The Marshes are less inclined to stop in the road.' },
   { modelId:'limit', residentId:5, helpfulShift:.16, troublesomeShift:-.34,
     reason:'The Wards feel safer on the slower stretch.' },
   { modelId:'police', residentId:0, helpfulShift:0, troublesomeShift:-.24,
-    reason:'The Finches tend to avoid sharp turns near a watchful corner.' },
+    reason:'A watchful corner makes the Finches less inclined to take a reckless bend.' },
   { modelId:'police', residentId:2, helpfulShift:.08, troublesomeShift:-.25,
     reason:'The Millers take more care with their deliveries.' },
   { modelId:'police', residentId:3, helpfulShift:0, troublesomeShift:-.18,
@@ -256,7 +257,13 @@ export class HouseholdBehaviourEngine {
   readonly rng:SeededRandom;
   private lastActionAt=new Map<number,number>();
   constructor(seed:number){this.rng=new SeededRandom((seed ^ 0x48614269)>>>0);}
-  opportunityOffset(roadLength:number):number {
+  opportunityOffset(roadLength:number,residentId?:number):number {
+    // Finches' brisk cornering and Wards' caution happen at actual bends,
+    // not on an arbitrary straight road tile.
+    if(residentId===0||residentId===5){
+      const bends=bendOpportunityOffsets(residentId);
+      if(bends.length)return bends[this.rng.int(bends.length)];
+    }
     return 5+this.rng.int(Math.max(1,roadLength-10));
   }
   choose(residentId:number,irritation:number,cell:Cell,now:number,
