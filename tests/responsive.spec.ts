@@ -54,17 +54,6 @@ for (const screen of screens) {
         shopPosition: getComputedStyle(document.getElementById('shop-section')!).position
       };
     });
-    if (screen.label === 'phone portrait') {
-      console.log('PHONE_ALIGN', JSON.stringify(await page.evaluate(() => {
-        const get = (q: string) => {
-          const el = document.querySelector(q) as HTMLElement;
-          const r = el.getBoundingClientRect();
-          const s = getComputedStyle(el);
-          return { x:r.x, width:r.width, display:s.display, marginLeft:s.marginLeft, justifyContent:s.justifyContent };
-        };
-        return {pan:get('#town-pan'), host:get('#game-container'), canvas:get('#game-container canvas')};
-      })));
-    }
     expect(geometry.docWidth, 'Page must not scroll sideways').toBeLessThanOrEqual(screen.width + 2);
     for (const key of ['brand', 'era', 'meters', 'controls'] as const) {
       expect(geometry[key].x, key + ' starts inside screen').toBeGreaterThanOrEqual(-2);
@@ -141,5 +130,28 @@ test('switching from phone to laptop refreshes Phaser scale without breaking pla
   const target = await pointOnTown(page, 4, 4);
   await page.mouse.click(target.x, target.y);
   await expect(page.locator('#coins')).toHaveText('105');
+  expect(errors).toEqual([]);
+});
+
+
+test('the far side of the town is tappable after horizontal panning on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: /Select Park Bench/ }).click();
+  const pan = page.locator('#town-pan');
+  const position = await pan.evaluate(el => {
+    el.scrollLeft = el.scrollWidth;
+    return (el as HTMLElement).scrollLeft;
+  });
+  expect(position).toBeGreaterThan(200);
+  const point = await pointOnTown(page, 19, 5);
+  expect(point.x).toBeGreaterThan(0);
+  expect(point.x).toBeLessThan(390);
+  await page.mouse.move(point.x, point.y);
+  await expect(page.locator('#tile-panel')).toContainText('READY TO PLACE');
+  await page.mouse.click(point.x, point.y);
+  await expect(page.locator('#coins')).toHaveText('120');
   expect(errors).toEqual([]);
 });
