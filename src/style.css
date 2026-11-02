@@ -1926,3 +1926,66 @@ body { overflow: hidden; }
   }
   .footer .workbench-note { display: none; }
 }
+
+
+/* Pass 1: quiet environmental traces in the existing, scrollable inspector.
+   No extra permanent HUD panel: compact landscape and phone layouts stay intact. */
+.environment-notes {
+  margin-top: 10px;
+  padding: 8px 0 1px;
+  border-top: 1px solid rgba(159,177,157,.35);
+  color: #e1dfd0;
+}
+.environment-notes > .eyebrow { display: block; margin-bottom: 6px; }
+.environment-note {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  padding: 5px 0;
+}
+.environment-note + .environment-note {
+  border-top: 1px dashed rgba(168,177,163,.16);
+}
+.environment-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: rgba(151,173,152,.09);
+  border: 1px solid rgba(168,177,163,.3);
+  font: 16px/1 Georgia,serif;
+  color: #d1c4a4;
+}
+.environment-note.flowers .environment-mark { color: #b9d4b6; }
+.environment-note.skid .environment-mark { color: #dba89c; }
+.environment-note strong {
+  display: block;
+  font: 600 11px/1.25 system-ui,sans-serif;
+}
+.environment-note small {
+  display: block;
+  margin-top: 2px;
+  font: 10px/1.35 system-ui,sans-serif;
+  color: #a6b3a8;
+}
+.tile-panel .environment-hint {
+  margin: 6px 0 0;
+  color: #abb6a8;
+  font: 10px/1.35 system-ui,sans-serif;
+}
+.household-footprint {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 9px 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(164,179,160,.27);
+}
+.household-footprint .eyebrow { font-size: 9px; }
+.household-last-action {
+  color: #c5d0be;
+  font: 11px/1.45 Georgia,serif;
+}

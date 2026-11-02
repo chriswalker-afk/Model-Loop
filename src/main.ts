@@ -6,6 +6,7 @@ import { store } from './game/state';
 import { CARE_LEVELS, careName, careDescription, modelEffects, normalizedCare,
   UPKEEP_INTERVAL_SECONDS, type CareLevel } from './game/economy';
 import { householdProfile, moodClass, moodName } from './game/households';
+import { environmentLabel, type EnvironmentKind } from './game/environment';
 
 const game = new Game({
   type: AUTO,
@@ -198,6 +199,8 @@ function renderHouseholdDetail(): void {
       '<dl><dt>They appreciate</dt><dd>' + profile.feelsAtHomeWith + '</dd>' +
       '<dt>They find difficult</dt><dd>' + profile.findsDifficult + '</dd></dl>' +
       '<blockquote class="household-remark"></blockquote>' +
+      '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
+      '<span class="household-last-action"></span></div>' +
       '<p class="household-small-note">A little attention to the journey can make all the difference.</p>';
   }
   panel.className = 'household-detail ' + moodClass(resident.irritation, resident.occupied);
@@ -209,6 +212,9 @@ function renderHouseholdDetail(): void {
     (resident.occupied ? 100 - resident.irritation : 0) + '%';
   panel.querySelector<HTMLElement>('.household-remark')!.textContent =
     '“' + resident.lastRemark + '”';
+  const latest = store.environment.history.find(event => event.residentId === id);
+  panel.querySelector<HTMLElement>('.household-last-action')!.textContent =
+    latest ? latest.message : 'Nothing unusual noticed so far.';
 }
 
 function renderHouseholdReactions(
@@ -229,6 +235,23 @@ function renderHouseholdReactions(
     line(lessAtEase, 'Less comfortable', 'wary') +
     (!lessAtEase ? '<span class="quiet-note">No household expects to mind this model.</span>' : '') +
     '<small>Estimated irritation change each circuit</small></div>';
+}
+
+function environmentNotes(tile: Cell): string {
+  const nearby = store.environment.at(tile);
+  if (!nearby.length) return '';
+  return '<div class="environment-notes"><span class="eyebrow">TRACES LEFT BEHIND</span>' +
+    nearby.slice(0, 4).map(effect => {
+      const source = store.residents[effect.residentId]?.name ?? 'A neighbour';
+      const timeLeft = Math.max(0, Math.ceil(effect.expiresAt - store.elapsedSeconds));
+      const icon = effect.kind === 'flowers' ? '✿' : effect.kind === 'skid' ? '◇' : '▱';
+      return '<div class="environment-note ' + effect.kind + '">' +
+        '<span aria-hidden="true" class="environment-mark">' + icon + '</span>' +
+        '<span><strong>' + environmentLabel(effect.kind) + '</strong>' +
+        '<small>' + source + ' · fades in ' + timeLeft + 's</small></span></div>';
+    }).join('') +
+    '<p class="environment-hint">Roadside changes influence nearby journeys. ' +
+    'Collection and repairs will arrive in later passes.</p></div>';
 }
 
 function renderPlacedModelCare(): boolean {
@@ -269,7 +292,8 @@ function renderPlacedModelCare(): boolean {
     (info ? '<div class="care-now">Local conditions: Beauty ' + signed(info.beauty) +
       ' · Noise ' + signed(info.noise) + ' · Crime ' + signed(info.crime) + '</div>' : '') +
     '<p class="care-warning">A reduced care bill can mean less beauty, more noise or more crime. ' +
-    'The effects on residents change too.</p>';
+    'The effects on residents change too.</p>' +
+    environmentNotes(cell);
   return true;
 }
 
@@ -314,6 +338,8 @@ function renderTilePanel(): void {
     '<div class="tile-score"><span>Beauty</span><b>' + signed(details.beauty) + '</b></div>' +
     '<div class="tile-score"><span>Noise</span><b>' + signed(details.noise) + '</b></div>' +
     '<div class="tile-score"><span>Crime</span><b>' + signed(details.crime) + '</b></div>' +
+    '<div class="tile-score"><span>Road safety</span><b>' + details.roadSafety + '%</b></div>' +
+    environmentNotes(tile) +
     '<p class="tile-tip">' + (store.canPlace(tile)
       ? 'Free building square. Pick a model kit to see its effect.'
       : 'Existing part of the miniature town.') + '</p>';
@@ -406,6 +432,29 @@ function cellFromClient(clientX: number, clientY: number): Cell | null {
   const x = Math.floor(((clientX - rect.left) / rect.width * BOARD.width - BOARD.left) / BOARD.tile);
   const y = Math.floor(((clientY - rect.top) / rect.height * BOARD.height - BOARD.top) / BOARD.tile);
   return isOnBoard(x,y) ? { x,y } : null;
+}
+
+// Available only on the Vite development server; never shipped on GitHub Pages.
+// In the browser console:
+// __modelLoopDebug.seed(1234)
+// __modelLoopDebug.trigger('litter', 2, 4, 3)
+// __modelLoopDebug.trigger('flowers', 1, 9, 3)
+// __modelLoopDebug.trigger('skid', 0, 12, 3)
+if (import.meta.env.DEV) {
+  const debug = {
+    seed(seed: number) { store.newRun(seed); },
+    trigger(kind: EnvironmentKind, residentId: number, x: number, y: number): boolean {
+      if (!['litter', 'flowers', 'skid'].includes(kind) ||
+        !Number.isInteger(residentId) || !Number.isInteger(x) || !Number.isInteger(y)) return false;
+      return store.debugEnvironmentEvent(kind, residentId, { x, y });
+    },
+    snapshot() {
+      return { seed: store.environment.seed, effects: store.environment.effects.map(x => ({ ...x })),
+        events: store.environment.history.map(x => ({ ...x })),
+        safety: store.safety, irritation: store.averageIrritation };
+    }
+  };
+  (window as typeof window & { __modelLoopDebug?: typeof debug }).__modelLoopDebug = debug;
 }
 
 document.addEventListener('click', (event) => {
