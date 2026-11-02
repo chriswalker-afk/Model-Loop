@@ -56,8 +56,6 @@ function expandRoad(points: Cell[]): Cell[] {
   return cells;
 }
 
-export const ROAD_CELLS = expandRoad(vertices);
-
 // Fixed scenery belongs to the board, not the purchasable model catalogue.
 // Reserving its footprint avoids placing a kit on an existing tree or landmark.
 export const SCENERY_CELLS: Cell[] = [
