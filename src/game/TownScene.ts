@@ -67,7 +67,10 @@ export class TownScene extends Scene {
         if (home && !store.activeModel) store.selectResident(home.id);
       }
     });
-    this.input.on('gameout', () => store.setHovered(null));
+    // Keep the last preview in view while the player reads the forecast.
+    this.input.on('gameout', () => {
+      if (!store.activeModel) store.setHovered(null);
+    });
   }
 
   private pointerCell(pointer: Phaser.Input.Pointer): Cell | null {
