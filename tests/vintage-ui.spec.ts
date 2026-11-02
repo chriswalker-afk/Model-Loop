@@ -162,5 +162,7 @@ test('Reduced motion disables decorative gauge animation',async({page})=>{
   await page.goto('/');
   const durations=await page.locator('#meters .meter-fill').first()
     .evaluate(el=>getComputedStyle(el).transitionDuration);
-  expect(durations).toBe('0s');
+  // The global accessibility rule uses 0.01ms !important, which is
+  // effectively instantaneous and intentionally takes precedence.
+  expect(Number.parseFloat(durations)).toBeLessThanOrEqual(.0001);
 });
