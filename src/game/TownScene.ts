@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { BOARD, EFFECT_RADIUS, HOMES, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
 import { store, type JourneyReaction } from './state';
 import { normalizedCare } from './economy';
+import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { HOME_TRAVEL_SECONDS, newCarCycle, stepCarCycle, type CarCycle } from './traffic';
 
@@ -139,7 +140,7 @@ export class TownScene extends Scene {
     graphics.strokeRect(BOARD.left - 4, BOARD.top - 4,
       BOARD.cols * BOARD.tile + 8, BOARD.rows * BOARD.tile + 8);
 
-    this.add.text(54, 589, 'MODEL LOOP  /  HANDMADE TOWN, 1908', {
+    this.add.text(54, 589, 'THE GENERATIONAL CYCLE  /  HANDMADE TOWN, 1908', {
       fontFamily: 'Georgia, serif', fontSize: '11px', color: '#858b80', letterSpacing: 2
     });
     this.add.text(1089, 589, 'VINTAGE SERIES 01', {
@@ -328,6 +329,15 @@ export class TownScene extends Scene {
       g.strokeCircle(x, y - 17, 12);
       g.fillStyle(0xc9a66a, 0.8);
       g.fillCircle(x, y - 17, 2);
+    } else if (id === 'bin') {
+      g.fillStyle(0x5c7565, 0.8);
+      g.fillRect(x - 10, y - 14, 20, 26);
+      g.lineStyle(1.8, palette.chalk, 0.95);
+      g.strokeRect(x - 10, y - 14, 20, 26);
+      g.strokeRoundedRect(x - 13, y - 19, 26, 7, 2);
+      g.lineBetween(x - 8, y - 1, x + 8, y - 1);
+      g.lineBetween(x - 6, y - 9, x + 6, y - 9);
+      g.lineBetween(x - 4, y + 5, x + 4, y + 5);
     } else {
       g.strokeRect(x - 12, y - 12, 24, 29);
       g.strokeTriangle(x - 15, y - 12, x, y - 22, x + 15, y - 12);
@@ -423,6 +433,25 @@ export class TownScene extends Scene {
     store.placements.forEach((placed) => {
       const point = worldPoint(placed);
       this.drawModel(this.modelLayer, point.x, point.y, placed.id);
+      if (placed.id === 'bin') {
+        const fill = Math.min(BIN_CAPACITY, Math.max(0, placed.fill ?? 0));
+        const amount = fill / BIN_CAPACITY;
+        // A tiny visible fill gauge beside each miniature; orange spill when full.
+        this.modelLayer.fillStyle(0x101814, 0.86);
+        this.modelLayer.fillRect(point.x + 13, point.y - 15, 6, 30);
+        this.modelLayer.fillStyle(placed.overflowed ? palette.danger : palette.mint, 0.95);
+        this.modelLayer.fillRect(point.x + 14, point.y + 14 - amount * 28, 4, amount * 28);
+        this.modelLayer.lineStyle(0.8, palette.chalk, 0.72);
+        this.modelLayer.strokeRect(point.x + 13, point.y - 15, 6, 30);
+        if (placed.overflowed) {
+          this.modelLayer.fillStyle(0xcbb89a, 0.95);
+          this.modelLayer.fillTriangle(point.x - 19, point.y + 13,
+            point.x - 13, point.y + 9, point.x - 6, point.y + 16);
+          this.modelLayer.fillRect(point.x + 10, point.y + 15, 12, 3);
+          this.modelLayer.lineStyle(2, palette.danger, 0.8);
+          this.modelLayer.strokeCircle(point.x, point.y - 25, 5);
+        }
+      }
       const care = normalizedCare(placed.care);
       if (care !== 'full') {
         const wearColor = care === 'economy' ? palette.gold : palette.danger;
@@ -451,10 +480,11 @@ export class TownScene extends Scene {
     if (preview && preview.canPlace) {
       // The same Manhattan-radius footprint drives both the visual overlay
       // and passTile's actual car-irritation calculation.
-      for (let x = cell.x - EFFECT_RADIUS; x <= cell.x + EFFECT_RADIUS; x += 1) {
-        for (let y = cell.y - EFFECT_RADIUS; y <= cell.y + EFFECT_RADIUS; y += 1) {
+      const visualRadius = store.activeModel === 'bin' ? BIN_CATCH_RADIUS : EFFECT_RADIUS;
+      for (let x = cell.x - visualRadius; x <= cell.x + visualRadius; x += 1) {
+        for (let y = cell.y - visualRadius; y <= cell.y + visualRadius; y += 1) {
           const candidate = { x, y };
-          if (!isOnBoard(x, y) || manhattanDistance(candidate, cell) > EFFECT_RADIUS) continue;
+          if (!isOnBoard(x, y) || manhattanDistance(candidate, cell) > visualRadius) continue;
           this.influenceLayer.fillStyle(preview.allowed ? palette.mint : palette.danger, 0.075);
           this.influenceLayer.fillRect(
             BOARD.left + x * BOARD.tile + 2,
@@ -463,7 +493,7 @@ export class TownScene extends Scene {
           );
         }
       }
-      ROAD_CELLS.filter((road) => manhattanDistance(road, cell) <= EFFECT_RADIUS)
+      ROAD_CELLS.filter((road) => manhattanDistance(road, cell) <= visualRadius)
         .forEach((road) => {
           const point = worldPoint(road);
           this.influenceLayer.lineStyle(2, palette.gold, preview.allowed ? 0.6 : 0.25);
