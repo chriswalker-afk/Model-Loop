@@ -201,6 +201,13 @@ export class RoadTraffic {
     return this.forceStop(residentId,cell,now);
   }
 
+  /** Gameplay entry point; unlike debug forceStop this honours global and family cooldowns. */
+  requestStop(residentId:number,cell:Cell,now:number):TrafficStop|null {
+    if(this.activeStop || now-this.lastGlobalStop<TRAFFIC_GLOBAL_STOP_GAP ||
+      now-(this.previousStops.get(residentId)??-Infinity)<TRAFFIC_STOP_COOLDOWN) return null;
+    return this.forceStop(residentId,cell,now);
+  }
+
   forceStop(residentId:number, cell:Cell, now:number, duration?:number): TrafficStop | null {
     if(this.activeStop || !Number.isFinite(now) || residentId<0 || residentId>5 ||
       !Number.isInteger(residentId))return null;
