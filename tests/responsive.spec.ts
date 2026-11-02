@@ -71,7 +71,7 @@ for (const screen of screens) {
       const firstBox = await page.locator('.model-box').first().boundingBox();
       if (!firstBox) throw new Error('Kit box not visible');
       expect(firstBox.y).toBeGreaterThanOrEqual(geometry.shop.y - 2);
-      expect(firstBox.bottom).toBeLessThanOrEqual(geometry.shop.bottom + 1);
+      expect(firstBox.y + firstBox.height).toBeLessThanOrEqual(geometry.shop.bottom + 1);
     } else {
       expect(geometry.shopPosition).not.toBe('fixed');
       expect(geometry.shop.y).toBeGreaterThanOrEqual(geometry.board.y);
