@@ -1,4 +1,5 @@
 import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, type Cell, type ModelId } from './config';
+import { householdProfile, modelReactionPerTile } from './households';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -9,6 +10,19 @@ export interface Resident {
   occupied: boolean;
   laps: number;
   warned: boolean;
+  unsettled: boolean;
+  lastRemark: string;
+  seenModels: Record<string, number>;
+}
+export interface JourneyReaction {
+  residentId: number;
+  text: string;
+  calmer: boolean;
+}
+export interface HouseholdEffect {
+  residentId: number;
+  name: string;
+  irritationChangePerLap: number;
 }
 export interface PlacedModel extends Cell { id: ModelId; }
 export interface PermanentUpgrades { savings: number; patience: number; }
@@ -26,6 +40,7 @@ export interface PlacementPreview {
   affectedRoadTiles: number;
   affectedHouseholds: number;
   irritationChangePerLap: number;
+  householdEffects: HouseholdEffect[];
 }
 
 const KEY = 'model-loop-legacy-v1';
@@ -63,6 +78,10 @@ export class GameStore {
   residents: Resident[] = [];
   notice = 'Choose a boxed miniature, then place it beside the road.';
   workshopOpen = false;
+  selectedResident: number | null = null;
+  workbenchLine = 'The boy lined up the little houses. His father adjusted one of them.';
+  private reachedMilestone = 0;
+  private statusTick = 0;
 
   constructor() { this.newRun(); }
 
@@ -83,6 +102,10 @@ export class GameStore {
     this.hovered = null;
     this.placements = [];
     this.workshopOpen = false;
+    this.selectedResident = null;
+    this.reachedMilestone = 0;
+    this.statusTick = 0;
+    this.workbenchLine = 'The boy lined up the little houses. His father adjusted one of them.';
     this.residents = HOMES.map((home) => ({
       id: home.id,
       name: home.name,
@@ -90,7 +113,10 @@ export class GameStore {
       irritation: Math.max(0, 12 - this.legacy.upgrades.patience * 6),
       occupied: true,
       laps: 0,
-      warned: false
+      warned: false,
+      unsettled: false,
+      lastRemark: householdProfile(home.id).firstRemark,
+      seenModels: {}
     }));
     this.notice = 'The year is 1908. Keep the neighbourhood happy as the cars circle.';
     this.notify();
@@ -109,6 +135,20 @@ export class GameStore {
   get safety(): number { return Math.round(clamp(100 - this.averageIrritation, 0, 100)); }
 
   getModel(id: ModelId) { return MODELS.find((model) => model.id === id)!; }
+  selectResident(id: number | null): void {
+    this.selectedResident = this.selectedResident === id ? null : id;
+    this.notify();
+  }
+  projectedHouseholdEffects(cell: Cell, modelId: ModelId): HouseholdEffect[] {
+    const covered = ROAD_CELLS.filter(road => manhattanDistance(road, cell) <= EFFECT_RADIUS).length;
+    return this.residents.filter(resident => resident.occupied).map(resident => ({
+      residentId: resident.id,
+      name: resident.name,
+      irritationChangePerLap: Math.round(
+        modelReactionPerTile(resident.id, modelId) * covered * resident.temperament * 10
+      ) / 10
+    }));
+  }
   selectModel(id: ModelId): void {
     this.setActiveModel(this.activeModel === id ? null : id);
   }
@@ -205,38 +245,79 @@ export class GameStore {
     const affectedRoadTiles = ROAD_CELLS.filter((road) =>
       manhattanDistance(road, cell) <= EFFECT_RADIUS).length;
 
+    const householdEffects = canPlace ? this.projectedHouseholdEffects(cell, id) : [];
+    const averageChange = householdEffects.length
+      ? householdEffects.reduce((sum, effect) => sum + effect.irritationChangePerLap, 0) / householdEffects.length
+      : 0;
     return {
       cell, modelId: id, canPlace, canAfford, allowed, reason,
       before, after, affectedRoadTiles,
       affectedHouseholds: this.occupiedHomes,
-      irritationChangePerLap: Math.round(model.comfort * affectedRoadTiles * 10) / 10
+      irritationChangePerLap: Math.round(averageChange * 10) / 10,
+      householdEffects
     };
   }
 
-  passTile(id: number, tile: Cell): void {
-    if (this.phase !== 'playing') return;
+  passTile(id: number, tile: Cell): JourneyReaction | null {
+    if (this.phase !== 'playing') return null;
     const resident = this.residents[id];
-    if (!resident?.occupied) return;
+    if (!resident?.occupied) return null;
+    const profile = householdProfile(id);
     let change = 0.27;
     if (tile.x === 20 && tile.y >= 5) change += 0.2;
     if (tile.x <= 3 && tile.y >= 7) change += 0.15;
-    this.placements.forEach((placed) => {
-      if (manhattanDistance(placed, tile) <= EFFECT_RADIUS) {
-        change += this.getModel(placed.id).comfort;
+
+    let encountered: PlacedModel | null = null;
+    let strongestReaction = 0;
+    for (const placed of this.placements) {
+      if (manhattanDistance(placed, tile) > EFFECT_RADIUS) continue;
+      const impact = modelReactionPerTile(id, placed.id);
+      change += impact;
+      const key = placed.id + ':' + placed.x + ',' + placed.y;
+      if (resident.seenModels[key] !== resident.laps && Math.abs(impact) > Math.abs(strongestReaction)) {
+        encountered = placed;
+        strongestReaction = impact;
       }
-    });
+      resident.seenModels[key] = resident.laps;
+    }
+
+    // An empty house is a visible reminder of what the town has lost.
+    // Some residents mind that more than others; the feedback stays understated.
+    if (this.closedHomes > 0 && id === 3) change += this.closedHomes * 0.08;
+    if (this.closedHomes > 0 && id === 5) change += this.closedHomes * 0.045;
+
     resident.irritation = clamp(resident.irritation + change * resident.temperament, 0, 100);
+    let reaction: JourneyReaction | null = null;
+    if (encountered && Math.abs(strongestReaction) >= 0.15) {
+      const text = profile.remarks[encountered.id];
+      resident.lastRemark = text;
+      reaction = { residentId: id, text, calmer: strongestReaction < 0 };
+    }
+    if (resident.irritation >= 45 && !resident.unsettled) {
+      resident.unsettled = true;
+      if (!reaction) resident.lastRemark = profile.warning;
+      this.notice = resident.name + ' seem unsettled on their journeys.';
+      this.notify();
+    }
     if (resident.irritation >= 72 && !resident.warned) {
       resident.warned = true;
-      this.notice = resident.name + ' are thinking of leaving. Make their journeys nicer!';
+      resident.lastRemark = profile.warning;
+      this.notice = resident.name + ' are close to leaving. Listen to what troubles them.';
+      reaction = { residentId: id, text: profile.warning, calmer: false };
       this.notify();
     }
     if (resident.irritation >= 100) {
       resident.occupied = false;
+      resident.lastRemark = 'The house is quiet now.';
       this.notice = resident.name + ' have moved away. Their home has closed.';
       if (this.closedHomes >= 3) this.endRun(false);
       this.notify();
+      return null;
     }
+
+    this.statusTick++;
+    if (reaction || this.statusTick % 14 === 0) this.notify();
+    return reaction;
   }
 
   finishLap(id: number): void {
@@ -246,6 +327,13 @@ export class GameStore {
     resident.laps += 1;
     this.money += resident.irritation < 65 ? 15 : 8;
     this.progress = clamp(this.progress + (resident.irritation < 65 ? 3.0 : 1.7), 0, 100);
+    const milestone = Math.min(3, Math.floor(this.progress / 25));
+    if (milestone > this.reachedMilestone) {
+      this.reachedMilestone = milestone;
+      const mostRestless = this.residents.filter(home => home.occupied)
+        .sort((a, b) => b.irritation - a.irritation)[0];
+      if (mostRestless) this.workbenchLine = householdProfile(mostRestless.id).workbenchLine;
+    }
     if (this.progress >= 100) this.endRun(true);
     this.notify();
   }
