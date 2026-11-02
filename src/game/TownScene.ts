@@ -775,39 +775,36 @@ export class TownScene extends Scene {
     store.placements.forEach((placed) => {
       const point = worldPoint(placed);
       const condition=modelCondition(placed.condition);
-      if (condition!=='intact') {
+      if(condition!=='intact'){
+        // Hairline fractures on the shared physical miniature, rather than a
+        // large opaque error rectangle that hides its original illustration.
+        const ink=condition==='broken'?palette.danger:palette.gold;
+        this.modelLayer.lineStyle(condition==='broken'?1.4:1.05,ink,.82);
+        this.modelLayer.lineBetween(point.x-9,point.y-12,point.x-1,point.y-5);
+        this.modelLayer.lineBetween(point.x-1,point.y-5,point.x-6,point.y+3);
+        this.modelLayer.lineBetween(point.x-6,point.y+3,point.x+8,point.y+11);
         if(condition==='broken'){
-          // Darken the once-functional object and scatter a few actual shards.
-          this.modelLayer.fillStyle(0x101815,.6);
-          this.modelLayer.fillRoundedRect(point.x-19,point.y-29,38,47,2);
-          this.modelLayer.lineStyle(2.1,palette.danger,.92);
-          this.modelLayer.lineBetween(point.x-14,point.y-4,point.x+12,point.y+9);
-          this.modelLayer.lineBetween(point.x-9,point.y+12,point.x+5,point.y-11);
-          this.modelLayer.lineBetween(point.x-16,point.y+17,point.x-8,point.y+11);
-          this.modelLayer.lineBetween(point.x+6,point.y+16,point.x+16,point.y+13);
-        }else{
-          // A distinctive pencil crack, rather than confusing wear with care.
-          this.modelLayer.lineStyle(1.9,palette.gold,.94);
-          this.modelLayer.lineBetween(point.x-10,point.y-16,point.x-1,point.y-7);
-          this.modelLayer.lineBetween(point.x-1,point.y-7,point.x-6,point.y+2);
-          this.modelLayer.lineBetween(point.x-6,point.y+2,point.x+8,point.y+10);
+          this.modelLayer.lineStyle(.9,palette.chalk,.76);
+          this.modelLayer.lineBetween(point.x+8,point.y-8,point.x-2,point.y+7);
+          this.modelLayer.lineBetween(point.x-14,point.y+15,point.x-7,point.y+10);
+          this.modelLayer.lineBetween(point.x+10,point.y+16,point.x+17,point.y+13);
         }
-        this.modelLayer.fillStyle(condition==='broken'?palette.danger:palette.gold,.93);
-        this.modelLayer.fillCircle(point.x+17,point.y-21,6);
-        this.modelLayer.lineStyle(1.1,0x131c16,1);
-        this.modelLayer.lineBetween(point.x+17,point.y-24,point.x+17,point.y-20);
-        this.modelLayer.fillCircle(point.x+17,point.y-18,1);
+        // Distinct engraved status seal is drawn by syncEventSprites().
       }
       if (placed.id === 'bin') {
         const fill = Math.min(BIN_CAPACITY, Math.max(0, placed.fill ?? 0));
         const amount = fill / BIN_CAPACITY;
-        // A tiny visible fill gauge beside each miniature; orange spill when full.
-        this.modelLayer.fillStyle(0x101814, 0.86);
-        this.modelLayer.fillRect(point.x + 13, point.y - 15, 6, 30);
-        this.modelLayer.fillStyle(placed.overflowed ? palette.danger : palette.mint, 0.95);
-        this.modelLayer.fillRect(point.x + 14, point.y + 14 - amount * 28, 4, amount * 28);
-        this.modelLayer.lineStyle(0.8, palette.chalk, 0.72);
-        this.modelLayer.strokeRect(point.x + 13, point.y - 15, 6, 30);
+        // Small engraved instrument rail with a real fill level; red only
+        // denotes actual overflow, not normal bin capacity.
+        this.modelLayer.fillStyle(0x101814,.90);
+        this.modelLayer.fillRect(point.x+14,point.y-15,6,30);
+        this.modelLayer.fillStyle(placed.overflowed?palette.danger:palette.mint,.86);
+        this.modelLayer.fillRect(point.x+15,point.y+14-amount*28,4,amount*28);
+        this.modelLayer.lineStyle(.95,palette.chalk,.83);
+        this.modelLayer.strokeRect(point.x+14,point.y-15,6,30);
+        this.modelLayer.lineStyle(.65,palette.chalk,.55);
+        for(let t=0;t<=3;t++)this.modelLayer.lineBetween(
+          point.x+14,point.y-15+t*10,point.x+20,point.y-15+t*10);
         if (placed.overflowed) {
           this.modelLayer.fillStyle(0xcbb89a, 0.95);
           this.modelLayer.fillTriangle(point.x - 19, point.y + 13,
@@ -817,18 +814,8 @@ export class TownScene extends Scene {
           this.modelLayer.strokeCircle(point.x, point.y - 25, 5);
         }
       }
-      const care = normalizedCare(placed.care);
-      if (care !== 'full') {
-        const wearColor = care === 'economy' ? palette.gold : palette.danger;
-        this.modelLayer.fillStyle(wearColor, 0.88);
-        this.modelLayer.fillCircle(point.x + 15, point.y + 14, 4.5);
-        this.modelLayer.lineStyle(1.2, 0x151a18, 0.9);
-        this.modelLayer.strokeCircle(point.x + 15, point.y + 14, 4.5);
-        if (care === 'bare') {
-          this.modelLayer.lineStyle(1.3, palette.danger, 0.82);
-          this.modelLayer.lineBetween(point.x - 12, point.y + 14, point.x + 10, point.y + 7);
-        }
-      }
+      // Economy and bare care now use etched tags from the same mini art
+      // library. The gameplay upkeep/repair calculations remain unchanged.
     });
     HOMES.forEach((home) => this.drawHouse(this.homeLayer, home));
 
