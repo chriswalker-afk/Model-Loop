@@ -1779,6 +1779,13 @@ body { overflow: hidden; }
   }
   .shop-instructions strong { display: none; }
   .shop-instructions span { font-size: 10px; }
+  .shop-instructions::after {
+    content: 'Scroll to browse all five kits ↓';
+    display: block;
+    color: #cdbd97;
+    font: 10px/1.2 system-ui,sans-serif;
+    margin-top: 4px;
+  }
   .cancel-placement {
     position: absolute;
     right: 10px;
@@ -1876,6 +1883,7 @@ body { overflow: hidden; }
     font-size: 11px;
   }
   .box-description {
+    display: block;
     grid-column: 2;
     grid-row: 5;
     margin: 0;
@@ -1888,6 +1896,7 @@ body { overflow: hidden; }
     text-overflow: ellipsis;
   }
   .model-box .box-upkeep {
+    display: block;
     grid-column: 2;
     grid-row: 6;
     align-self: start;
