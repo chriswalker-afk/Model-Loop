@@ -124,6 +124,8 @@ export class GameStore {
   traffic = new RoadTraffic(1);
   behaviour = new HouseholdBehaviourEngine(1);
   behaviourHistory: BehaviourReport[] = [];
+  latestBehaviourReport: BehaviourReport | null = null;
+  private nextBehaviourSequence = 1;
   private lastCongestionNoticeAt = -Infinity;
 
   get elapsedSeconds(): number { return this.clockSeconds; }
@@ -236,6 +238,8 @@ export class GameStore {
     this.traffic = new RoadTraffic(runSeed);
     this.behaviour = new HouseholdBehaviourEngine(runSeed);
     this.behaviourHistory = [];
+    this.latestBehaviourReport = null;
+    this.nextBehaviourSequence = 1;
     this.ledger = newRunLedger();
     this.workbenchMoments = [];
     this.closingLine = '';
@@ -728,10 +732,13 @@ export class GameStore {
       : action.id === 'display' ? 'I thought the neighbours might like to see it.'
         : action.id === 'chat' ? 'There is always time for a quick word.'
         : 'I shall be on my way in a moment.';
-    this.behaviourHistory.unshift({
+    const report: BehaviourReport = {
+      sequence:this.nextBehaviourSequence++,
       residentId,action:action.id,tone:action.tone,cell:{...effectCell},
       time:this.clockSeconds,message
-    });
+    };
+    this.latestBehaviourReport = report;
+    this.behaviourHistory.unshift(report);
     if(this.behaviourHistory.length>BEHAVIOUR_MAX_HISTORY)
       this.behaviourHistory.length=BEHAVIOUR_MAX_HISTORY;
     this.publishNotice(message, action.tone === 'troublesome' ? 2 : 1);
