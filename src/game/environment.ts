@@ -69,7 +69,7 @@ const noteFor = (kind: EnvironmentKind, residentId: number): string => {
     litter: 'left some packaging by the road.',
     flowers: 'added flowers to a roadside corner.',
     skid: 'left tyre marks after taking a bend rather sharply.',
-    courtesy: 'found a clearer line through the bend.'
+    courtesy: 'found a clearer line through the bend.',
     mended: 'smoothed a worn piece of road.',
     tidied: 'tidied the verge.',
     heritage: 'restored an old roadside detail.',
