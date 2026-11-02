@@ -392,6 +392,8 @@ function renderTilePanel(): void {
     const currentForecast = byId('tile-panel').querySelector<HTMLDetailsElement>('.behaviour-forecast');
     const restoreForecast = currentForecast?.open &&
       currentForecast.dataset.previewKey === forecastKey;
+    const restoreForecastFocus = restoreForecast &&
+      currentForecast?.querySelector('summary') === document.activeElement;
     const status = preview.allowed ? 'READY TO PLACE' : 'CANNOT PLACE HERE';
     byId('tile-panel').innerHTML =
       '<span class="eyebrow">PLACEMENT PREVIEW · ' + (tile.x + 1) + '/' + (tile.y + 1) + '</span>' +
@@ -417,6 +419,9 @@ function renderTilePanel(): void {
     if (nextForecast) {
       nextForecast.dataset.previewKey = forecastKey;
       if (restoreForecast) nextForecast.open = true;
+      if (restoreForecastFocus) {
+        nextForecast.querySelector('summary')?.focus({ preventScroll: true });
+      }
     }
     return;
   }
