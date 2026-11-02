@@ -424,6 +424,38 @@ export class TownScene extends Scene {
     }
   }
 
+  /** Small read-only visual diagnostics, available to dev browser QA only. */
+  worldArtSnapshot() {
+    return {
+      loadedCars: HOMES.map(home=>carTextureKey(home.id))
+        .filter(key=>this.textures.exists(key)),
+      loadedHouses: HOMES.map(home=>houseTextureKey(home.id))
+        .filter(key=>this.textures.exists(key)),
+      loadedScenery: sceneryVariants.map(sceneryTextureKey)
+        .filter(key=>this.textures.exists(key)),
+      variants: [...carVariants],
+      cars: this.cars.map(car=>{
+        const art=car.container.list[0] as Phaser.GameObjects.Image;
+        return {
+          residentId:car.residentId,texture:art.texture.key,
+          width:art.displayWidth,height:art.displayHeight,
+          x:car.container.x,y:car.container.y,
+          rotation:car.container.rotation,
+          lane:car.lane,changingTo:car.changingTo,
+          phase:car.cycle.phase,brakeVisible:car.brakeLights.visible
+        };
+      }),
+      houses: this.houseSprites.map((image,i)=>({
+        id:i,texture:image.texture.key,alpha:image.alpha,
+        x:image.x,y:image.y,width:image.displayWidth,height:image.displayHeight
+      })),
+      scenery:this.scenerySprites.map(image=>({
+        texture:image.texture.key,x:image.x,y:image.y,
+        width:image.displayWidth,height:image.displayHeight
+      }))
+    };
+  }
+
   /** Inspect the art pipeline from dev/Playwright without exposing simulation internals. */
   miniatureArtSnapshot(): {
     loaded: ModelId[]; placed: { cell: string; texture: string; alpha: number }[];
