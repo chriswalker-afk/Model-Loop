@@ -179,9 +179,16 @@ export function miniatureSvg(id: ModelId): string {
     plinth() + modelIllustration[id]() + '</svg>';
 }
 
-/** Phaser preloads exactly the same SVG string as a texture once per kit. */
+/**
+ * Phaser's SVGFile data-URI branch decodes through atob(), so it explicitly
+ * needs Base64 rather than URL-encoded XML. TextEncoder keeps this correct
+ * should accents or other UTF-8 symbols appear in later catalogue artwork.
+ */
 export function miniatureDataUri(id: ModelId): string {
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(miniatureSvg(id));
+  const bytes = new TextEncoder().encode(miniatureSvg(id));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return 'data:image/svg+xml;base64,' + btoa(binary);
 }
 
 /** Different model IDs are a permanent contract, artwork is not a new economy. */
