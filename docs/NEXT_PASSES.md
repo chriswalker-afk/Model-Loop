@@ -1,5 +1,25 @@
 # The Generational Cycle — Next passes
 
+## Pass 7A — Vintage art direction reset (November 2026)
+
+Pass 6D is merged, with 142 passing tests. The original 1908 concept art
+is now the quality benchmark for the visual redesign, not the source for
+game costs or mechanics.
+
+**Pass 7A:** Committed a detailed [visual style contract](art-direction/PASS_7A_ART_DIRECTION.md),
+[per-asset code audit](art-direction/asset-audit.md),
+[vector styleboard](art-direction/vintage-styleboard.svg),
+[machine-readable palette](art-direction/vintage-tokens.json), and
+[implementation gates](art-direction/implementation-roadmap.md).
+This is a **planning and art-direction pass** and makes no live visual
+changes to the playable game.
+
+**Next: Pass 7B — engraved HUD and tile inspector.** Redesign the era
+cartouche, four meters, icons and selected-tile detail using the now
+agreed line and typography system. Then **7C** physical carton kits,
+**7D** Edwardian cars/houses/scenery, and **7E** consistency, accessibility
+and responsive polish. Multi-era expansion remains subsequent gameplay work.
+
 ## Pass 6D — connected stories and balancing (November 2026)
 
 Pass 6C is merged. **Pass 6D** links concrete collisions and activity
