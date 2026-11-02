@@ -228,17 +228,19 @@ test('browser shows the source family, all twelve actions and an optional model 
   });
   const patch=effects.find(effect=>effect.kind==='display');
   expect(patch).toBeDefined();
-  await page.evaluate((cell)=>{
+  await page.evaluate(async (cell)=>{
     // Pressed into an existing, inspectable tile panel: no new floating HUD.
-    import('/src/game/state.ts').then(({store})=>store.selectTile(cell));
+    const {store}=await import('/src/game/state.ts');
+    store.selectTile(cell);
   },patch!.cell);
   await expect(page.locator('#tile-panel')).toContainText('Roadside display');
   await page.locator('[data-action="close-household"]').click();
   await page.getByRole('button',{name:/Select Speed Sign/}).click();
   const rect=await page.locator('#game-container canvas').boundingBox();
   if(!rect)throw new Error('No canvas');
-  const x=rect.x+(60+4.5*43)/1152*rect.width;
-  const y=rect.y+(48+4.5*43)/620*rect.height;
+  // Use a clear square away from the Hales' new roadside display.
+  const x=rect.x+(60+6.5*43)/1152*rect.width;
+  const y=rect.y+(48+3.5*43)/620*rect.height;
   await page.mouse.move(x,y);
   await expect(page.locator('.behaviour-forecast summary')).toBeVisible();
   await page.locator('.behaviour-forecast summary').click();
