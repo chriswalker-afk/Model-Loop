@@ -760,11 +760,45 @@ function renderRunLedger(): string {
     'only the last 60 seconds.</p></details>';
 }
 
+// Dialog content can update while time passes: never recreate focused buttons
+// when their markup is unchanged, and return focus when the modal closes.
+let modalKind: 'closed' | 'workshop' | 'chapter' = 'closed';
+let modalReturnFocus: HTMLElement | null = null;
+function setModalContent(modal:HTMLElement,kind:'workshop'|'chapter',
+  markup:string):void {
+  const previous=document.activeElement;
+  const wasInside=modal.contains(previous);
+  const action=wasInside&&previous instanceof HTMLElement?previous.dataset.action:null;
+  const upgrade=wasInside&&previous instanceof HTMLElement?previous.dataset.upgrade:null;
+  if(modalKind==='closed')
+    modalReturnFocus=previous instanceof HTMLElement?previous:null;
+  const changed=modal.innerHTML!==markup;
+  modal.hidden=false;
+  if(changed)modal.innerHTML=markup;
+  if(modalKind!==kind){
+    modalKind=kind;
+    modal.querySelector<HTMLElement>('h2[tabindex="-1"]')
+      ?.focus({preventScroll:true});
+  }else if(changed&&action){
+    modal.querySelector<HTMLElement>('[data-action="'+action+'"]')
+      ?.focus({preventScroll:true});
+  }else if(changed&&upgrade){
+    modal.querySelector<HTMLElement>('[data-upgrade="'+upgrade+'"]')
+      ?.focus({preventScroll:true});
+  }
+}
+function closeModalContent(modal:HTMLElement):void {
+  if(modalKind==='closed')return;
+  modal.hidden=true;
+  modal.innerHTML='';
+  modalKind='closed';
+  if(modalReturnFocus?.isConnected)modalReturnFocus.focus({preventScroll:true});
+  modalReturnFocus=null;
+}
 function renderModal(): void {
   const modal = byId('modal');
   if (store.workshopOpen) {
-    modal.hidden = false;
-    modal.innerHTML =
+    const markup =
       '<div class="dialog vintage-dialog workshop-dialog" role="dialog" aria-modal="true" aria-labelledby="workshop-title">' +
       vintageFrameCorners() +
       '<span class="eyebrow">A PLACE BETWEEN GENERATIONS</span>' +
@@ -779,16 +813,15 @@ function renderModal(): void {
       '<p class="dialog-footnote">Permanent upgrades can be purchased between runs. More workshop shelves and heritage models will arrive in later passes.</p>' +
       '<button class="dialog-main" type="button" data-action="workshop">Back to ' +
       (store.phase === 'playing' ? 'the town' : 'the chapter') + '</button></div>';
+    setModalContent(modal,'workshop',markup);
     return;
   }
   if (store.phase === 'playing') {
-    modal.hidden = true;
-    modal.innerHTML = '';
+    closeModalContent(modal);
     return;
   }
   const won = store.phase === 'complete';
-  modal.hidden = false;
-  modal.innerHTML =
+  const markup =
     '<div class="dialog story-dialog vintage-dialog" role="dialog" aria-modal="true" aria-labelledby="chapter-title">' +
     vintageFrameCorners() +
     '<span class="eyebrow">' + (won ? 'CHAPTER I COMPLETED' : 'THE TOWN HAS FALLEN QUIET') + '</span>' +
@@ -809,6 +842,7 @@ function renderModal(): void {
     '<p>Next eras and branching family chapters are planned. This first playable slice focuses on Vintage.</p>' +
     '<div class="dialog-actions"><button type="button" data-action="workshop">Visit workshop</button>' +
     '<button type="button" class="dialog-main" data-action="new-run">Build a new town</button></div></div>';
+  setModalContent(modal,'chapter',markup);
 }
 
 let lastAnnouncementRevision = -1;
@@ -1041,6 +1075,32 @@ document.addEventListener('dragend', () => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if(modalKind!=='closed'){
+    if(event.key==='Escape'){
+      event.preventDefault();
+      if(store.workshopOpen)store.toggleWorkshop();
+      else byId('modal').querySelector<HTMLElement>('.dialog-main')
+        ?.focus({preventScroll:true});
+      return;
+    }
+    if(event.key==='Tab'){
+      const dialog=byId('modal').querySelector<HTMLElement>('.vintage-dialog');
+      if(!dialog)return;
+      const controls=Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), summary, a[href], [tabindex]:not([tabindex="-1"])'
+      )).filter(el=>el.getClientRects().length>0);
+      const first=controls[0],last=controls[controls.length-1];
+      if(!first||!last){event.preventDefault();dialog.focus();return;}
+      if(event.shiftKey&&(document.activeElement===first||
+        !dialog.contains(document.activeElement))){
+        event.preventDefault();last.focus({preventScroll:true});
+      }else if(!event.shiftKey&&(document.activeElement===last||
+        !dialog.contains(document.activeElement))){
+        event.preventDefault();first.focus({preventScroll:true});
+      }
+    }
+    return;
+  }
   if (event.key === 'Escape' && !store.activeModel && store.selected) {
     store.dismissTile();
     byId('game-container').focus({ preventScroll: true });
