@@ -246,15 +246,20 @@ export function planLaneChanges(
       if (Math.cos(nextHeading - heading) < 0.94) continue;
     }
 
+    const ahead = others
+      .filter(other => occupies(other, 'left'))
+      .map(other => ({ other, gap: forwardGap(car.position, other.position, roadLength) }))
+      .sort((a,b) => a.gap - b.gap)[0];
     if (lane === 'left') {
-      const ahead = others
-        .filter(other => occupies(other, 'left'))
-        .map(other => ({ other, gap: forwardGap(car.position, other.position, roadLength) }))
-        .sort((a,b) => a.gap - b.gap)[0];
       if (!ahead || ahead.other.drivewayReservation) continue;
       if (ahead.gap > TRAFFIC_OVERTAKE_LOOKAHEAD) continue;
       if (car.desiredSpeed < ahead.other.desiredSpeed + 9) continue;
       // Slower drivers must still queue until they actually have room to move out.
+    } else {
+      // Stay in the passing lane until genuinely past the slower vehicle;
+      // otherwise the car would weave back left before overtaking.
+      if (ahead && ahead.gap < TRAFFIC_OVERTAKE_LOOKAHEAD &&
+          car.desiredSpeed >= ahead.other.desiredSpeed + 9) continue;
     }
     choices.set(car.residentId, destination);
     car.changingTo = destination; // reserve both lanes for subsequent decisions
