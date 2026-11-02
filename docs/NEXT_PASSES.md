@@ -1,5 +1,21 @@
 # The Generational Cycle — Next passes
 
+## Pass 7B — engraved 1908 HUD and inspector (November 2026)
+
+Pass 7A is merged. Pass 7B implements the first real vintage treatment:
+double-engraved header/era plaque, one family of fine-line HUD and Selected
+Tile icons, segmented instruments, shared framed inspector, readable
+typography and consistent keyboard/touch focus. The layout/traffic/gameplay
+mechanics remain unchanged. See
+[PASS_7B_ENGRAVED_UI.md](art-direction/PASS_7B_ENGRAVED_UI.md).
+
+**Next after the 7B PR is merged: Pass 7C — physical model cartons.**
+Start with one exceptional Gas Lamppost carton (real top/front/right planes,
+die-cut hanging tab, transparent recessed window and a shared canonical
+miniature), validate actual desktop/phone screenshots, then expand the
+new packaging/artwork to all six models. 7D follows with Edwardian cars and
+houses; 7E audits coherence/accessibility and removes old presentation debt.
+
 ## Pass 7A — Vintage art direction reset (November 2026)
 
 Pass 6D is merged, with 142 passing tests. The original 1908 concept art
