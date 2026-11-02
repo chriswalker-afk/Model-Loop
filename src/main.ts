@@ -15,7 +15,9 @@ const game = new Game({
   backgroundColor: '#111515',
   antialias: true,
   render: { pixelArt: false },
-  scale: { mode: Scale.FIT, autoCenter: Scale.CENTER_BOTH },
+  // CSS centres the board on desktop. Phaser auto-centering gives negative
+  // canvas offsets inside a horizontally pannable phone viewport.
+  scale: { mode: Scale.FIT, autoCenter: Scale.NO_CENTER },
   scene: [TownScene]
 });
 
