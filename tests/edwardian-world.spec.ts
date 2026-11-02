@@ -37,8 +37,12 @@ test('1908 motorcars, six homes and seven civic/scenery textures are unique vali
     await page.goto('/');
     const result=await page.evaluate(async()=>{
       const art=await import('/src/ui/vintageWorldArt.ts');
+      const {HOMES}=await import('/src/game/config.ts');
       const doc=new DOMParser();
-      const cars=Array.from({length:6},(_,i)=>art.carSvg(i));
+      // There are four chassis/body silhouettes, with six distinct
+      // household coach finishes, just as the live scene preloads them.
+      const cars=Array.from({length:6},(_,i)=>
+        art.carSvg(i,'#'+HOMES[i].color.toString(16).padStart(6,'0')));
       const houses=Array.from({length:6},(_,i)=>art.houseSvg(i));
       const scenes=art.sceneryVariants.map(v=>art.scenerySvg(v));
       return {
@@ -55,11 +59,16 @@ test('1908 motorcars, six homes and seven civic/scenery textures are unique vali
     expect(result.variants).toEqual([
       'runabout','tourer','delivery','tourer','delivery','landaulette'
     ]);
+    expect(new Set(result.variants).size).toBe(4);
     expect(new Set(result.cars).size).toBe(6);
     expect(new Set(result.houses).size).toBe(6);
     expect(new Set(result.scenes).size).toBe(7);
     expect(result.errors).toEqual(Array(19).fill(false));
-    expect(result.elements.every(n=>n>=16)).toBe(true);
+    // Tiny road notices and fountains need a clean outline, not needless
+    // microscopic hatch strokes; cars and architecture carry richer detail.
+    expect(result.elements.slice(0,6).every(n=>n>=18)).toBe(true);
+    expect(result.elements.slice(6,12).every(n=>n>=11)).toBe(true);
+    expect(result.elements.slice(12).every(n=>n>=7)).toBe(true);
     expect(result.scenes.find((_,i)=>result.names[i]==='clock-hall'))
       .toContain('TOWN HALL');
     expect(result.scenes.find((_,i)=>result.names[i]==='park-notice'))
