@@ -192,6 +192,35 @@ test('a broken bin no longer collects litter and recovers when repaired',()=>{
   expect(store.getBinStatus(site.model)?.reliability).toBeGreaterThan(0);
 });
 
+test('Hales heritage visit completes a genuine partial repair instead of a ghost plaque',()=>{
+  const store=make(955);
+  expect(store.place(site.model,'lamp')).toBe(true);
+  expect(store.debugRoadsideAccident(0,site.road,site.model,'break')).toBe(true);
+  expect(store.debugActivity('heritage-visit',site.road)).toBe(true);
+  const before=store.money;
+  store.tickEconomy(10.1);
+  expect(store.getPlacedModel(site.model)?.condition).toBe('damaged');
+  expect(store.money).toBe(before);
+  expect(store.activities.history[0]).toMatchObject({
+    kind:'heritage-visit',stage:'finished',outcome:'clean'
+  });
+  expect(store.activities.history[0].message).toContain('Gas Lamppost');
+  expect(store.environment.effects.some(x=>x.kind==='heritage')).toBe(false);
+});
+
+test('Ward safety visit genuinely reduces the active accident scene',()=>{
+  const store=make(973);
+  expect(store.place(site.model,'lamp')).toBe(true);
+  expect(store.debugRoadsideAccident(0,site.road,site.model,'break')).toBe(true);
+  const initial=store.accidents.active[0].endsAt;
+  expect(store.debugActivity('safety-round',site.road)).toBe(true);
+  store.tickEconomy(8.1);
+  expect(store.accidents.active[0].wardHelped).toBe(true);
+  expect(store.accidents.active[0].endsAt).toBeLessThan(initial);
+  expect(store.getPlacedModel(site.model)?.condition).toBe('broken');
+  expect(store.activities.history[0].message).toContain('safer sooner');
+});
+
 test('cooldown and bounded site history prevent a flood of collisions',()=>{
   expect(ACCIDENT_GLOBAL_COOLDOWN).toBeGreaterThan(20);
   expect(ACCIDENT_DRIVER_COOLDOWN).toBeGreaterThan(60);
