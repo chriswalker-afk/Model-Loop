@@ -278,7 +278,7 @@ export class GameStore {
       lastRemark: householdProfile(home.id).firstRemark,
       seenModels: {},
       lastEventLap: -1,
-      nextEventOffset: this.behaviour.opportunityOffset(ROAD_CELLS.length),
+      nextEventOffset: this.behaviour.opportunityOffset(ROAD_CELLS.length, home.id),
       trafficDelay: 0
     }));
     this.notice = 'The year is 1908. Keep the neighbourhood happy as the cars circle.';
@@ -634,7 +634,7 @@ export class GameStore {
       const offset = (tileIndex - startIndex + ROAD_CELLS.length) % ROAD_CELLS.length;
       if (offset >= resident.nextEventOffset) {
         resident.lastEventLap = resident.laps;
-        resident.nextEventOffset = this.behaviour.opportunityOffset(ROAD_CELLS.length);
+        resident.nextEventOffset = this.behaviour.opportunityOffset(ROAD_CELLS.length, id);
         const action = this.behaviour.choose(id, resident.irritation,
           tile, this.clockSeconds, this.placements);
         if (action) this.performHouseholdAction(id, action, tile);
@@ -675,7 +675,7 @@ export class GameStore {
 
   /** A single, attributable activity for every family on a given circuit. */
   private performHouseholdAction(
-    residentId: number, action: HouseholdAction, road: Cell, naturally = true
+    residentId: number, action: HouseholdAction, road: Cell
   ): boolean {
     const resident = this.residents[residentId];
     if (!resident?.occupied || !isRoad(road.x, road.y) || this.phase !== 'playing') return false;
@@ -705,45 +705,26 @@ export class GameStore {
         } else if (action.id === 'tidy') {
           const cleared = this.environment.removeNearby('litter',road,3);
           if (cleared) message += ' A discarded wrapper was collected.';
-        } else if (action.id === 'courtesy' || action.id === 'guide') {
+        } else if (action.id === 'guide') {
+          // Wards genuinely manage a stopped queue. The adventurous
+          // Finches merely show a clearer line; they do not control others.
           const helped = this.traffic.activeStop?.residentId !== residentId &&
-            this.traffic.shortenStop(this.clockSeconds,
-              action.id === 'guide' ? 3 : 1.8);
+            this.traffic.shortenStop(this.clockSeconds, 3);
           if (helped) message += ' The queue began to clear sooner.';
         }
         event.message = message;
       }
       this.lastEnvironmentEvent = event;
     }
-    // Preserve the Pass 2 ambient rubbish: another family's inconvenient
-    // act can also leave a small wrapper behind. It is a *consequence* of
-    // this one action, never a second roll for a separate household action.
-    // Forced developer actions stay isolated for reproducible QA.
-    if (naturally && action.tone === 'troublesome' && action.id !== 'litter' &&
-      this.environment.rng.next() < VINTAGE_BALANCE.incidentalLitterChance) {
-      const wrapper = this.environment.force('litter', residentId, road,
-        this.clockSeconds, this.placements, tile => this.interceptLitter(tile));
-      if (wrapper) {
-        this.lastEnvironmentEvent = wrapper;
-        message += wrapper.outcome === 'captured'
-          ? ' A piece of paper made it into the rubbish bin.'
-          : wrapper.outcome === 'overflow'
-            ? ' A stray wrapper spilled beside the full bin.'
-            : ' A stray wrapper was left by the verge.';
-      }
-    }
+    // Pass 6A: avoid unexplained random wrappers after skids, scenic pauses
+    // or cautious stops. Packaging currently comes from Millers' deliveries.
+    // Pass 6B will connect litter to visible activities (especially picnics).
     this.behaviour.mark(residentId,this.clockSeconds);
     this.ledger[action.tone === 'helpful' ? 'helpfulActions' : 'troublesomeActions']++;
     this.ledger.maximumEnvironmentalEffects = Math.max(
       this.ledger.maximumEnvironmentalEffects, this.environment.effects.length
     );
-    resident.lastRemark = action.tone === 'helpful'
-      ? action.id === 'mend' ? 'That ought to last a little longer.'
-        : action.id === 'guide' ? 'There we are. All moving again.'
-        : 'A small thing, but it makes a difference.'
-      : action.id === 'display' ? 'I thought the neighbours might like to see it.'
-        : action.id === 'chat' ? 'There is always time for a quick word.'
-        : 'I shall be on my way in a moment.';
+    resident.lastRemark = action.afterRemark;
     const report: BehaviourReport = {
       sequence:this.nextBehaviourSequence++,
       residentId,action:action.id,tone:action.tone,cell:{...effectCell},
@@ -766,7 +747,7 @@ export class GameStore {
       !this.residents[residentId]?.occupied)return false;
     const pair=householdActionPair(residentId);
     const action=[pair.helpful,pair.troublesome].find(item=>item.id===actionId);
-    return action?this.performHouseholdAction(residentId,action,road,false):false;
+    return action?this.performHouseholdAction(residentId,action,road):false;
   }
 
   /**
