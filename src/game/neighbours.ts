@@ -120,6 +120,14 @@ export class NeighbourhoodStories {
       task.actorId,task.target,now,message);
   }
 
+  /** An ordinary scheduled family activity may fulfil the same real need.
+   * It records the link without granting an additional game action. */
+  completeMatching(kind:NeighbourResponseKind,cell:Cell,now:number,
+    message:string):NeighbourNote|null {
+    const task=this.pending.find(item=>item.kind===kind&&same(item.target,cell));
+    return task ? this.complete(task,now,message):null;
+  }
+
   /** A bought repair or paid cleanup can make a pending visit unnecessary. */
   cancel(kind:NeighbourResponseKind, cell:Cell):boolean {
     const before=this.pending.length;
