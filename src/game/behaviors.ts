@@ -1,5 +1,6 @@
 import { EFFECT_RADIUS, HOMES, manhattanDistance, type Cell, type ModelId } from './config';
-import { carePreferenceScale, normalizedCare, type CareLevel } from './economy';
+import { carePreferenceScale, modelConditionFactor, normalizedCare,
+  type CareLevel, type ModelCondition } from './economy';
 import { SeededRandom, type EnvironmentKind } from './environment';
 import { VINTAGE_BALANCE } from './balance';
 import { bendOpportunityOffsets } from './driving';
@@ -39,6 +40,7 @@ export interface HouseholdPair {
 export interface NearbyMiniature extends Cell {
   id: ModelId;
   care?: CareLevel;
+  condition?: ModelCondition;
 }
 export interface ModelBehaviourModifier {
   modelId: ModelId;
@@ -233,7 +235,8 @@ export function behaviourOdds(
   let eventChance: number = BEHAVIOUR_OPPORTUNITY_CHANCE;
   const nearby=placements.filter(item=>manhattanDistance(item,cell)<=EFFECT_RADIUS);
   for(const item of nearby){
-    const care=carePreferenceScale(normalizedCare(item.care));
+    const care=carePreferenceScale(normalizedCare(item.care)) *
+      modelConditionFactor(item.condition);
     for(const impact of MODEL_BEHAVIOUR_MODIFIERS){
       if(impact.modelId!==item.id||impact.residentId!==residentId)continue;
       helpfulChance+=(impact.helpfulShift-impact.troublesomeShift)*care;
