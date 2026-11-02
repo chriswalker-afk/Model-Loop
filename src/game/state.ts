@@ -455,7 +455,8 @@ export class GameStore {
     const item = this.getPlacedModel(cell);
     if (!item || item.id !== 'bin') return null;
     const level = normalizedCare(item.care);
-    const interval = binCollectionInterval(level);
+    const interval = modelCondition(item.condition) === 'broken'
+      ? null : binCollectionInterval(level);
     return {
       fill: item.fill ?? 0, capacity: BIN_CAPACITY, overflowed: !!item.overflowed,
       radius: BIN_CATCH_RADIUS,
