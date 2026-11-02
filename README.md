@@ -4,6 +4,29 @@
 
 A miniature town-building roguelite about generations of fathers and sons making models together. Cars belonging to six households circle an irregular, grid-aligned road, generating coins and getting irritated by their surroundings. When too many houses close, the run ends, but permanent Blueprints persist.
 
+## Edwardian miniature town — Pass 7D
+
+The playable town now uses the same fine-engraved 1908 visual language as the
+collectible kits. **Four distinct brass-era car silhouettes** (runabout,
+tourer, delivery coach and landaulette) are consistently assigned to the
+six residents. Each keeps exactly the same driving/lane/traffic container,
+rotation, following and overtaking behaviour as before.
+
+All **six homes** now have distinct façades, with actual sash windows,
+rooflines, chimneys and ironwork. The civic clock hall, bandstand, fountain,
+park notices and three variants of detailed trees have been redrawn as
+period miniature vectors. Roads have more careful double-edged chalk
+detailing, without changing their positions or playable footprints.
+
+The [7D world-art library](src/ui/vintageWorldArt.ts) caches the SVG imagery,
+rather than repainting per simulation tick. [Implementation and QA notes]
+(docs/art-direction/PASS_7D_WORLD_ART.md) define the real-size screenshot
+acceptance and regression gates.
+
+**Next: Pass 7E — final global aesthetic coherence**: remaining event/
+activity states and story art, removal of old visual CSS, access and
+performance checks across responsive and reduced-motion configurations.
+
 ## Physical miniature-kit collection — Pass 7C
 
 The six collectible kits now have **real three-dimensional cardboard geometry**:
