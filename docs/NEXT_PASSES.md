@@ -1,5 +1,27 @@
 # The Generational Cycle — Next passes
 
+## Pass 7E — final Vintage coherence and release polish (November 2026)
+
+Pass 7D / PR #22 is merged. Pass 7E replaces leftover generic
+roadside/activity/accident/care artwork with **22 original engraved SVG
+minis** that are shared between the board and contextual inspector.
+Phaser caches textures and reuses active image objects by stable state ID,
+cleaning up finished activities, expired traces and repaired models.
+
+The family workshop now shares the Gas Lamppost model drawing, the chapter
+story frame reuses the illustrated landaulette instead of a CSS capsule
+car, and dialogs have more coherent antique frames and accessible keyboard
+focus handling. Unused story-car/moon CSS is removed without destabilising
+older compact/mobile layout overrides.
+
+See [PASS_7E_FINAL_POLISH.md](art-direction/PASS_7E_FINAL_POLISH.md)
+for actual-size screenshots, regression checks and next release gates.
+
+**After merging 7E: release-readiness playtest** from fresh town to chapter
+end, including driving, overtaking, resident activities, accidents, model
+care, keyboard/touch controls, 200% desktop zoom and saved upgrades.
+Prioritise concrete bugs found in this playtest before designing new eras.
+
 ## Pass 7D — recognisably Edwardian town and vehicles (November 2026)
 
 Pass 7C / PR #21 is merged. This implementation pass replaces the plain
