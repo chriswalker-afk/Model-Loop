@@ -24,6 +24,8 @@ export interface HouseholdAction {
   environmentKind?: EnvironmentKind;
   label: string;
   message: string;
+  /** A resident's own reaction to their decision, in their ordinary voice. */
+  afterRemark: string;
 }
 export interface HouseholdPair {
   residentId: number;
@@ -50,12 +52,14 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
     helpful: {
       id: 'scout', environmentKind: 'courtesy', tone: 'helpful', mechanic: 'roadside',
       label: 'Finds a clear line through',
-      message: 'The Finches found a smooth line through the bend. Others took the easier route.'
+      message: 'The Finches found a smooth line through the bend. Others took the easier route.',
+      afterRemark: 'There is a good line through there, if you look for it.'
     },
     troublesome: {
       id: 'skid', environmentKind: 'skid', tone: 'troublesome', mechanic: 'roadside',
       label: 'Takes a bend too sharply',
-      message: 'The Finches pushed through the corner too quickly. Fresh tyre marks remain.'
+      message: 'The Finches pushed through the corner too quickly. Fresh tyre marks remain.',
+      afterRemark: 'I thought that corner had a little more room.'
     }
   },
   {
@@ -63,12 +67,14 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
     helpful: {
       id: 'flowers', environmentKind: 'flowers', tone: 'helpful', mechanic: 'roadside',
       label: 'Plants a little colour',
-      message: 'The Bells planted a few flowers by the road.'
+      message: 'The Bells planted a few flowers by the road.',
+      afterRemark: 'A little colour makes the journey worth taking.'
     },
     troublesome: {
       id: 'admire', tone: 'troublesome', mechanic: 'stop',
       label: 'Stops to admire the view',
-      message: 'The Bells stopped for a better look; the road is slowing behind them.'
+      message: 'The Bells stopped for a better look; the road is slowing behind them.',
+      afterRemark: 'Just a moment. Look how the light catches that roof.'
     }
   },
   {
@@ -76,12 +82,14 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
     helpful: {
       id: 'mend', environmentKind: 'mended', tone: 'helpful', mechanic: 'roadside',
       label: 'Mends a worn patch',
-      message: 'The Millers smoothed a rough bit of road.'
+      message: 'The Millers smoothed a rough bit of road.',
+      afterRemark: 'That patch was slowing everyone down.'
     },
     troublesome: {
       id: 'litter', environmentKind: 'litter', tone: 'troublesome', mechanic: 'roadside',
       label: 'Forgets delivery packaging',
-      message: 'The Millers hurried away from a delivery and left some packaging behind.'
+      message: 'The Millers hurried away from a delivery and left some packaging behind.',
+      afterRemark: 'I meant to take the packaging with me.'
     }
   },
   {
@@ -89,12 +97,14 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
     helpful: {
       id: 'tidy', environmentKind: 'tidied', tone: 'helpful', mechanic: 'roadside',
       label: 'Tidies the verge',
-      message: 'The Marshes left the roadside a little tidier.'
+      message: 'The Marshes left the roadside a little tidier.',
+      afterRemark: 'People will want to spend time here now.'
     },
     troublesome: {
       id: 'chat', tone: 'troublesome', mechanic: 'stop',
       label: 'Lingers for a neighbourly chat',
-      message: 'The Marshes stopped to catch up with a neighbour. Cars are waiting behind them.'
+      message: 'The Marshes stopped to catch up with a neighbour. Cars are waiting behind them.',
+      afterRemark: 'I only meant to say hello.'
     }
   },
   {
@@ -102,12 +112,14 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
     helpful: {
       id: 'restore', environmentKind: 'heritage', tone: 'helpful', mechanic: 'roadside',
       label: 'Restores a familiar detail',
-      message: 'The Hales carefully restored an old roadside detail.'
+      message: 'The Hales carefully restored an old roadside detail.',
+      afterRemark: 'That little detail belongs here. We ought to look after it.'
     },
     troublesome: {
       id: 'display', environmentKind: 'display', tone: 'troublesome', mechanic: 'roadside',
       label: 'Puts out a roadside display',
-      message: 'The Hales have put a little display beside the road. Drivers slow to look.'
+      message: 'The Hales have put a little display beside the road. Drivers slow to look.',
+      afterRemark: 'Someone might like to see how the street used to look.'
     }
   },
   {
@@ -115,12 +127,14 @@ export const HOUSEHOLD_ACTIONS: readonly HouseholdPair[] = [
     helpful: {
       id: 'guide', environmentKind: 'guidance', tone: 'helpful', mechanic: 'roadside',
       label: 'Helps traffic along',
-      message: 'The Wards helped everyone through a difficult corner.'
+      message: 'The Wards helped everyone through a difficult corner.',
+      afterRemark: 'It is easier for everyone when the corner is clear.'
     },
     troublesome: {
       id: 'hesitate', tone: 'troublesome', mechanic: 'stop',
       label: 'Stops to check the road',
-      message: 'The Wards paused to check that the road was clear.'
+      message: 'The Wards paused to check that the road was clear.',
+      afterRemark: 'I couldn\'t quite see if the way ahead was safe.'
     }
   }
 ];
