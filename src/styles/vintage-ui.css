@@ -602,20 +602,31 @@
   .vintage-inspector .tile-score { min-height: 36px; }
   .vintage-inspector .tile-score-name { font-size: 12px; }
 }
-/* In very short landscape there is no honest space between the HUD and
- * the fixed kit dock. A clicked inspector becomes a narrow, temporary
- * top-right reading plate, not a fake visible panel behind the shelf. */
+/* On a low landscape phone the fixed 205px kit dock plus the HUD would
+ * leave no usable town. Keep the board first and place the shop beneath it,
+ * reachable by ordinary vertical scrolling, instead of covering the game. */
 @media (min-width:701px) and (max-width:899px) and (max-height:490px) {
+  .main-content { padding-bottom: max(13px,env(safe-area-inset-bottom)); }
+  .main-content #shop-section {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    min-height: 205px;
+    height: 229px;
+    margin: 0;
+    z-index: 4;
+  }
   .tile-panel.vintage-inspector.is-active:not([hidden]) {
     position: fixed;
     z-index: 24;
-    top: 8px;
+    top: 46dvh;
     right: 8px;
     bottom: auto;
     left: auto;
-    width: min(330px, 45vw);
+    width: min(340px, 47vw);
     max-width: none;
-    max-height: calc(100dvh - var(--model-dock-height) - 18px);
+    max-height: min(44dvh, 185px);
+    min-height: 95px;
     margin: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
