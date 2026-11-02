@@ -63,9 +63,18 @@ for (const screen of screens) {
     expect(geometry.board.width).toBeGreaterThanOrEqual(Math.min(300, screen.width - 15));
     expect(geometry.canvas.width).toBeGreaterThan(250);
     expect(geometry.canvas.height).toBeGreaterThan(130);
-    expect(geometry.shop.width).toBeGreaterThanOrEqual(screen.width - 24);
+    const compactWorkspace = screen.width >= 900 && screen.height >= 500 && screen.height <= 850;
+    if (compactWorkspace) {
+      expect(geometry.shopPosition).not.toBe('fixed');
+      expect(geometry.shop.x).toBeGreaterThan(geometry.board.x + geometry.board.width - 2);
+      expect(geometry.shop.bottom).toBeLessThanOrEqual(screen.height + 1);
+      expect(geometry.canvas.width).toBeGreaterThan(580);
+      expect(geometry.shop.width).toBeGreaterThan(285);
+    } else {
+      expect(geometry.shop.width).toBeGreaterThanOrEqual(screen.width - 24);
+    }
 
-    if (screen.width <= 1100 || screen.height <= 820) {
+    if (!compactWorkspace && (screen.width <= 1100 || screen.height <= 820)) {
       expect(geometry.shopPosition).toBe('fixed');
       expect(geometry.shop.bottom).toBeLessThanOrEqual(screen.height + 2);
       expect(geometry.shop.y).toBeGreaterThan(0);
@@ -73,7 +82,7 @@ for (const screen of screens) {
       if (!firstBox) throw new Error('Kit box not visible');
       expect(firstBox.y).toBeGreaterThanOrEqual(geometry.shop.y - 2);
       expect(firstBox.y + firstBox.height).toBeLessThanOrEqual(geometry.shop.bottom + 1);
-    } else {
+    } else if (!compactWorkspace) {
       expect(geometry.shopPosition).not.toBe('fixed');
       expect(geometry.shop.y).toBeGreaterThanOrEqual(geometry.board.y);
     }

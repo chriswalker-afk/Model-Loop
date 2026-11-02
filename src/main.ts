@@ -110,8 +110,10 @@ function renderShop(): void {
       '<span class="box-effects" aria-label="Beauty ' + signed(item.beauty) +
       ', Noise ' + signed(item.noise) + ', Crime ' + signed(item.crime) + '">' +
       effects + '</span><span class="box-description">' + item.caption + '</span>' +
-      '<span class="box-upkeep">Care: ' + item.upkeep + ' coins / ' + UPKEEP_INTERVAL_SECONDS +
-      's · adjustable after placement</span></button>';
+      '<span class="box-upkeep" title="Maintenance costs ' + item.upkeep +
+      ' coins every ' + UPKEEP_INTERVAL_SECONDS +
+      ' game seconds at full care; reduce it after placement">Upkeep ' +
+      item.upkeep + ' coins / ' + UPKEEP_INTERVAL_SECONDS + 's</span></button>';
   }).join('');
 }
 
@@ -238,6 +240,7 @@ function renderPlacedModelCare(): boolean {
   const cell = store.selected!;
   const info = store.tileInfo(cell);
   const panel = byId('tile-panel');
+  panel.classList.add('is-active');
   panel.innerHTML =
     '<span class="eyebrow">MODEL CARE · GRID ' + (cell.x + 1) + '/' + (cell.y + 1) + '</span>' +
     '<h3>' + model.name + '</h3>' +
@@ -274,6 +277,9 @@ function renderTilePanel(): void {
   if (renderPlacedModelCare()) return;
   const tile = store.hovered || store.selected;
   const details = store.tileInfo(tile);
+  // Hide the decorative empty inspector only in compact landscape layouts.
+  // On wider desktops the original guidance panel remains unchanged.
+  byId('tile-panel').classList.toggle('is-active', Boolean(details && tile));
   if (!details || !tile) {
     byId('tile-panel').innerHTML =
       '<span class="eyebrow">INSPECT THE TOWN</span><h3>Every square tells a story</h3>' +
