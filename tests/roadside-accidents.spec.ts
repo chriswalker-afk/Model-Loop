@@ -83,6 +83,7 @@ test('normal driving can hit a real left-side miniature, but overtaking never do
   expect(store.getPlacedModel(site.model)?.condition).toBe('damaged');
   expect(store.money).toBe(original); // no arbitrary crash fine or reward
   expect(store.accidents.latest?.model).toEqual(site.model);
+  expect(store.runSummary.roadsideAccidents).toBe(1);
   expect(store.accidents.active).toHaveLength(1);
   expect(store.safety).toBeLessThan(100);
   // A second chance cannot immediately damage the same model again.
@@ -129,6 +130,7 @@ test('repairs cost actual coins, never award progress or lap rewards',()=>{
   expect(store.getPlacedModel(site.model)?.condition).toBe('intact');
   expect(store.money).toBe(moneyBefore-cost);
   expect(store.ledger.carePaid).toBe(paid+cost);
+  expect(store.runSummary.repairSpending).toBe(cost);
   expect(store.progress).toBe(progressBefore);
   expect(store.ledger.coinsEarned).toBe(earned);
   expect(store.repairModel(site.model)).toBe(false); // no second repair bill
@@ -162,6 +164,7 @@ test('the Hales restore actual purchased damage, one condition step at a time',(
   expect(store.debugHouseholdAction(4,'restore',site.road)).toBe(true);
   expect(store.getPlacedModel(site.model)?.condition).toBe('intact');
   expect(store.money).toBe(beforeMoney);
+  expect(store.runSummary.haleRestorations).toBe(2);
   // No damage nearby: old, plausible heritage action still works.
   expect(store.debugHouseholdAction(4,'restore',site.road)).toBe(true);
   expect(store.environment.effects.some(effect=>effect.kind==='heritage')).toBe(true);
@@ -175,6 +178,7 @@ test('Wards shorten the actual accident-zone duration, never repair its model',(
   expect(store.debugHouseholdAction(5,'guide',site.road)).toBe(true);
   expect(store.accidents.active[0].wardHelped).toBe(true);
   expect(store.accidents.active[0].endsAt).toBeLessThan(end);
+  expect(store.runSummary.wardAssists).toBe(1);
   expect(store.getPlacedModel(site.model)?.condition).toBe('damaged');
   expect(store.behaviourHistory[0].message).toContain('cleared sooner');
   expect(store.accidents.wardAssistance(site.road,store.elapsedSeconds)).toBeNull();
