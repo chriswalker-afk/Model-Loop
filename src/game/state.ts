@@ -15,6 +15,10 @@ import {
 } from './behaviors';
 import { VINTAGE_BALANCE, newRunLedger, summariseRun, type RunLedger } from './balance';
 import { chooseWorkshopMoment, chooseClosingMoment, type WorkshopMoment } from './workbench';
+import {
+  ActivityEngine, activityDefinition, type ActiveActivity, type ActivityKind,
+  type ActivityCompletion, type ActivityOutcome
+} from './activities';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -123,6 +127,7 @@ export class GameStore {
   lastEnvironmentEvent: EnvironmentalEvent | null = null;
   traffic = new RoadTraffic(1);
   behaviour = new HouseholdBehaviourEngine(1);
+  activities = new ActivityEngine(1);
   behaviourHistory: BehaviourReport[] = [];
   latestBehaviourReport: BehaviourReport | null = null;
   private nextBehaviourSequence = 1;
@@ -142,6 +147,8 @@ export class GameStore {
     this.clockSeconds += seconds;
     const environmentChanged = this.environment.tick(this.clockSeconds);
     const trafficCleared = this.traffic.tick(this.clockSeconds);
+    const activityTick = this.activities.tick(this.clockSeconds);
+    for (const finished of activityTick.completed) this.finishActivity(finished);
     this.ledger.maximumEnvironmentalEffects = Math.max(
       this.ledger.maximumEnvironmentalEffects, this.environment.effects.length
     );
@@ -182,7 +189,7 @@ export class GameStore {
     }
     this.cashflowEvents = this.cashflowEvents.filter(
       entry => entry.at > this.clockSeconds - FLOW_WINDOW_SECONDS);
-    if (environmentChanged || trafficCleared) this.notify();
+    if (environmentChanged || trafficCleared || activityTick.changed) this.notify();
     if (billed > 0) {
       this.publishNotice('Workshop care bill: −' + billed + ' coins. ' +
         (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' :
@@ -237,6 +244,7 @@ export class GameStore {
     this.environment = new LivingEnvironment(runSeed);
     this.traffic = new RoadTraffic(runSeed);
     this.behaviour = new HouseholdBehaviourEngine(runSeed);
+    this.activities = new ActivityEngine(runSeed);
     this.behaviourHistory = [];
     this.latestBehaviourReport = null;
     this.nextBehaviourSequence = 1;
@@ -435,7 +443,8 @@ export class GameStore {
       if (placed.id !== 'limit' || manhattanDistance(placed, tile) > EFFECT_RADIUS) continue;
       multiplier = Math.min(multiplier, modelEffects(placed.id, normalizedCare(placed.care)).speedMultiplier);
     }
-    return Math.min(multiplier, this.environment.slowdownAt(tile));
+    return Math.min(multiplier, this.environment.slowdownAt(tile),
+      this.activities.slowdownAt(tile));
   }
   selectResident(id: number | null): void {
     this.selectedResident = this.selectedResident === id ? null : id;
@@ -497,7 +506,8 @@ export class GameStore {
       && !isScenery(cell.x, cell.y)
       && !this.placements.some((placed) => placed.x === cell.x && placed.y === cell.y)
       && !this.environment.effects.some(effect =>
-        effect.cell.x === cell.x && effect.cell.y === cell.y);
+        effect.cell.x === cell.x && effect.cell.y === cell.y)
+      && !this.activities.isOccupied(cell);
   }
   place(cell: Cell, id: ModelId): boolean {
     if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
@@ -524,6 +534,7 @@ export class GameStore {
   }
   private calculateTileInfo(cell: Cell, placements: PlacedModel[]): TileInfo {
     const environmental = this.environment.modifiersAt(cell);
+    const activity = this.activities.modifiersAt(cell);
     let kind = isRoad(cell.x, cell.y) ? 'Road tile' : 'Grass tile';
     const home = HOMES.find((item) => item.x === cell.x && item.y === cell.y);
     if (home) {
@@ -536,9 +547,9 @@ export class GameStore {
     const overflowing = nearby.filter(item => item.id === 'bin' && item.overflowed).length;
     return {
       kind,
-      beauty: 1 + environmental.beauty - 2 * overflowing + nearby.reduce((total, item) =>
+      beauty: 1 + environmental.beauty + activity.beauty - 2 * overflowing + nearby.reduce((total, item) =>
         total + modelEffects(item.id, normalizedCare(item.care)).beauty, 0),
-      noise: (isRoad(cell.x, cell.y) ? 2 : 0) + environmental.noise
+      noise: (isRoad(cell.x, cell.y) ? 2 : 0) + environmental.noise + activity.noise
         + Math.min(3, this.traffic.queuedNear(cell))
         + nearby.reduce((total, item) =>
           total + modelEffects(item.id, normalizedCare(item.care)).noise, 0),
@@ -592,7 +603,7 @@ export class GameStore {
     };
   }
 
-  passTile(id: number, tile: Cell): JourneyReaction | null {
+  passTile(id: number, tile: Cell, canParkForActivity = true): JourneyReaction | null {
     if (this.phase !== 'playing') return null;
     const resident = this.residents[id];
     if (!resident?.occupied) return null;
@@ -623,6 +634,7 @@ export class GameStore {
     // Roadside changes affect subsequent journeys; a bin that overflows also
     // becomes an ongoing nuisance, until someone pays for collection.
     change += this.environment.modifiersAt(tile).irritation;
+    change += this.activities.modifiersAt(tile).irritation;
     change += this.placements.filter(item => item.id === 'bin' && item.overflowed
       && manhattanDistance(item, tile) <= EFFECT_RADIUS).length * 0.12;
     resident.irritation = clamp(resident.irritation + change * resident.temperament, 0, 100);
@@ -636,8 +648,18 @@ export class GameStore {
         resident.lastEventLap = resident.laps;
         resident.nextEventOffset = this.behaviour.opportunityOffset(ROAD_CELLS.length, id);
         const action = this.behaviour.choose(id, resident.irritation,
-          tile, this.clockSeconds, this.placements);
-        if (action) this.performHouseholdAction(id, action, tile);
+          tile, this.clockSeconds, this.placements,
+          canParkForActivity && !this.traffic.shouldStop(id));
+        if (action) {
+          const success = this.performHouseholdAction(id, action, tile, true,
+            canParkForActivity && !this.traffic.shouldStop(id));
+          if (!success && action.mechanic === 'activity') {
+            // A full verge should not turn a picnic into invisible litter.
+            const alternative = householdActionPair(id)[action.tone];
+            if (alternative.id !== 'litter')
+              this.performHouseholdAction(id, alternative, tile, false, false);
+          }
+        }
       }
     }
     let reaction: JourneyReaction | null = null;
@@ -661,6 +683,7 @@ export class GameStore {
     }
     if (resident.irritation >= 100) {
       resident.occupied = false;
+      this.activities.cancelResident(id);
       resident.lastRemark = 'The house is quiet now.';
       this.publishNotice(resident.name + ' have moved away. Their home has closed.', 2);
       if (this.closedHomes >= 3) this.endRun(false);
@@ -673,15 +696,32 @@ export class GameStore {
     return reaction;
   }
 
-  /** A single, attributable activity for every family on a given circuit. */
+  /**
+   * Activities replace, never supplement, a family's one event opportunity
+   * this circuit. Developer-forced legacy actions remain instantaneous, but
+   * natural Miller packaging must follow a visible roadside delivery.
+   */
   private performHouseholdAction(
-    residentId: number, action: HouseholdAction, road: Cell
+    residentId: number, action: HouseholdAction, road: Cell,
+    naturally = false, canParkForActivity = true
   ): boolean {
     const resident = this.residents[residentId];
     if (!resident?.occupied || !isRoad(road.x, road.y) || this.phase !== 'playing') return false;
     let message = action.message;
     let effectCell = road;
-    if (action.mechanic === 'stop') {
+    const activityKind = action.mechanic === 'activity' ? action.activityKind :
+      (naturally && action.id === 'litter' ? 'delivery' : undefined);
+    if (activityKind && canParkForActivity) {
+      const hurry = naturally && action.id === 'litter' ? .78 : undefined;
+      const blocked = [...this.placements, ...this.environment.effects.map(effect => effect.cell)];
+      const activity = this.activities.start(activityKind, residentId, road,
+        this.clockSeconds, blocked, this.placements, hurry);
+      if (!activity) return false;
+      message = activityDefinition(activityKind).started;
+      effectCell = activity.cell;
+    } else if (action.mechanic === 'activity') {
+      return false;
+    } else if (action.mechanic === 'stop') {
       // Another driver could already be stopped; unsuccessful actions do not
       // create duplicate pop-ups or generate more income.
       const stop = this.traffic.requestStop(residentId, road, this.clockSeconds);
@@ -716,9 +756,8 @@ export class GameStore {
       }
       this.lastEnvironmentEvent = event;
     }
-    // Pass 6A: avoid unexplained random wrappers after skids, scenic pauses
-    // or cautious stops. Packaging currently comes from Millers' deliveries.
-    // Pass 6B will connect litter to visible activities (especially picnics).
+    // The chosen activity's eventual cleanup, litter and bin interception are
+    // resolved when its packing-away phase finishes, not before setup begins.
     this.behaviour.mark(residentId,this.clockSeconds);
     this.ledger[action.tone === 'helpful' ? 'helpfulActions' : 'troublesomeActions']++;
     this.ledger.maximumEnvironmentalEffects = Math.max(
@@ -748,6 +787,55 @@ export class GameStore {
     const pair=householdActionPair(residentId);
     const action=[pair.helpful,pair.troublesome].find(item=>item.id===actionId);
     return action?this.performHouseholdAction(residentId,action,road):false;
+  }
+
+  /** Dev-only entry point for exact, repeatable activity stages. */
+  debugActivity(kind: ActivityKind, road: Cell): boolean {
+    if(this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
+    const definition = activityDefinition(kind);
+    const resident = this.residents[definition.residentId];
+    if (!resident?.occupied) return false;
+    const blocked = [...this.placements, ...this.environment.effects.map(effect => effect.cell)];
+    const activity = this.activities.start(kind, resident.id, road,
+      this.clockSeconds, blocked, this.placements);
+    if (!activity) return false;
+    this.publishNotice(definition.started, 1);
+    this.notify();
+    return true;
+  }
+
+  private finishActivity({ activity, leavesLitter }: ActivityCompletion): void {
+    const resident = this.residents[activity.residentId];
+    if (!resident?.occupied) return;
+    const definition = activityDefinition(activity.kind);
+    const effect = leavesLitter ? 'litter' : definition.cleanEffect;
+    const event = effect ? this.environment.force(effect, activity.residentId,
+      activity.roadCell, this.clockSeconds, this.placements,
+      tile => this.interceptLitter(tile), activity.cell) : null;
+    let outcome: ActivityOutcome = leavesLitter ? 'none' : 'clean';
+    let message = definition.finished;
+    if (leavesLitter && event) {
+      outcome = event.outcome === 'captured' ? 'captured' :
+        event.outcome === 'overflow' ? 'overflow' : 'litter';
+      message = outcome === 'captured'
+        ? resident.name + ' packed up and put the scraps in a nearby bin.'
+        : outcome === 'overflow'
+          ? resident.name + ' packed up, but the full bin overflowed.'
+          : resident.name + ' left some scraps behind after ' +
+            (activity.kind === 'picnic' ? 'the picnic.' :
+              activity.kind === 'working-lunch' ? 'lunch.' :
+                activity.kind === 'gathering' ? 'the gathering.' : 'the delivery.');
+    }
+    if (event) {
+      event.message = message;
+      this.lastEnvironmentEvent = event;
+    }
+    this.activities.recordCompletion(activity, this.clockSeconds, outcome, message);
+    resident.lastRemark = leavesLitter && outcome === 'litter'
+      ? 'We ought to have taken that with us.' : definition.finished;
+    this.ledger.maximumEnvironmentalEffects = Math.max(
+      this.ledger.maximumEnvironmentalEffects, this.environment.effects.length);
+    this.publishNotice(message, outcome === 'litter' || outcome === 'overflow' ? 2 : 1);
   }
 
   /**
