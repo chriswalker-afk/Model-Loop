@@ -32,7 +32,11 @@
   </header>
   <main class="main-content">
     <section class="world-frame" aria-label="The miniature town">
-      <div id="game-container" tabindex="0" role="application" aria-label="Miniature town. Select a model box, then use your mouse or arrow keys to find a square. Press Enter to build, Escape to cancel."></div>
+      <div id="town-pan" class="town-pan" tabindex="0" role="region"
+        aria-label="Scrollable miniature town. On a small screen, swipe horizontally to see the whole model.">
+        <div id="game-container" tabindex="0" role="application" aria-label="Miniature town. Select a model box, then use your mouse or arrow keys to find a square. Press Enter to build, Escape to cancel."></div>
+      </div>
+      <div class="town-pan-hint" aria-hidden="true"><span>↔</span> Swipe to explore the whole town</div>
       <aside id="tile-panel" class="tile-panel" aria-live="polite"></aside>
       <aside id="household-detail" class="household-detail" aria-label="Selected household" hidden></aside>
       <div class="board-stamp">NO. 001 &mdash; HANDCRAFTED TOWNS</div>
