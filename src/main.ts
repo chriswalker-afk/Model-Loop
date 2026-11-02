@@ -891,6 +891,9 @@ if (import.meta.env.DEV) {
     trafficSnapshot() {
       return (game.scene.getScene('TownScene') as TownScene).trafficSnapshot();
     },
+    miniatureArt() {
+      return (game.scene.getScene('TownScene') as TownScene).miniatureArtSnapshot();
+    },
     behaviourAction(id:number,action:HouseholdActionId,x:number,y:number):boolean {
       if(!Number.isInteger(id) || id<0 || id>5 ||
         !Number.isInteger(x) || !Number.isInteger(y))return false;
