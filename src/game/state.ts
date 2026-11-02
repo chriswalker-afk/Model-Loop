@@ -1,7 +1,7 @@
 import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, type Cell, type ModelId } from './config';
 import { householdProfile, modelReactionPerTile } from './households';
 import { careName, FLOW_WINDOW_SECONDS, modelEffects, modelRepairCost,
-  modelCondition, modelConditionFactor, modelConditionName, normalizedCare, summarizeFlow,
+  modelCondition, modelConditionFactor, normalizedCare, summarizeFlow,
   UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent,
   type ModelCondition } from './economy';
 import { LivingEnvironment, type EnvironmentKind, type EnvironmentalEvent, type LitterDiversion } from './environment';
