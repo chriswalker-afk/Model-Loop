@@ -114,7 +114,7 @@ test('opened behaviour forecast survives income refreshes but resets for a new s
   await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
     store.selectModel('limit');
-    store.setHovered({x:4,y:4});
+    store.inspectTile({x:4,y:4});
   });
   const forecast=page.locator('#tile-panel .behaviour-forecast');
   await expect(forecast).toBeVisible();
@@ -132,7 +132,7 @@ test('opened behaviour forecast survives income refreshes but resets for a new s
   await expect(forecast.locator('summary')).toBeFocused();
   await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
-    store.setHovered({x:7,y:3});
+    store.inspectTile({x:7,y:3});
   });
   await expect(forecast).not.toHaveAttribute('open','');
 });

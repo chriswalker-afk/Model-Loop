@@ -109,14 +109,20 @@ export class TownScene extends Scene {
       if (travelled > 13) return;
       const cell = this.pointerCell(pointer);
       if (cell && store.phase === 'playing' && !store.paused && !store.workshopOpen) {
-        store.selectTile(cell);
+        // Shift+click opens the full placement forecast without spending coins.
+        // An ordinary click still places the selected model in one action.
+        const modifier = pointer.event && 'shiftKey' in pointer.event &&
+          pointer.event.shiftKey;
+        if (modifier && store.activeModel) store.inspectTile(cell);
+        else store.selectTile(cell);
         const home = HOMES.find(item => item.x === cell.x && item.y === cell.y);
         if (home && !store.activeModel) store.selectResident(home.id);
       }
     });
-    // Keep the last preview in view while the player reads the forecast.
+    // A short hover label must not linger after the pointer leaves the town.
+    // Full placement forecasts are now opened deliberately by clicking a tile.
     this.input.on('gameout', () => {
-      if (!store.activeModel) store.setHovered(null);
+      store.setHovered(null);
     });
   }
 

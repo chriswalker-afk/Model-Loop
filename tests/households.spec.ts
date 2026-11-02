@@ -59,6 +59,10 @@ test('neighbourhood strip and the optional household panel work without browser 
   const x = box.x + (60 + (4.5 * 43)) / 1152 * box.width;
   const y = box.y + (48 + (4.5 * 43)) / 620 * box.height;
   await page.mouse.move(x, y);
+  await expect(page.locator('#tile-panel')).toBeHidden();
+  await page.keyboard.down('Shift');
+  await page.mouse.click(x, y);
+  await page.keyboard.up('Shift');
   const forecast = page.locator('#tile-panel');
   await expect(forecast).toContainText('Different journeys, different reactions');
   await expect(forecast).toContainText('The Wards');

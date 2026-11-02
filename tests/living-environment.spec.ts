@@ -150,6 +150,8 @@ test('real browser displays traces with their source and separate road safety', 
   const x = rect.x + (60 + (cell.x + 0.5) * 43) / 1152 * rect.width;
   const y = rect.y + (48 + (cell.y + 0.5) * 43) / 620 * rect.height;
   await page.mouse.move(x, y);
+  await expect(page.locator('#tile-panel')).toBeHidden();
+  await page.mouse.click(x, y);
   const panel = page.locator('#tile-panel');
   await expect(panel).toContainText('Discarded packaging');
   await expect(panel).toContainText('The Millers');

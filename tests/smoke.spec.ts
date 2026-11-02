@@ -7,7 +7,9 @@ test('Vintage scene and controls initialize without browser errors', async ({ pa
   await expect(page.locator('#game-container canvas')).toBeVisible();
   await expect(page.locator('.meter')).toHaveCount(4);
   await expect(page.locator('.model-box')).toHaveCount(6);
-  await expect(page.locator('#tile-panel')).toContainText('Every square tells a story');
+  await expect(page.locator('#tile-panel')).toBeHidden();
+  await expect(page.locator('#tile-peek')).toBeHidden();
+  await expect(page.locator('.brand-sub')).toHaveCount(0);
   await expect(page.locator('#coins')).toHaveText('145');
 
   await page.getByRole('button', { name: 'Workshop' }).click();

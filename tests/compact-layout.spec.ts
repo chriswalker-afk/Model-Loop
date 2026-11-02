@@ -84,7 +84,8 @@ test('compact landscape model selection and care inspection stay usable', async 
     y:rect.y+(48+4.5*43)/620*rect.height
   };
   await page.mouse.move(point.x,point.y);
-  await expect(page.locator('#tile-panel')).toContainText('READY TO PLACE');
+  await expect(page.locator('#tile-panel')).toBeHidden();
+  await expect(page.locator('#tile-peek')).toContainText('READY TO PLACE');
   await page.mouse.click(point.x,point.y);
   await expect(page.locator('#coins')).toHaveText('105');
   await expect(page.locator('#tile-panel')).toContainText('MODEL CARE');

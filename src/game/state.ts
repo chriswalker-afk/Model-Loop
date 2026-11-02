@@ -477,6 +477,18 @@ export class GameStore {
     if (this.activeModel) this.place(cell, this.activeModel);
     this.notify();
   }
+  /** Inspect placement projections without committing a purchase (Shift+click). */
+  inspectTile(cell: Cell): void {
+    this.selected = cell;
+    this.notify();
+  }
+  /** Explicitly dismiss the clicked-square inspector without cancelling a model kit. */
+  dismissTile(): void {
+    if (!this.selected) return;
+    this.selected = null;
+    this.hovered = null;
+    this.notify();
+  }
   canPlace(cell: Cell): boolean {
     return isOnBoard(cell.x, cell.y)
       && !isRoad(cell.x, cell.y)
