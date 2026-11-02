@@ -4,7 +4,9 @@ import {
 } from './config';
 
 /** Persistent visual consequences, with a litter interception hook for collection. */
-export type EnvironmentKind = 'litter' | 'flowers' | 'skid';
+export type EnvironmentKind =
+  | 'litter' | 'flowers' | 'skid' | 'courtesy' | 'mended'
+  | 'tidied' | 'heritage' | 'display' | 'guidance';
 export type EnvironmentTone = 'helpful' | 'troublesome';
 
 export interface EnvironmentalEffect {
@@ -46,29 +48,47 @@ const ACTIONS: readonly ActionRule[] = [
   { residentId: 2, kind: 'litter', tone: 'troublesome', cooldownSeconds: 45 }
 ];
 
-// Keep the first pass intentionally small. The remaining households and their
-// positive/negative action pairs are introduced in Driver Behaviour Pass 4.
+// The original Pass 1 direct environment-attempt API remains for older tests;
+// gameplay uses the unified 12-action HouseholdBehaviourEngine in Pass 4.
 export const EFFECT_LIFETIME: Readonly<Record<EnvironmentKind, number>> = {
-  litter: 100, flowers: 75, skid: 55
+  litter: 100, flowers: 75, skid: 55, courtesy: 38, mended: 90,
+  tidied: 70, heritage: 95, display: 65, guidance: 42
 };
 export const MAX_ENVIRONMENT_EFFECTS = 16;
 export const MAX_EFFECTS_PER_CELL = 2;
 export const MAX_EFFECTS_BY_KIND: Readonly<Record<EnvironmentKind, number>> = {
-  litter: 6, flowers: 6, skid: 3
+  litter: 6, flowers: 6, skid: 3, courtesy: 3, mended: 3,
+  tidied: 4, heritage: 4, display: 3, guidance: 3
 };
 export const ENVIRONMENT_EVENT_CHANCE = 0.35;
 const MAX_HISTORY = 8;
 
 const noteFor = (kind: EnvironmentKind, residentId: number): string => {
   const family = HOMES.find(home => home.id === residentId)?.name ?? 'A resident';
-  if (kind === 'litter') return family + ' left some packaging by the road.';
-  if (kind === 'flowers') return family + ' added flowers to a roadside corner.';
-  return family + ' left tyre marks after taking a bend rather sharply.';
+  const descriptions: Record<EnvironmentKind,string> = {
+    litter: 'left some packaging by the road.',
+    flowers: 'added flowers to a roadside corner.',
+    skid: 'left tyre marks after taking a bend rather sharply.',
+    courtesy: 'made room for another car.',
+    mended: 'smoothed a worn piece of road.',
+    tidied: 'tidied the verge.',
+    heritage: 'restored an old roadside detail.',
+    display: 'put out a small display beside the road.',
+    guidance: 'helped the cars through a difficult corner.'
+  };
+  return family + ' ' + descriptions[kind];
 };
 
-export const environmentLabel = (kind: EnvironmentKind): string =>
-  kind === 'litter' ? 'Discarded packaging'
-    : kind === 'flowers' ? 'Roadside flowers' : 'Tyre scuffs';
+const EFFECT_LABELS: Readonly<Record<EnvironmentKind,string>> = {
+  litter:'Discarded packaging', flowers:'Roadside flowers', skid:'Tyre scuffs',
+  courtesy:'A considerate gap', mended:'A mended road', tidied:'Freshly tidied verge',
+  heritage:'Restored roadside detail', display:'Roadside display', guidance:'Helpful directions'
+};
+const HELPFUL_EFFECTS: readonly EnvironmentKind[] =
+  ['flowers','courtesy','mended','tidied','heritage','guidance'];
+const ROAD_EFFECTS: readonly EnvironmentKind[] =
+  ['skid','courtesy','mended','guidance'];
+export const environmentLabel = (kind: EnvironmentKind): string => EFFECT_LABELS[kind];
 
 /** Small seedable generator. Never uses per-render Math.random(). */
 export class SeededRandom {
@@ -128,6 +148,17 @@ export class LivingEnvironment {
     return true;
   }
 
+  /** Deterministic, single-item cleaning or repair, only after a helpful act succeeds. */
+  removeNearby(kind:EnvironmentKind,cell:Cell,radius=2):EnvironmentalEffect|null {
+    const candidate=this.effects
+      .filter(effect=>effect.kind===kind && manhattanDistance(effect.cell,cell)<=radius)
+      .sort((a,b)=>manhattanDistance(a.cell,cell)-manhattanDistance(b.cell,cell) ||
+        a.id-b.id)[0];
+    if(!candidate)return null;
+    this.removeEffect(candidate.id,kind);
+    return candidate;
+  }
+
   at(cell: Cell, radius = 1): EnvironmentalEffect[] {
     return this.effects.filter(effect => manhattanDistance(effect.cell, cell) <= radius);
   }
@@ -141,18 +172,42 @@ export class LivingEnvironment {
       } else if (effect.kind === 'flowers') {
         result.beauty += 2;
         result.irritation -= 0.08;
-      } else if (isRoad(cell.x, cell.y)) {
+      } else if (effect.kind === 'skid' && isRoad(cell.x, cell.y)) {
         result.noise += 1;
         result.irritation += 0.2;
+      } else if (effect.kind === 'courtesy') {
+        result.irritation -= 0.12;
+      } else if (effect.kind === 'mended') {
+        result.noise -= 1;
+        result.irritation -= 0.12;
+      } else if (effect.kind === 'tidied') {
+        result.beauty += 1;
+        result.irritation -= 0.08;
+      } else if (effect.kind === 'heritage') {
+        result.beauty += 2;
+        result.irritation -= 0.07;
+      } else if (effect.kind === 'display') {
+        result.noise += 1;
+        result.irritation += 0.14;
+      } else if (effect.kind === 'guidance') {
+        result.noise -= 1;
+        result.irritation -= 0.16;
       }
     }
     return result;
   }
 
   /** This metric is based on physical hazards, never resident irritation. */
+  /** Hales' displays can slow real cars and create genuine queues. */
+  slowdownAt(roadCell:Cell):number {
+    return this.effects.some(effect=>effect.kind==='display'
+      && manhattanDistance(effect.cell,roadCell)<=2)?0.70:1;
+  }
+
   get hazardPenalty(): number {
     return this.effects.reduce((sum, effect) => sum +
-      (effect.kind === 'skid' ? 12 : 0), 0);
+      (effect.kind === 'skid' ? 12 :
+        effect.kind === 'mended' || effect.kind === 'guidance' ? -3 : 0), 0);
   }
 
   /**
@@ -220,7 +275,7 @@ export class LivingEnvironment {
     }
 
     let cell = roadCell;
-    if (kind !== 'skid') {
+    if (!ROAD_EFFECTS.includes(kind)) {
       const neighbours: Cell[] = [
         { x: roadCell.x - 1, y: roadCell.y }, { x: roadCell.x + 1, y: roadCell.y },
         { x: roadCell.x, y: roadCell.y - 1 }, { x: roadCell.x, y: roadCell.y + 1 }
@@ -238,7 +293,7 @@ export class LivingEnvironment {
       if (available.length === 0) return diversion?.status === 'overflow'
         ? this.noteLitter(residentId, now, diversion) : null;
       cell = available[this.rng.int(available.length)];
-    } else if (this.effects.some(effect => effect.kind === 'skid'
+    } else if (this.effects.some(effect => effect.kind === kind
       && effect.cell.x === cell.x && effect.cell.y === cell.y)) {
       return null;
     }
@@ -253,7 +308,7 @@ export class LivingEnvironment {
 
     const event: EnvironmentalEvent = {
       effectId: effect.id, kind, residentId, cell: { ...cell }, time: now,
-      tone: kind === 'flowers' ? 'helpful' : 'troublesome',
+      tone: HELPFUL_EFFECTS.includes(kind) ? 'helpful' : 'troublesome',
       message: diversion?.status === 'overflow'
         ? 'A full rubbish bin has overflowed. ' + noteFor(kind, residentId)
         : noteFor(kind, residentId),
