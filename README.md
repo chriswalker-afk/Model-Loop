@@ -7,7 +7,7 @@ A miniature town-building roguelite about generations of fathers and sons making
 ## Engraved Vintage interface — Pass 7B
 
 The first visual implementation follows the 1908 art direction: a double-line
-antique HUD, etched period car emblem, coordinated gears/people/shield/coin
+antique HUD, decorative era plaque, coordinated gears/people/shield/coin
 registers with restrained colour, and a fine-framed **Selected Tile**
 inspector. Beauty, Noise, Crime and Road safety remain explicit and readable;
 none of the game values or simulation rules have changed.
