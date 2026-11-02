@@ -265,6 +265,11 @@ export class ActivityEngine {
     this.active.splice(index, 1);
     this.revision++;
   }
+  cancelAll(): void {
+    if (!this.active.length) return;
+    this.active.length = 0;
+    this.revision++;
+  }
   modifiersAt(cell: Cell): { beauty: number; noise: number; irritation: number } {
     const modifiers = { beauty: 0, noise: 0, irritation: 0 };
     for (const activity of this.nearby(cell, 2)) {
