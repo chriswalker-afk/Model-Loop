@@ -764,6 +764,7 @@ function renderRunLedger(): string {
 // when their markup is unchanged, and return focus when the modal closes.
 let modalKind: 'closed' | 'workshop' | 'chapter' = 'closed';
 let modalReturnFocus: HTMLElement | null = null;
+let lastModalMarkup = '';
 function setBackgroundInert(inert:boolean):void {
   document.querySelectorAll<HTMLElement>('#app > header, #app > main')
     .forEach(el=>{el.inert=inert;});
@@ -774,12 +775,29 @@ function setModalContent(modal:HTMLElement,kind:'workshop'|'chapter',
   const wasInside=modal.contains(previous);
   const action=wasInside&&previous instanceof HTMLElement?previous.dataset.action:null;
   const upgrade=wasInside&&previous instanceof HTMLElement?previous.dataset.upgrade:null;
+  const heading=wasInside&&previous instanceof HTMLElement&&
+    previous.tagName==='H2';
+  const summaryClass=wasInside&&previous instanceof HTMLElement&&
+    previous.tagName==='SUMMARY'?
+    previous.parentElement?.className:null;
+  const openDetails=Array.from(modal.querySelectorAll<HTMLDetailsElement>(
+    '.workbench-diary[open],.workbench-ledger[open]'
+  )).map(el=>el.className);
   if(modalKind==='closed')
     modalReturnFocus=previous instanceof HTMLElement?previous:null;
-  const changed=modal.innerHTML!==markup;
+  // Compare source markup instead of serialised innerHTML: browsers normalise
+  // inline SVG attributes, so a DOM round-trip is not a reliable cache key.
+  const changed=lastModalMarkup!==markup;
   modal.hidden=false;
   setBackgroundInert(true);
-  if(changed)modal.innerHTML=markup;
+  if(changed){
+    modal.innerHTML=markup;
+    lastModalMarkup=markup;
+    if(modalKind===kind)for(const selector of openDetails){
+      if(selector==='workbench-diary'||selector==='workbench-ledger')
+        modal.querySelector<HTMLDetailsElement>('details.'+selector)!.open=true;
+    }
+  }
   if(modalKind!==kind){
     modalKind=kind;
     modal.querySelector<HTMLElement>('h2[tabindex="-1"]')
@@ -790,12 +808,20 @@ function setModalContent(modal:HTMLElement,kind:'workshop'|'chapter',
   }else if(changed&&upgrade){
     modal.querySelector<HTMLElement>('[data-upgrade="'+upgrade+'"]')
       ?.focus({preventScroll:true});
+  }else if(changed&&summaryClass&&
+    (summaryClass==='workbench-diary'||summaryClass==='workbench-ledger')){
+    modal.querySelector<HTMLElement>('.'+summaryClass+' summary')
+      ?.focus({preventScroll:true});
+  }else if(changed&&heading){
+    modal.querySelector<HTMLElement>('h2[tabindex="-1"]')
+      ?.focus({preventScroll:true});
   }
 }
 function closeModalContent(modal:HTMLElement):void {
   if(modalKind==='closed')return;
   modal.hidden=true;
   modal.innerHTML='';
+  lastModalMarkup='';
   setBackgroundInert(false);
   modalKind='closed';
   if(modalReturnFocus?.isConnected)modalReturnFocus.focus({preventScroll:true});
