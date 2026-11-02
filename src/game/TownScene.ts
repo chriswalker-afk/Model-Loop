@@ -6,8 +6,11 @@ import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { householdActionPair, type BehaviourReport } from './behaviors';
 import {
-  HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, advanceTraffic, canReserveRoad,
-  newCarCycle, stepCarCycle, type CarCycle, type RoadVehicle
+  HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, TRAFFIC_LANE_CHANGE_SECONDS,
+  TRAFFIC_LEFT_LANE_OFFSET, TRAFFIC_PASSING_LANE_OFFSET, advanceTraffic,
+  canReserveRoad, newCarCycle, passingLaneBlockedAhead, planLaneChanges,
+  preferredRoadLaneOffset, roadPoseAt, stepCarCycle,
+  type CarCycle, type RoadLane, type RoadVehicle
 } from './traffic';
 
 interface Car {
@@ -18,6 +21,10 @@ interface Car {
   tileIndex: number;
   speed: number;
   speedFactor: number;
+  lane: RoadLane;
+  changingTo: RoadLane | null;
+  laneChangeElapsed: number;
+  laneOffset: number;
   homeBadge: Phaser.GameObjects.Text;
   brakeLights: Phaser.GameObjects.Graphics;
   lastThoughtAt: number;
@@ -266,8 +273,8 @@ export class TownScene extends Scene {
     const homeCell = worldPoint(home);
     const startIndex = ROAD_CELLS.findIndex(cell => manhattanDistance(cell, home) === 1);
     if (startIndex < 0) throw new Error('House without adjacent road: ' + home.name);
-    const start = worldPoint(ROAD_CELLS[startIndex]);
-    container.setPosition(start.x, start.y);
+    const start = roadPoseAt(startIndex * BOARD.tile);
+    container.setPosition(start.x, start.y).setRotation(start.rotation);
     const homeBadge = this.add.text(homeCell.x, homeCell.y - 36, 'HOME', {
       fontFamily: 'Georgia, serif',
       fontSize: '9px',
@@ -305,6 +312,10 @@ export class TownScene extends Scene {
       tileIndex: -1,
       speed: 85 + index * 4,
       speedFactor: 1,
+      lane: 'left',
+      changingTo: null,
+      laneChangeElapsed: 0,
+      laneOffset: TRAFFIC_LEFT_LANE_OFFSET,
       homeBadge,
       brakeLights,
       lastThoughtAt: -20000
@@ -752,6 +763,11 @@ export class TownScene extends Scene {
         position: (car.startIndex * BOARD.tile + car.cycle.distance) % length,
         speed: car.speed * car.speedFactor,
         travelled: car.cycle.distance,
+        lane: car.lane,
+        changingTo: car.changingTo,
+        laneOffset: car.laneOffset,
+        x: car.container.x,
+        y: car.container.y,
         visible: car.container.visible
       }));
   }
@@ -763,8 +779,11 @@ export class TownScene extends Scene {
     const dt = Math.min(delta, 60) / 1000 * store.gameSpeed;
     store.tickEconomy(dt);
 
-    // Calculate motion *simultaneously* for each car on the loop. Departing
-    // vehicles reserve a road space while moving down their driveway.
+    // Physical following, passing and reserved driveways use the same vehicles.
+    // A little roadside display or loose packaging can obstruct the road edge.
+    const vergeObstructions = store.environment.effects
+      .filter(effect => effect.kind === 'display' || effect.kind === 'litter')
+      .map(effect => effect.cell);
     const vehicles: RoadVehicle[] = [];
     for (const car of this.cars) {
       if (!store.residents[car.residentId]?.occupied) continue;
@@ -775,13 +794,16 @@ export class TownScene extends Scene {
         car.speedFactor += (sign - car.speedFactor) * Math.min(1, dt * 7);
         vehicles.push({
           residentId: car.residentId, position,
-          desiredSpeed: store.traffic.shouldStop(car.residentId)
-            ? 0 : car.speed * car.speedFactor
+          desiredSpeed: store.traffic.shouldStop(car.residentId) ||
+            (car.lane === 'passing' &&
+              passingLaneBlockedAhead(position, vergeObstructions, 30))
+            ? 0 : car.speed * car.speedFactor,
+          lane: car.lane, changingTo: car.changingTo
         });
       } else if (car.cycle.phase === 'departing') {
         vehicles.push({
           residentId: car.residentId, position: car.startIndex * BOARD.tile,
-          desiredSpeed: 0
+          desiredSpeed: 0, lane: 'left', drivewayReservation: true
         });
       }
     }
@@ -794,9 +816,22 @@ export class TownScene extends Scene {
       const position = car.startIndex * BOARD.tile;
       if (!canReserveRoad(position, vehicles, totalDistance)) continue;
       grantedDepartures.add(car.residentId);
-      vehicles.push({ residentId: car.residentId, position, desiredSpeed: 0 });
+      vehicles.push({ residentId: car.residentId, position, desiredSpeed: 0,
+        lane: 'left', drivewayReservation: true });
     }
 
+    // Reserve each requested lane change before advancing any vehicle.
+    // Changing cars occupy *both* lanes so neither a passing nor a following
+    // vehicle can cross their path. Cars waiting for a clear lane simply queue.
+    const laneChanges = planLaneChanges(vehicles, totalDistance, vergeObstructions);
+    for (const car of this.cars) {
+      const target = laneChanges.get(car.residentId);
+      if (!target || car.changingTo || car.cycle.phase !== 'driving') continue;
+      car.changingTo = target;
+      car.laneChangeElapsed = 0;
+      const vehicle = vehicles.find(item => item.residentId === car.residentId);
+      if (vehicle) vehicle.changingTo = target;
+    }
     const movements = advanceTraffic(vehicles, dt, totalDistance);
     const byResident = new Map(movements.map(move => [move.residentId, move]));
     const queued: Array<{ residentId: number; cell: Cell; delaySeconds: number }> = [];
@@ -811,7 +846,7 @@ export class TownScene extends Scene {
       }
 
       const homePoint = worldPoint(HOMES[car.residentId]);
-      const roadPoint = worldPoint(ROAD_CELLS[car.startIndex]);
+      const roadPoint = roadPoseAt(car.startIndex * BOARD.tile, car.laneOffset);
       const movingBefore = car.cycle.phase === 'driving';
       const movement = byResident.get(car.residentId);
       if (movingBefore) {
@@ -848,16 +883,46 @@ export class TownScene extends Scene {
           car.tileIndex = index;
           reaction = store.passTile(car.residentId, ROAD_CELLS[index]);
         }
-        const part = (distance % BOARD.tile) / BOARD.tile;
-        const current = worldPoint(ROAD_CELLS[index]);
-        const next = worldPoint(ROAD_CELLS[(index + 1) % length]);
-        car.container.setPosition(
-          current.x + (next.x - current.x) * part,
-          current.y + (next.y - current.y) * part
-        );
-        car.container.setRotation(Math.atan2(next.y - current.y, next.x - current.x));
+        if (car.changingTo) {
+          car.laneChangeElapsed += dt;
+          const proportion = Math.min(1, car.laneChangeElapsed / TRAFFIC_LANE_CHANGE_SECONDS);
+          const eased = proportion * proportion * (3 - 2 * proportion);
+          const from = car.lane === 'left'
+            ? TRAFFIC_LEFT_LANE_OFFSET : TRAFFIC_PASSING_LANE_OFFSET;
+          const to = car.changingTo === 'left'
+            ? TRAFFIC_LEFT_LANE_OFFSET : TRAFFIC_PASSING_LANE_OFFSET;
+          car.laneOffset = from + (to - from) * eased;
+          if (proportion >= 1) {
+            car.lane = car.changingTo;
+            car.changingTo = null;
+            car.laneChangeElapsed = 0;
+          }
+        } else {
+          const preferred = car.lane === 'passing' ? TRAFFIC_PASSING_LANE_OFFSET
+            : preferredRoadLaneOffset(distance, vergeObstructions);
+          // An obstruction can produce a small smooth inward movement, but
+          // never shift toward another car occupying the passing lane.
+          const nearbyPassing = vehicles.some(other =>
+            other.residentId !== car.residentId &&
+            (other.lane === 'passing' || other.changingTo === 'passing') &&
+            Math.min((other.position - distance + totalDistance) % totalDistance,
+              (distance - other.position + totalDistance) % totalDistance) < 90);
+          const safeOffset = car.lane === 'left' && nearbyPassing
+            ? TRAFFIC_LEFT_LANE_OFFSET : preferred;
+          car.laneOffset += (safeOffset - car.laneOffset) * Math.min(1, dt * 6);
+        }
+        const pose = roadPoseAt(distance, car.laneOffset);
+        car.container.setPosition(pose.x, pose.y);
+        car.container.setRotation(pose.rotation);
         if (reaction) this.showCarThought(car, reaction);
       } else {
+        if (car.cycle.phase === 'at-home') {
+          // Each new journey begins driving on the left.
+          car.lane = 'left';
+          car.changingTo = null;
+          car.laneChangeElapsed = 0;
+          car.laneOffset = TRAFFIC_LEFT_LANE_OFFSET;
+        }
         const t = car.cycle.phase === 'at-home' ? 1 :
           car.cycle.phase === 'returning'
             ? Math.min(1, car.cycle.timer / HOME_TRAVEL_SECONDS)
