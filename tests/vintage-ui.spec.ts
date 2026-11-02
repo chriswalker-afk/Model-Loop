@@ -153,7 +153,11 @@ for(const view of views){
       if(view.width<=700) {
         expect(geometry.position).toBe('relative');
         const pause=page.getByRole('button',{name:'Pause'});
-        expect((await pause.boundingBox())!.height).toBeGreaterThanOrEqual(40);
+        expect((await pause.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+        const close=panel.getByRole('button',{name:'Close square details'});
+        const rect=await close.boundingBox();
+        expect(rect!.width).toBeGreaterThanOrEqual(44);
+        expect(rect!.height).toBeGreaterThanOrEqual(44);
       }
     });
 }
