@@ -6,7 +6,7 @@ import {
 /** Persistent visual consequences, with a litter interception hook for collection. */
 export type EnvironmentKind =
   | 'litter' | 'flowers' | 'skid' | 'courtesy' | 'mended'
-  | 'tidied' | 'heritage' | 'display' | 'guidance';
+  | 'tidied' | 'heritage' | 'display' | 'guidance' | 'sketch';
 export type EnvironmentTone = 'helpful' | 'troublesome';
 
 export interface EnvironmentalEffect {
@@ -52,13 +52,13 @@ const ACTIONS: readonly ActionRule[] = [
 // gameplay uses the unified 12-action HouseholdBehaviourEngine in Pass 4.
 export const EFFECT_LIFETIME: Readonly<Record<EnvironmentKind, number>> = {
   litter: 100, flowers: 75, skid: 55, courtesy: 38, mended: 90,
-  tidied: 70, heritage: 95, display: 65, guidance: 42
+  tidied: 70, heritage: 95, display: 65, guidance: 42, sketch: 75
 };
 export const MAX_ENVIRONMENT_EFFECTS = 16;
 export const MAX_EFFECTS_PER_CELL = 2;
 export const MAX_EFFECTS_BY_KIND: Readonly<Record<EnvironmentKind, number>> = {
   litter: 6, flowers: 6, skid: 3, courtesy: 3, mended: 3,
-  tidied: 4, heritage: 4, display: 3, guidance: 3
+  tidied: 4, heritage: 4, display: 3, guidance: 3, sketch: 3
 };
 export const ENVIRONMENT_EVENT_CHANCE = 0.35;
 const MAX_HISTORY = 8;
@@ -74,7 +74,8 @@ const noteFor = (kind: EnvironmentKind, residentId: number): string => {
     tidied: 'tidied the verge.',
     heritage: 'restored an old roadside detail.',
     display: 'put out a small display beside the road.',
-    guidance: 'helped the cars through a difficult corner.'
+    guidance: 'helped the cars through a difficult corner.',
+    sketch: 'left a little framed drawing for their neighbours.'
   };
   return family + ' ' + descriptions[kind];
 };
@@ -82,10 +83,11 @@ const noteFor = (kind: EnvironmentKind, residentId: number): string => {
 const EFFECT_LABELS: Readonly<Record<EnvironmentKind,string>> = {
   litter:'Discarded packaging', flowers:'Roadside flowers', skid:'Tyre scuffs',
   courtesy:'A clearer route', mended:'A mended road', tidied:'Freshly tidied verge',
-  heritage:'Restored roadside detail', display:'Roadside display', guidance:'Helpful directions'
+  heritage:'Restored roadside detail', display:'Roadside display', guidance:'Helpful directions',
+  sketch:'A little streetside sketch'
 };
 const HELPFUL_EFFECTS: readonly EnvironmentKind[] =
-  ['flowers','courtesy','mended','tidied','heritage','guidance'];
+  ['flowers','courtesy','mended','tidied','heritage','guidance','sketch'];
 const ROAD_EFFECTS: readonly EnvironmentKind[] =
   ['skid','courtesy','mended','guidance'];
 export const environmentLabel = (kind: EnvironmentKind): string => EFFECT_LABELS[kind];
@@ -186,6 +188,9 @@ export class LivingEnvironment {
       } else if (effect.kind === 'heritage') {
         result.beauty += 2;
         result.irritation -= 0.07;
+      } else if (effect.kind === 'sketch') {
+        result.beauty += 1;
+        result.irritation -= 0.06;
       } else if (effect.kind === 'display') {
         result.noise += 1;
         result.irritation += 0.14;
