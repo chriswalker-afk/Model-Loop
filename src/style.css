@@ -1561,7 +1561,7 @@ body { overflow: hidden; }
  * the entire page into the last 200 px below two fixed horizontal docks.
  */
 @media (min-width: 900px) and (min-height: 500px) and (max-height: 850px) {
-  :root { --compact-sidebar-width: clamp(295px, 27vw, 354px); }
+  :root { --compact-sidebar-width: clamp(310px, 27vw, 354px); }
   html, body {
     height: 100%;
     width: 100%;
