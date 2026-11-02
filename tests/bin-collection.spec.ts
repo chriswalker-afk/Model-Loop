@@ -158,8 +158,9 @@ test('desktop browser shows new title, sixth kit, fill gauge and working Empty N
   });
   let p=coords(4,4);
   await page.mouse.move(p.x,p.y);
-  await expect(page.locator('#tile-panel')).toContainText('6 items');
-  await expect(page.locator('#tile-panel')).toContainText('Collection bills are additional');
+  await expect(page.locator('#tile-panel')).toBeHidden();
+  await expect(page.locator('#tile-peek')).toContainText('READY TO PLACE');
+  await expect(page.locator('#tile-peek')).toContainText('Cast-Iron Rubbish Bin');
   await page.mouse.click(p.x,p.y);
   await expect(page.locator('#coins')).toHaveText('115');
   const panel=page.locator('#tile-panel');
