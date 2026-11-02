@@ -534,6 +534,8 @@ function cellFromClient(clientX: number, clientY: number): Cell | null {
 // __modelLoopDebug.trigger('skid', 0, 12, 3)
 // __modelLoopDebug.trafficStop(1, 4.2) // stop the actual Bell car
 // __modelLoopDebug.trafficSnapshot()    // inspect gap, phase and current queue
+// __modelLoopDebug.behaviourAction(3, 'tidy', 4, 3) // Marshes clear roadside rubbish
+// __modelLoopDebug.behaviourAction(4, 'display', 8, 3) // Hales' display slows cars
 if (import.meta.env.DEV) {
   const debug = {
     seed(seed: number) { store.newRun(seed); },
@@ -546,7 +548,8 @@ if (import.meta.env.DEV) {
       return { seed: store.environment.seed, effects: store.environment.effects.map(x => ({ ...x })),
         events: store.environment.history.map(x => ({ ...x })),
         safety: store.safety, irritation: store.averageIrritation,
-        activeStop: store.traffic.activeStop, queued: store.traffic.queuedCars.map(x => ({ ...x })) };
+        activeStop: store.traffic.activeStop, queued: store.traffic.queuedCars.map(x => ({ ...x })),
+        behaviour: store.behaviourHistory.map(x => ({ ...x })) };
     },
     trafficStop(id: number, duration?: number): boolean {
       if (!Number.isInteger(id) || id < 0 || id > 5) return false;
@@ -554,6 +557,11 @@ if (import.meta.env.DEV) {
     },
     trafficSnapshot() {
       return (game.scene.getScene('TownScene') as TownScene).trafficSnapshot();
+    },
+    behaviourAction(id:number,action:HouseholdActionId,x:number,y:number):boolean {
+      if(!Number.isInteger(id) || id<0 || id>5 ||
+        !Number.isInteger(x) || !Number.isInteger(y))return false;
+      return store.debugHouseholdAction(id,action,{x,y});
     }
   };
   (window as typeof window & { __modelLoopDebug?: typeof debug }).__modelLoopDebug = debug;
