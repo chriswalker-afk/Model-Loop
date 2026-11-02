@@ -105,6 +105,7 @@ test('the six showroom SVGs have distinct era-specific detail and are cached as 
     // 20-in-a-red-circle or blue police telephone box silhouettes.
     expect(art.find(a=>a.id==='limit')!.svg).toContain('MOTOR CARS');
     expect(art.find(a=>a.id==='police')!.svg).toContain('CONSTABLE');
+    await expect.poll(async()=> (await snapshot(page)).loaded.length).toBe(6);
     const state=await snapshot(page);
     expect(state.loaded.sort()).toEqual(['bench','bin','lamp','limit','police','tree']);
     expect(state.placed).toHaveLength(0);
@@ -113,6 +114,8 @@ test('the six showroom SVGs have distinct era-specific detail and are cached as 
 test('purchased model and placement ghost are the SAME cached illustration as in the box',
   async({page})=>{
     await page.goto('/');
+    await expect.poll(async()=> (await snapshot(page)).ghost.texture)
+      .toBe('vintage-miniature-lamp');
     const before=await snapshot(page);
     expect(before.loaded).toHaveLength(6);
     await page.getByRole('button',{name:/Select Gas Lamppost/}).click();
