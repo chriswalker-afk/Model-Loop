@@ -764,6 +764,10 @@ function renderRunLedger(): string {
 // when their markup is unchanged, and return focus when the modal closes.
 let modalKind: 'closed' | 'workshop' | 'chapter' = 'closed';
 let modalReturnFocus: HTMLElement | null = null;
+function setBackgroundInert(inert:boolean):void {
+  document.querySelectorAll<HTMLElement>('#app > header, #app > main')
+    .forEach(el=>{el.inert=inert;});
+}
 function setModalContent(modal:HTMLElement,kind:'workshop'|'chapter',
   markup:string):void {
   const previous=document.activeElement;
@@ -774,6 +778,7 @@ function setModalContent(modal:HTMLElement,kind:'workshop'|'chapter',
     modalReturnFocus=previous instanceof HTMLElement?previous:null;
   const changed=modal.innerHTML!==markup;
   modal.hidden=false;
+  setBackgroundInert(true);
   if(changed)modal.innerHTML=markup;
   if(modalKind!==kind){
     modalKind=kind;
@@ -791,6 +796,7 @@ function closeModalContent(modal:HTMLElement):void {
   if(modalKind==='closed')return;
   modal.hidden=true;
   modal.innerHTML='';
+  setBackgroundInert(false);
   modalKind='closed';
   if(modalReturnFocus?.isConnected)modalReturnFocus.focus({preventScroll:true});
   modalReturnFocus=null;
