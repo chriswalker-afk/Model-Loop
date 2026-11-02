@@ -1,0 +1,582 @@
+/*
+ * Pass 7C — physically built 1908 miniature cartons, not flat inventory cards.
+ *
+ * One semantic button = one collectible product. Its front, top, right side,
+ * hanger and transparent recessed cavity have independent physical geometry.
+ * Keep old grid/shop/drag handlers. This isolated layer deliberately does
+ * not restyle cars, houses or scenery (reserved for Pass 7D).
+ *
+ * Design: docs/art-direction/PASS_7A_ART_DIRECTION.md
+ */
+:root {
+  --kit-ivory: #e9e2d5;
+  --kit-paper: #b8b2a5;
+  --kit-brass: #d9b66b;
+  --kit-ink: #111512;
+  --kit-board: #222720;
+  --kit-depth: 11px;
+}
+.shop-section:has(.kit-carton) {
+  background: linear-gradient(180deg,#131713,#20241d 90%,#111512);
+  border-color: rgba(233,226,213,.48);
+}
+.shop-section:has(.kit-carton) .shop-topline {
+  border-bottom: 1px solid rgba(233,226,213,.25);
+}
+.shop-section:has(.kit-carton) .shop-track {
+  gap: clamp(10px,1.35vw,21px);
+  /* The hanger and top fold need breathing room; scroll remains horizontal. */
+  padding-top: 20px;
+  padding-bottom: 9px;
+  scrollbar-color: #8f8a76 #1a211c;
+}
+.model-box.kit-carton {
+  --kit-accent: var(--kit-brass);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(42px,38%);
+  grid-template-rows: 12px minmax(19px,auto) minmax(0,1fr);
+  column-gap: 5px;
+  row-gap: 1px;
+  flex: 0 0 clamp(146px,11.7vw,175px);
+  height: 100%;
+  min-height: 0;
+  padding: 12px 17px 7px 8px;
+  margin: 0 1px 0 0;
+  background: none;
+  border: none;
+  outline: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--kit-ivory);
+  font-family: Georgia,'Times New Roman',serif;
+  text-align: left;
+  isolation: isolate;
+  overflow: visible;
+  cursor: pointer;
+  transform: none;
+  scroll-snap-align: center;
+  transition: transform 150ms ease;
+  touch-action: manipulation;
+}
+.model-box.kit-carton::before,
+.model-box.kit-carton::after { content: none; }
+.kit-carton > .kit-front-face,
+.kit-carton > .kit-top-face,
+.kit-carton > .kit-side-face,
+.kit-carton > .kit-front-print {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+.kit-carton > .kit-front-face {
+  inset: 8px var(--kit-depth) 0 0;
+  z-index: 0;
+  background:
+    repeating-linear-gradient(138deg,transparent 0 15px,
+      rgba(233,226,213,.014) 15px 16px),
+    linear-gradient(108deg,#383b33 0%,#292e28 14%,#171b18 54%,#262b24 92%);
+  border: 1.2px solid rgba(233,226,213,.90);
+  box-shadow:
+    inset 0 0 0 3px #1a201b,
+    inset 0 0 0 4px rgba(233,226,213,.43),
+    2px 8px 0 rgba(0,0,0,.64),
+    5px 11px 12px rgba(0,0,0,.40);
+}
+.kit-carton > .kit-front-print {
+  inset: 14px calc(var(--kit-depth) + 6px) 5px 6px;
+  z-index: 1;
+  border: .65px solid rgba(184,178,165,.27);
+  background:
+    linear-gradient(130deg,rgba(233,226,213,.25),transparent 11px)
+      top left / 24px 24px no-repeat,
+    linear-gradient(230deg,rgba(233,226,213,.2),transparent 11px)
+      top right / 24px 24px no-repeat,
+    linear-gradient(50deg,rgba(233,226,213,.17),transparent 9px)
+      bottom left / 20px 20px no-repeat;
+}
+.kit-carton > .kit-top-face {
+  top: 0;
+  left: 3px;
+  right: 0;
+  height: 11px;
+  z-index: 1;
+  clip-path: polygon(7px 0,100% 0,calc(100% - 11px) 100%,0 100%);
+  background:
+    repeating-linear-gradient(100deg,transparent 0 10px,
+      rgba(233,226,213,.18) 10px 10.6px),
+    linear-gradient(180deg,#5a5b4e,#33372f 68%,#1d211c);
+  border-top: 1px solid rgba(233,226,213,.90);
+  border-bottom: 1px solid rgba(233,226,213,.78);
+}
+.kit-carton > .kit-side-face {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--kit-depth);
+  z-index: 1;
+  clip-path: polygon(0 8px,100% 0,100% calc(100% - 7px),0 100%);
+  background:
+    repeating-linear-gradient(0deg,transparent 0 12px,
+      rgba(233,226,213,.18) 12px 12.8px),
+    linear-gradient(90deg,#3b4138 0%,#222b24 35%,#111813 100%);
+  border-right: 1.3px solid rgba(233,226,213,.85);
+  box-shadow: inset 2px 0 0 rgba(233,226,213,.36);
+}
+.kit-carton > .kit-side-face::after {
+  content: '';
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 3px;
+  width: 1px;
+  background: rgba(233,226,213,.28);
+}
+/* A hanger with a punched hole and the scored cardboard shoulders, not an
+ * ornamental button floating independently above the package. */
+.kit-carton > .kit-hanger.box-lip {
+  position: absolute;
+  top: -9px;
+  left: 29px;
+  right: 35px;
+  height: 19px;
+  z-index: -1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 4px;
+  border: 1.2px solid rgba(233,226,213,.83);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(160deg,#454b40,#272c26);
+  box-shadow: inset 0 0 0 2px #252b25;
+}
+.kit-carton .box-hole {
+  width: 29px;
+  height: 6px;
+  border: 1px solid rgba(233,226,213,.78);
+  border-radius: 6px;
+  background: #070b08;
+  box-shadow: inset 0 1px 2px #000,0 1px 0 rgba(233,226,213,.21);
+}
+.kit-carton > .box-series,
+.kit-carton > .box-title,
+.kit-carton > .display-window,
+.kit-carton > .kit-ledger {
+  position: relative;
+  z-index: 3;
+  min-width: 0;
+  min-height: 0;
+}
+.kit-carton > .box-series {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 3px;
+  margin: 0;
+  padding: 0 1px;
+  color: var(--kit-paper);
+  font: 600 8px/1.1 Georgia,serif;
+  letter-spacing: .07em;
+  white-space: nowrap;
+}
+.kit-carton > .box-title {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  align-self: center;
+  display: block;
+  margin: 1px 0 5px;
+  padding: 0 1px 5px;
+  min-height: 0;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(233,226,213,.5);
+  color: var(--kit-ivory);
+  font: 700 clamp(12px,1.02vw,16px)/1.12 Georgia,serif;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+.kit-carton > .display-window {
+  grid-column: 1;
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0 0 4px;
+  border: 1px solid rgba(233,226,213,.84);
+  border-radius: 3px;
+  background: radial-gradient(ellipse at 42% 73%,#263129 0%,#090d0a 79%);
+  box-shadow:
+    inset 0 0 0 3px rgba(12,15,12,.93),
+    inset 0 1px 13px #020403,
+    0 0 0 2px rgba(233,226,213,.17);
+  overflow: hidden;
+}
+.kit-carton .kit-window-cavity,
+.kit-carton .kit-window-rim,
+.kit-carton .window-backdrop,
+.kit-carton .window-glint {
+  position: absolute;
+  pointer-events: none;
+}
+.kit-carton .kit-window-cavity {
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(135deg,rgba(233,226,213,.10) 0%,transparent 20%),
+    radial-gradient(ellipse at 48% 78%,rgba(154,166,138,.12),transparent 80%),
+    repeating-linear-gradient(90deg,transparent 0 22px,
+      rgba(233,226,213,.026) 22px 23px);
+  box-shadow: inset 5px 0 8px #060905,inset -5px 0 9px #030603;
+}
+.kit-carton .window-backdrop {
+  left: 3px;
+  right: 3px;
+  bottom: 2px;
+  height: 31%;
+  background: linear-gradient(0deg,rgba(233,226,213,.10),transparent);
+  z-index: 0;
+}
+.kit-carton .miniature-svg {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 114%;
+  max-width: 114%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  overflow: visible;
+  filter: drop-shadow(0 4px 4px rgba(0,0,0,.78));
+  transform-origin: 50% 75%;
+  transition: transform 150ms ease;
+}
+.kit-carton .kit-window-rim {
+  inset: 0;
+  z-index: 4;
+  border: 2px solid rgba(233,226,213,.18);
+  border-bottom-width: 5px;
+  border-bottom-color: rgba(32,38,31,.87);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(233,226,213,.21),
+              inset 0 0 7px #060906;
+}
+.kit-carton .window-glint {
+  z-index: 5;
+  top: -19%;
+  bottom: -19%;
+  left: 9%;
+  width: 31%;
+  transform: rotate(23deg);
+  background: linear-gradient(90deg,transparent,
+    rgba(233,226,213,.09) 40%,rgba(233,226,213,.025) 64%,transparent);
+}
+.kit-carton .kit-window-stamp {
+  position: absolute;
+  bottom: 5px;
+  right: 4px;
+  z-index: 6;
+  color: var(--kit-paper);
+  background: rgba(9,13,10,.75);
+  font: 600 6px/1.1 Georgia,serif;
+  letter-spacing: .1em;
+}
+.kit-carton > .kit-ledger {
+  grid-column: 2;
+  grid-row: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 2px;
+  overflow: hidden;
+  padding: 0 0 1px;
+}
+.kit-carton .kit-band {
+  display: block;
+  margin: 0;
+  min-height: 0;
+}
+.kit-carton .box-cost {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin: 0;
+  min-width: 0;
+  padding: 4px 2px 3px;
+  border: 1px solid rgba(184,178,165,.9);
+  border-radius: 1px;
+  background: #e9e2d5;
+  color: #24291e;
+  font: 700 clamp(14px,1.12vw,18px)/1 Georgia,serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kit-carton .box-cost .coin-icon,
+.kit-carton .box-cost .vintage-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  color: #866a34;
+}
+.kit-carton .box-caption {
+  display: block;
+  text-align: center;
+  color: var(--kit-paper);
+  font: 600 7px/1.4 Georgia,serif;
+  letter-spacing: .08em;
+}
+.kit-carton .box-effects {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 1px;
+  width: 100%;
+  min-height: 0;
+  margin: 2px 0 0;
+  padding: 3px 0;
+  border-top: 1px solid rgba(233,226,213,.28);
+  border-bottom: 1px solid rgba(233,226,213,.28);
+  color: var(--kit-ivory);
+  font: 600 10px/1.15 system-ui,sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.kit-carton .kit-effect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+  min-height: 14px;
+  white-space: nowrap;
+}
+.kit-carton .kit-effect .vintage-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--kit-paper);
+}
+.kit-carton .kit-effect-number {
+  display: inline-block;
+  min-width: 17px;
+  text-align: right;
+  color: var(--kit-ivory);
+}
+.kit-carton .box-description {
+  display: block;
+  min-height: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--kit-paper);
+  font: 9px/1.18 Georgia,serif;
+  white-space: normal;
+  text-align: left;
+  letter-spacing: 0;
+  max-height: 32px;
+  text-overflow: ellipsis;
+}
+.kit-carton .box-upkeep {
+  display: block;
+  margin-top: auto;
+  padding: 3px 0 0;
+  color: var(--kit-brass);
+  border-top: 1px solid rgba(233,226,213,.26);
+  font: 600 8px/1.2 Georgia,serif;
+  text-align: center;
+  white-space: nowrap;
+}
+.model-box.kit-carton:hover:not(:disabled),
+.model-box.kit-carton.selected {
+  transform: translateY(-4px);
+  border-color: transparent;
+  box-shadow: none;
+}
+.model-box.kit-carton:hover:not(:disabled) > .kit-front-face,
+.model-box.kit-carton.selected > .kit-front-face {
+  border-color: var(--kit-ivory);
+  box-shadow: inset 0 0 0 3px #1a201b,
+    inset 0 0 0 4px rgba(233,226,213,.52),
+    3px 9px 0 rgba(0,0,0,.63),6px 12px 13px rgba(0,0,0,.5);
+}
+.model-box.kit-carton.selected .miniature-svg {
+  transform: translateY(-3px) scale(1.035);
+  filter: drop-shadow(0 5px 5px #000);
+}
+.model-box.kit-carton.selected .display-window {
+  border-color: var(--kit-brass);
+  box-shadow: inset 0 0 0 3px rgba(12,15,12,.93),
+    inset 0 1px 13px #020403,0 0 0 1px rgba(217,182,107,.75);
+}
+.model-box.kit-carton.selected .kit-window-stamp { color: var(--kit-brass); }
+.model-box.kit-carton:focus-visible {
+  outline: 3px solid #a9cae0;
+  outline-offset: 3px;
+}
+.model-box.kit-carton.unaffordable:not(.selected) {
+  filter: saturate(.69);
+}
+.model-box.kit-carton:disabled {
+  opacity: .67;
+  filter: saturate(.5);
+  cursor: not-allowed;
+}
+.model-box.kit-carton.dragging {
+  opacity: .48;
+  transform: none;
+}
+
+/* Side-shelf layout preserves wide model art without flattening the physical
+ * carton: same front/top/right construction, but the window becomes the
+ * hero panel and printed data form a vertical inventory label to its right.
+ * The original compact-laptop tests enforce the separation. */
+@media (min-width:900px) and (min-height:500px) and (max-height:850px) {
+  .shop-section:has(.kit-carton) .shop-track {
+    padding: 13px 9px 16px;
+    gap: 11px;
+  }
+  .model-box.kit-carton {
+    flex: 0 0 132px;
+    width: 100%;
+    min-width: 0;
+    min-height: 132px;
+    height: 132px;
+    max-height: 132px;
+    padding: 8px 18px 7px 9px;
+    grid-template-columns: 98px minmax(0,1fr);
+    grid-template-rows: 13px 27px minmax(0,1fr);
+    column-gap: 9px;
+    row-gap: 0;
+    overflow: visible;
+  }
+  .kit-carton > .kit-hanger.box-lip { display: none; }
+  .kit-carton > .box-series {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    font-size: 8px;
+  }
+  .kit-carton > .box-title {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    max-height: 25px;
+    margin: 1px 0 0;
+    padding: 0 0 5px;
+    font-size: 15px;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .kit-carton > .display-window {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+  }
+  .kit-carton .miniature-svg { width: 111%; max-width: 111%; height: 100%; }
+  .kit-carton > .kit-ledger {
+    grid-column: 2;
+    grid-row: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-height: 0;
+    padding: 1px 0;
+  }
+  .kit-carton .kit-band {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 6px;
+    min-height: 22px;
+  }
+  .kit-carton .box-cost {
+    min-width: 51px;
+    padding: 3px 5px;
+    font-size: 15px;
+  }
+  .kit-carton .box-caption { font-size: 8px; }
+  .kit-carton .box-effects {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: 19px;
+    margin: 1px 0;
+    padding: 1px 0;
+  }
+  .kit-carton .kit-effect {
+    gap: 2px;
+    min-height: 15px;
+    font-size: 10px;
+  }
+  .kit-carton .kit-effect .vintage-icon { width: 12px; height: 12px; }
+  .kit-carton .kit-effect-number { min-width: 11px; }
+  .kit-carton .box-description {
+    display: block;
+    flex: 0 0 auto;
+    max-height: 13px;
+    font: 10px/1.25 Georgia,serif;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kit-carton .box-upkeep {
+    margin-top: auto;
+    padding-top: 2px;
+    border-top-color: rgba(233,226,213,.22);
+    text-align: left;
+    font-size: 9px;
+  }
+  .model-box.kit-carton:hover:not(:disabled),
+  .model-box.kit-carton.selected { transform: translateX(-2px); }
+}
+/* A narrow phone still has a physical top, side and a readable price. */
+@media (max-width:700px) {
+  .shop-section:has(.kit-carton) .shop-track {
+    gap: 13px;
+    padding: 19px 10px 10px;
+  }
+  .model-box.kit-carton {
+    flex-basis: clamp(148px,40vw,174px);
+    padding-left: 7px;
+    padding-right: 17px;
+    grid-template-columns: minmax(0,1fr) minmax(44px,39%);
+    grid-template-rows: 12px minmax(19px,auto) minmax(0,1fr);
+  }
+  .kit-carton > .box-series { font-size: 7px; }
+  .kit-carton > .box-title { font-size: clamp(11px,3vw,13px); }
+  .kit-carton .box-cost { font-size: 15px; }
+  .kit-carton .kit-effect .vintage-icon { width: 13px; height: 13px; }
+  .kit-carton .box-description { max-height: 27px; font-size: 8px; }
+  .kit-carton .box-upkeep { font-size: 7.5px; }
+}
+@media (max-width:385px) {
+  .model-box.kit-carton { flex-basis: 148px; }
+  .kit-carton > .box-title { font-size: 11.5px; }
+  .kit-carton .box-cost { font-size: 14px; }
+}
+/* Short landscape under 490px: the shop scrolls below the town, not over it. */
+@media (min-width:701px) and (max-width:899px) and (max-height:490px) {
+  .model-box.kit-carton {
+    flex-basis: clamp(148px,20vw,178px);
+    height: 100%;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  .model-box.kit-carton,
+  .model-box.kit-carton .miniature-svg { transition: none; }
+}
