@@ -266,7 +266,9 @@ function renderBehaviourForecast(
     effects.map(row=>
       '<div class="behaviour-forecast-row"><strong>'+row.name+'</strong>' +
       '<span>Helpful action: '+row.helpfulLabel+'</span>' +
-      '<b>'+percent(row.helpfulBefore)+' → '+percent(row.helpfulAfter)+'</b>' +
+      '<b>Helpful share: '+percent(row.helpfulBefore)+' → '+percent(row.helpfulAfter)+'</b>' +
+      '<span>Chance of any incident: '+percent(row.eventBefore)+' → '+
+        percent(row.eventAfter)+'</span>' +
       '<small>'+row.reasons.join(' ')+'</small></div>'
     ).join('')+
     '</details>';
@@ -386,6 +388,10 @@ function renderTilePanel(): void {
   if (store.activeModel) {
     const model = store.getModel(store.activeModel);
     const preview = store.previewPlacement(tile, model.id);
+    const forecastKey = model.id + ':' + tile.x + ',' + tile.y;
+    const currentForecast = byId('tile-panel').querySelector<HTMLDetailsElement>('.behaviour-forecast');
+    const restoreForecast = currentForecast?.open &&
+      currentForecast.dataset.previewKey === forecastKey;
     const status = preview.allowed ? 'READY TO PLACE' : 'CANNOT PLACE HERE';
     byId('tile-panel').innerHTML =
       '<span class="eyebrow">PLACEMENT PREVIEW · ' + (tile.x + 1) + '/' + (tile.y + 1) + '</span>' +
@@ -407,6 +413,11 @@ function renderTilePanel(): void {
          BIN_CAPACITY + ' items within ' + BIN_CATCH_RADIUS +
          ' squares. Collection bills are additional to upkeep; existing litter needs separate cleaning.</p>' : '') +
       '<p class="tile-tip">' + preview.reason + '</p>';
+    const nextForecast = byId('tile-panel').querySelector<HTMLDetailsElement>('.behaviour-forecast');
+    if (nextForecast) {
+      nextForecast.dataset.previewKey = forecastKey;
+      if (restoreForecast) nextForecast.open = true;
+    }
     return;
   }
   byId('tile-panel').innerHTML =
