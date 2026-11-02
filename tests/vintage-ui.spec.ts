@@ -16,7 +16,8 @@ test('Vintage instruments use one coherent engraved icon family and preserve rea
     await page.goto('/');
     const header=page.locator('.vintage-header');
     await expect(header).toBeVisible();
-    await expect(header.locator('.vintage-brand-car')).toHaveCount(1);
+    // No decorative drawing may overlay the actual title text.
+    await expect(header.locator('.vintage-brand-car')).toHaveCount(0);
     await expect(header.locator('.vintage-era-flourish')).toHaveCount(1);
     await expect(header.locator('.vintage-frame-corners')).toHaveCount(3);
     await expect(page.locator('#meters .meter')).toHaveCount(4);
@@ -127,6 +128,25 @@ for(const view of views){
           return r.width>=14&&r.height>=14;
         }));
       expect(icons).toBe(true);
+      const readable=await instruments.locator('.meter').evaluateAll(nodes=>
+        nodes.map(node=>{
+          const title=node.querySelector<HTMLElement>('.meter-label')!;
+          const value=node.querySelector<HTMLElement>('.meter-top b')!;
+          const text=title.getBoundingClientRect();
+          const number=value.getBoundingClientRect();
+          const whole=node.getBoundingClientRect();
+          return {
+            titleScroll:title.scrollWidth,titleWidth:title.clientWidth,
+            textRight:text.right,valueLeft:number.left,valueRight:number.right,
+            containerRight:whole.right
+          };
+        })
+      );
+      for(const item of readable){
+        expect(item.titleScroll,'A gauge title must not clip').toBeLessThanOrEqual(item.titleWidth+1);
+        expect(item.textRight,'Gauge label/value separation').toBeLessThanOrEqual(item.valueLeft+2);
+        expect(item.valueRight,'Numerical value stays in gauge').toBeLessThanOrEqual(item.containerRight+2);
+      }
       // A screen-size image is the visual acceptance reference, not a
       // zoomed poster detail where poor real-world legibility can hide.
       await page.screenshot({path:'test-results/visual-review/7b-'+view.name+
@@ -150,8 +170,14 @@ for(const view of views){
       });
       expect(geometry.width).toBeGreaterThan(view.width<=700?180:140);
       expect(geometry.height).toBeGreaterThan(100);
+      if(view.width<=700 || (view.width<=899&&view.height<=490)) {
+        expect(geometry.position).toBe('fixed');
+        const shop=await page.locator('#shop-section').boundingBox();
+        const card=await panel.boundingBox();
+        expect(card!.y+card!.height,'Inspector must not hide under the fixed shelf')
+          .toBeLessThanOrEqual(shop!.y+1);
+      }
       if(view.width<=700) {
-        expect(geometry.position).toBe('relative');
         const pause=page.getByRole('button',{name:'Pause'});
         expect((await pause.boundingBox())!.height).toBeGreaterThanOrEqual(44);
         const close=panel.getByRole('button',{name:'Close square details'});
