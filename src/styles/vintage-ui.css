@@ -602,6 +602,33 @@
   .vintage-inspector .tile-score { min-height: 36px; }
   .vintage-inspector .tile-score-name { font-size: 12px; }
 }
+/* In very short landscape there is no honest space between the HUD and
+ * the fixed kit dock. A clicked inspector becomes a narrow, temporary
+ * top-right reading plate, not a fake visible panel behind the shelf. */
+@media (min-width:701px) and (max-width:899px) and (max-height:490px) {
+  .tile-panel.vintage-inspector.is-active:not([hidden]) {
+    position: fixed;
+    z-index: 24;
+    top: 8px;
+    right: 8px;
+    bottom: auto;
+    left: auto;
+    width: min(330px, 45vw);
+    max-width: none;
+    max-height: calc(100dvh - var(--model-dock-height) - 18px);
+    margin: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background-color: var(--vintage-board);
+    box-shadow: 0 12px 28px rgba(0,0,0,.73);
+  }
+  .tile-panel.vintage-inspector > .tile-detail-top {
+    position: sticky;
+    top: -6px;
+    z-index: 6;
+    background: rgba(19,24,20,.98);
+  }
+}
 @media (max-width:385px) {
   .tile-panel.vintage-inspector.is-active:not([hidden]) {
     max-height: min(29dvh, 190px);
