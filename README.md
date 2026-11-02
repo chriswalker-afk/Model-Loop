@@ -43,6 +43,23 @@ npm run preview
 
 This is a prototype vertical slice rather than a complete multi-era release. Later eras, branching family stories, legacy model shelves, richer traffic, model synergies and final artwork are future passes.
 
+## How to use the miniature shop
+
+The model shelf is docked below the town and stays visible while you play.
+
+1. Choose a boxed miniature. Its model rises inside the window to show it is selected.
+2. Hover an empty square beside the road. The ghost model, affected-area overlay,
+   Beauty / Noise / Crime before-and-after values, and estimated irritation impact appear.
+3. Click to buy and place. The selected box returns to the shelf and the money is charged.
+4. Alternatively, **drag a box onto a square** with a mouse, or tap a box and then
+   the board on touch devices.
+5. Press **Escape** or **Return to box** to cancel. After selecting a model,
+   **arrow keys** choose squares and **Enter** places the miniature.
+6. Existing houses, trees, landmarks, roads and purchased miniatures cannot overlap.
+
+The irritation estimate is an approximation **per completed circuit**, before
+individual household temperament. Every household drives the same road loop.
+
 ## Publish on GitHub Pages
 
 This repository includes a workflow that runs npm ci and npm run check for pull requests. On a push to main, it additionally builds and deploys to Pages.

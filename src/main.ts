@@ -1,6 +1,7 @@
 import { AUTO, Game, Scale } from 'phaser';
 import { TownScene } from './game/TownScene';
-import { MODELS, type ModelId } from './game/config';
+import { BOARD, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
+import { miniatureSvg } from './ui/modelArt';
 import { store } from './game/state';
 
 const game = new Game({
@@ -26,52 +27,75 @@ function meter(label: string, percent: number, symbol: string, color: string, va
     Math.max(0, Math.min(100, percent)) + '%"></div></div></div>';
 }
 
-function miniatureSvg(id: ModelId): string {
-  let shape = '';
-  if (id === 'lamp') {
-    shape = '<path d="M50 75V32 M38 76H62 M41 32H59 L57 17H43Z M38 17H62L50 9Z M44 36H56 M50 11V7"/>' +
-      '<path d="M45 20V30M55 20V30" stroke="#d1ad72"/>';
-  } else if (id === 'tree') {
-    shape = '<path d="M50 77V49M50 62L35 47M50 58L65 43M38 76H62"/>' +
-      '<path d="M29 48C17 36 27 20 39 24C41 10 58 8 65 20C84 16 91 41 75 48C73 61 54 59 50 55C41 63 29 57 29 48Z"/>';
-  } else if (id === 'bench') {
-    shape = '<path d="M23 37H77V53H23ZM20 58H80V65H20ZM28 65V76M72 65V76M28 37V29M72 37V29"/>' +
-      '<path d="M28 44H72M28 49H72M29 60H71" stroke="#d1ad72"/>';
-  } else if (id === 'limit') {
-    shape = '<circle cx="50" cy="34" r="23"/><circle cx="50" cy="34" r="19" stroke="#d1ad72"/>' +
-      '<path d="M50 57V80M40 80H60"/><text x="50" y="41" font-size="22" fill="#e7e4d8" stroke="none" text-anchor="middle" font-family="Georgia">20</text>';
-  } else {
-    shape = '<path d="M32 75V30H68V75ZM28 30L50 16L72 30ZM29 76H71M38 37H62V52H38ZM43 75V60H57V75"/>' +
-      '<path d="M50 20V29M45 24H55" stroke="#d1ad72"/>';
-  }
-  return '<svg class="miniature-svg" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg" ' +
-    'fill="none" stroke="#e0ddd1" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" ' +
-    'aria-hidden="true">' + shape + '</svg>';
-}
 
 let shopSignature = '';
+let dragInProgress = false;
+let draggingModelId: ModelId | null = null;
+
+function isModelId(candidate: string | null): candidate is ModelId {
+  return candidate !== null && MODELS.some((model) => model.id === candidate);
+}
+
 function renderShop(): void {
-  const signature = [store.activeModel,store.money,store.phase].join(':');
+  // Do not detach a native HTML drag source until its dragend event.
+  if (dragInProgress) return;
+  const signature = [store.activeModel, store.money, store.phase, store.paused].join(':');
   if (signature === shopSignature) return;
   shopSignature = signature;
+  const accents = ['#c6ac79', '#a2bca3', '#bd9c7b', '#bba795', '#9cb6c3'];
   byId('shop').innerHTML = MODELS.map((item, index) => {
     const picked = store.activeModel === item.id;
     const poor = store.money < item.cost;
-    const effects = '<span>Beauty ' + signed(item.beauty) + '</span><span>Noise ' +
-      signed(item.noise) + '</span><span>Crime ' + signed(item.crime) + '</span>';
-    return '<button type="button" class="model-box ' +
-      (picked ? 'selected ' : '') + (poor ? 'unaffordable' : '') +
-      '" data-model="' + item.id + '" aria-pressed="' + picked + '"' +
-      ' aria-label="Select ' + item.name + ', costs ' + item.cost + ' coins">' +
+    const disabled = store.phase !== 'playing' || store.paused;
+    const effects = '<span title="Beauty change">✿ ' + signed(item.beauty) +
+      '</span><span title="Noise change">◖ ' + signed(item.noise) +
+      '</span><span title="Crime change">◇ ' + signed(item.crime) + '</span>';
+    return '<button type="button" draggable="' + !disabled +
+      '" class="model-box ' + (picked ? 'selected ' : '') +
+      (poor ? 'unaffordable ' : '') + '" data-model="' + item.id +
+      '" style="--kit-accent:' + accents[index] + '" aria-pressed="' + picked +
+      '" aria-label="Select ' + item.name + ', costs ' + item.cost + ' coins" ' +
+      (disabled ? 'disabled' : '') + '>' +
       '<span class="box-lip"><span class="box-hole"></span></span>' +
-      '<span class="box-series">MODEL NO. 0' + (index + 1) + ' &middot; VINTAGE</span>' +
+      '<span class="box-series"><span>VINTAGE · 1908</span><span>KIT / 0' + (index + 1) + '</span></span>' +
       '<strong class="box-title">' + item.name + '</strong>' +
-      '<span class="display-window">' + miniatureSvg(item.id) +
-      '<span class="window-glint"></span></span>' +
-      '<span class="box-cost"><span class="coin-icon">&#9679;</span> ' + item.cost + '</span>' +
-      '<span class="box-description">' + item.caption + '</span>' +
-      '<span class="box-effects">' + effects + '</span></button>';
+      '<span class="display-window"><span class="window-backdrop"></span>' +
+      miniatureSvg(item.id) + '<span class="window-glint"></span>' +
+      '<span class="kit-window-stamp">' + (picked ? 'LIFTED' : 'HANDMADE') + '</span></span>' +
+      '<span class="kit-band"><span class="box-cost"><span class="coin-icon">●</span> ' +
+      item.cost + '</span><span class="box-caption">MINIATURE MODEL</span></span>' +
+      '<span class="box-effects" aria-label="Beauty ' + signed(item.beauty) +
+      ', Noise ' + signed(item.noise) + ', Crime ' + signed(item.crime) + '">' +
+      effects + '</span><span class="box-description">' + item.caption + '</span></button>';
   }).join('');
+}
+
+function renderPlacementStatus(): void {
+  const status = byId('placement-status');
+  const model = store.activeModel && store.getModel(store.activeModel);
+  const cancel = byId<HTMLButtonElement>('cancel-placement');
+  cancel.hidden = !model;
+  byId('shop-section').classList.toggle('has-selected', !!model);
+  if (!model) {
+    status.innerHTML = '<strong>Choose a miniature</strong>' +
+      '<span>Click a box to lift the model out, or drag it onto the town.</span>';
+    return;
+  }
+  status.innerHTML = '<strong>' + model.name + ' is ready</strong>' +
+    '<span>Hover to preview · click or drag to place · Esc to return it.</span>';
+}
+
+function changeClass(value: number, lowerIsBetter: boolean): string {
+  if (value === 0) return 'neutral';
+  return (lowerIsBetter ? value < 0 : value > 0) ? 'positive' : 'negative';
+}
+
+function projectedRow(title: string, before: number, after: number, lowerIsBetter: boolean): string {
+  const change = after - before;
+  return '<div class="tile-score projected-delta"><span>' + title + '</span>' +
+    '<div class="score-comparison"><span>' + signed(before) + '</span><i aria-hidden="true">→</i>' +
+    '<b class="' + changeClass(change,lowerIsBetter) + '">' + signed(after) + '</b>' +
+    '<em class="' + changeClass(change,lowerIsBetter) + '">' + signed(change) + '</em></div></div>';
 }
 
 function renderTilePanel(): void {
@@ -80,19 +104,39 @@ function renderTilePanel(): void {
   if (!details || !tile) {
     byId('tile-panel').innerHTML =
       '<span class="eyebrow">INSPECT THE TOWN</span><h3>Every square tells a story</h3>' +
-      '<p>Hover over a square to see beauty, noise and crime. Click to inspect or build.</p>';
+      '<p>Hover over the grid to inspect conditions. Select a boxed miniature to preview its effect.</p>';
     return;
   }
-  const canBuild = store.canPlace(tile);
+  if (store.activeModel) {
+    const model = store.getModel(store.activeModel);
+    const preview = store.previewPlacement(tile, model.id);
+    const status = preview.allowed ? 'READY TO PLACE' : 'CANNOT PLACE HERE';
+    byId('tile-panel').innerHTML =
+      '<span class="eyebrow">PLACEMENT PREVIEW · ' + (tile.x + 1) + '/' + (tile.y + 1) + '</span>' +
+      '<h3>' + model.name + '</h3><div class="preview-status ' +
+      (preview.allowed ? 'valid' : 'invalid') + '">' + status + '</div>' +
+      '<p class="projection-caption">Local tile values · now → after</p>' +
+      projectedRow('Beauty',preview.before.beauty,preview.after.beauty,false) +
+      projectedRow('Noise',preview.before.noise,preview.after.noise,true) +
+      projectedRow('Crime',preview.before.crime,preview.after.crime,true) +
+      (preview.canPlace ?
+        '<div class="preview-residents"><b>' + preview.affectedHouseholds +
+        ' household cars</b> use this loop. <b>' + preview.affectedRoadTiles +
+        ' road squares</b> are in range.' +
+        '<span>Estimated irritation change per lap: <strong>' +
+        signed(preview.irritationChangePerLap) + '</strong> before individual temperament.</span></div>' : '') +
+      '<p class="tile-tip">' + preview.reason + '</p>';
+    return;
+  }
   byId('tile-panel').innerHTML =
     '<span class="eyebrow">GRID ' + (tile.x + 1) + ' / ' + (tile.y + 1) + '</span>' +
     '<h3>' + details.kind + '</h3>' +
     '<div class="tile-score"><span>Beauty</span><b>' + signed(details.beauty) + '</b></div>' +
     '<div class="tile-score"><span>Noise</span><b>' + signed(details.noise) + '</b></div>' +
     '<div class="tile-score"><span>Crime</span><b>' + signed(details.crime) + '</b></div>' +
-    '<p class="tile-tip">' + (store.activeModel ?
-      (canBuild ? 'Click to place your chosen miniature.' : 'Choose an empty square beside the road.') :
-      (canBuild ? 'Available for a miniature.' : 'A piece of the existing town.')) + '</p>';
+    '<p class="tile-tip">' + (store.canPlace(tile)
+      ? 'Free building square. Pick a model kit to see its effect.'
+      : 'Existing part of the miniature town.') + '</p>';
 }
 
 function upgradeRow(type: 'savings' | 'patience', title: string, description: string, costBase: number): string {
@@ -163,8 +207,22 @@ function render(): void {
   byId('pause').textContent = store.paused ? 'Resume' : 'Pause';
   byId('speed').textContent = store.gameSpeed + 'x';
   renderShop();
+  renderPlacementStatus();
   renderTilePanel();
   renderModal();
+}
+
+// Convert document drag coordinates to the Phaser scene's fixed world grid.
+function cellFromClient(clientX: number, clientY: number): Cell | null {
+  const canvas = document.querySelector<HTMLCanvasElement>('#game-container canvas');
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0 ||
+      clientX < rect.left || clientY < rect.top ||
+      clientX > rect.right || clientY > rect.bottom) return null;
+  const x = Math.floor(((clientX - rect.left) / rect.width * BOARD.width - BOARD.left) / BOARD.tile);
+  const y = Math.floor(((clientY - rect.top) / rect.height * BOARD.height - BOARD.top) / BOARD.tile);
+  return isOnBoard(x,y) ? { x,y } : null;
 }
 
 document.addEventListener('click', (event) => {
@@ -172,7 +230,12 @@ document.addEventListener('click', (event) => {
   if (!(target instanceof Element)) return;
   const modelButton = target.closest<HTMLElement>('[data-model]');
   if (modelButton) {
-    store.selectModel(modelButton.dataset.model as ModelId);
+    const id = modelButton.dataset.model || null;
+    if (isModelId(id)) {
+      store.selectModel(id);
+      // Keyboard players can move the preview with arrows and press Enter.
+      if (store.activeModel) byId('game-container').focus({ preventScroll: true });
+    }
     return;
   }
   const upgradeButton = target.closest<HTMLElement>('[data-upgrade]');
@@ -186,9 +249,83 @@ document.addEventListener('click', (event) => {
   if (action === 'pause') store.togglePause();
   if (action === 'speed') store.toggleSpeed();
   if (action === 'workshop') store.toggleWorkshop();
+  if (action === 'cancel-model') store.cancelModel();
   if (action === 'new-run') {
     store.newRun();
     game.scene.getScene('TownScene').scene.restart();
+  }
+});
+
+document.addEventListener('dragstart', (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const box = target.closest<HTMLElement>('[data-model]');
+  const id = box?.dataset.model || null;
+  if (!isModelId(id) || store.phase !== 'playing' || store.paused) return;
+  dragInProgress = true;
+  draggingModelId = id;
+  box?.classList.add('dragging');
+  event.dataTransfer?.setData('text/plain',id);
+  if(event.dataTransfer) event.dataTransfer.effectAllowed = 'copy';
+  store.setActiveModel(id);
+});
+
+document.addEventListener('dragover', (event) => {
+  if (!draggingModelId || !(event.target instanceof Element) ||
+      !event.target.closest('#game-container')) return;
+  event.preventDefault();
+  if(event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+  store.setHovered(cellFromClient(event.clientX,event.clientY));
+});
+
+document.addEventListener('drop', (event) => {
+  if (!draggingModelId || !(event.target instanceof Element) ||
+      !event.target.closest('#game-container')) return;
+  event.preventDefault();
+  const id = draggingModelId;
+  const cell = cellFromClient(event.clientX,event.clientY);
+  dragInProgress = false;
+  draggingModelId = null;
+  store.setActiveModel(id);
+  if (cell) store.selectTile(cell);
+  else {
+    store.notice = 'Move the miniature onto a valid square inside the town.';
+    store.notify();
+  }
+  shopSignature = '';
+  renderShop();
+});
+
+document.addEventListener('dragend', () => {
+  if (!dragInProgress && !draggingModelId) return;
+  dragInProgress = false;
+  draggingModelId = null;
+  store.setHovered(null);
+  shopSignature = '';
+  renderShop();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && store.activeModel) {
+    store.cancelModel();
+    return;
+  }
+  if (!store.activeModel || store.phase !== 'playing' || store.paused ||
+      store.workshopOpen || document.activeElement !== byId('game-container')) return;
+  const movement: Record<string, [number,number]> = {
+    ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0]
+  };
+  const offset = movement[event.key];
+  if (offset) {
+    event.preventDefault();
+    const current = store.hovered || store.selected || { x: 4, y: 4 };
+    const next = { x: Math.max(0,Math.min(BOARD.cols-1,current.x+offset[0])),
+      y: Math.max(0,Math.min(BOARD.rows-1,current.y+offset[1])) };
+    store.setHovered(next);
+  }
+  if (event.key === 'Enter' && store.hovered) {
+    event.preventDefault();
+    store.selectTile(store.hovered);
   }
 });
 

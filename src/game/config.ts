@@ -56,6 +56,23 @@ function expandRoad(points: Cell[]): Cell[] {
   return cells;
 }
 
+// Fixed scenery belongs to the board, not the purchasable model catalogue.
+// Reserving its footprint avoids placing a kit on an existing tree or landmark.
+export const SCENERY_CELLS: Cell[] = [
+  { x: 7, y: 5 }, { x: 6, y: 7 }, { x: 15, y: 7 }, { x: 18, y: 6 },
+  { x: 4, y: 5 }, { x: 22, y: 2 }, { x: 0, y: 10 }, { x: 19, y: 11 },
+  { x: 11, y: 7 }, { x: 10, y: 5 },
+  { x: 11, y: 6 }, // town hall
+  { x: 16, y: 6 }, // fountain
+  { x: 7, y: 7 }   // park notice
+];
+export const isScenery = (x: number, y: number): boolean =>
+  SCENERY_CELLS.some((cell) => cell.x === x && cell.y === y);
+
+export const manhattanDistance = (a: Cell, b: Cell): number =>
+  Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+export const EFFECT_RADIUS = 2;
+
 export const ROAD_CELLS = expandRoad(vertices);
 export const ROAD_SET = new Set(ROAD_CELLS.map((cell) => cell.x + ',' + cell.y));
 

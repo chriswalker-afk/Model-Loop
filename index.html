@@ -32,17 +32,22 @@
   </header>
   <main class="main-content">
     <section class="world-frame" aria-label="The miniature town">
-      <div id="game-container" aria-label="Interactive town board with a looping road"></div>
+      <div id="game-container" tabindex="0" role="application" aria-label="Miniature town. Select a model box, then use your mouse or arrow keys to find a square. Press Enter to build, Escape to cancel."></div>
       <aside id="tile-panel" class="tile-panel" aria-live="polite"></aside>
       <div class="board-stamp">NO. 001 &mdash; HANDCRAFTED TOWNS</div>
     </section>
-    <section class="shop-section" aria-label="Miniature model shop">
+    <section class="shop-section" id="shop-section" aria-label="Miniature model shop">
       <div class="shop-topline">
-        <div><span class="eyebrow">THE MINIATURE COLLECTION</span>
-          <h2>Choose a model for the town</h2></div>
-        <p>Select a box, then click an empty grid square beside the road.</p>
+        <div class="shop-heading"><span class="eyebrow">THE MINIATURE COLLECTION · 1908</span>
+          <h2>Choose a model kit</h2></div>
+        <div class="shop-instructions" id="placement-status" aria-live="polite">
+          <strong>Choose a miniature</strong>
+          <span>Click to lift a model, or drag a box onto the town.</span>
+        </div>
+        <button type="button" id="cancel-placement" class="cancel-placement"
+          data-action="cancel-model" hidden>Return to box <span aria-hidden="true">×</span></button>
       </div>
-      <div class="shop-track" id="shop"></div>
+      <div class="shop-track" id="shop" aria-label="Scroll to browse collectible model kits"></div>
     </section>
     <footer class="footer">
       <span class="live-dot" aria-hidden="true"></span>

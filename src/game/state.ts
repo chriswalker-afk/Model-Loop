@@ -1,4 +1,4 @@
-import { adjacentToRoad, HOMES, isOnBoard, isRoad, MODELS, type Cell, type ModelId } from './config';
+import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, type Cell, type ModelId } from './config';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -14,6 +14,19 @@ export interface PlacedModel extends Cell { id: ModelId; }
 export interface PermanentUpgrades { savings: number; patience: number; }
 export interface Legacy { blueprints: number; upgrades: PermanentUpgrades; }
 export interface TileInfo { kind: string; beauty: number; noise: number; crime: number; }
+export interface PlacementPreview {
+  cell: Cell;
+  modelId: ModelId;
+  canPlace: boolean;
+  canAfford: boolean;
+  allowed: boolean;
+  reason: string;
+  before: TileInfo;
+  after: TileInfo;
+  affectedRoadTiles: number;
+  affectedHouseholds: number;
+  irritationChangePerLap: number;
+}
 
 const KEY = 'model-loop-legacy-v1';
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -97,10 +110,20 @@ export class GameStore {
 
   getModel(id: ModelId) { return MODELS.find((model) => model.id === id)!; }
   selectModel(id: ModelId): void {
-    if (this.phase !== 'playing') return;
-    this.activeModel = this.activeModel === id ? null : id;
-    this.notice = this.activeModel ? 'Choose an empty square next to the road.' : 'Model selection cleared.';
+    this.setActiveModel(this.activeModel === id ? null : id);
+  }
+  setActiveModel(id: ModelId | null): void {
+    if (id && (this.phase !== 'playing' || this.paused || this.workshopOpen)) return;
+    this.activeModel = id;
+    this.hovered = null;
+    if (id) this.selected = null;
+    this.notice = id
+      ? this.getModel(id).name + ' lifted from its box. Hover over the town to preview, then click to place. Esc cancels.'
+      : 'Miniature returned to its box. Choose another model to continue.';
     this.notify();
+  }
+  cancelModel(): void {
+    if (this.activeModel) this.setActiveModel(null);
   }
   setHovered(cell: Cell | null): void {
     if (this.hovered?.x === cell?.x && this.hovered?.y === cell?.y) return;
@@ -117,10 +140,11 @@ export class GameStore {
       && !isRoad(cell.x, cell.y)
       && adjacentToRoad(cell.x, cell.y)
       && !HOMES.some((home) => home.x === cell.x && home.y === cell.y)
+      && !isScenery(cell.x, cell.y)
       && !this.placements.some((placed) => placed.x === cell.x && placed.y === cell.y);
   }
   place(cell: Cell, id: ModelId): boolean {
-    if (this.phase !== 'playing') return false;
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
     const model = this.getModel(id);
     if (!this.canPlace(cell)) {
       this.notice = 'Build on an empty square directly beside the road.';
@@ -136,24 +160,56 @@ export class GameStore {
     this.notice = model.name + ' added to the miniature town.';
     return true;
   }
-  tileInfo(cell: Cell | null): TileInfo | null {
-    if (!cell || !isOnBoard(cell.x, cell.y)) return null;
+  private calculateTileInfo(cell: Cell, placements: PlacedModel[]): TileInfo {
     let kind = isRoad(cell.x, cell.y) ? 'Road tile' : 'Grass tile';
     const home = HOMES.find((item) => item.x === cell.x && item.y === cell.y);
     if (home) {
       const resident = this.residents.find((item) => item.id === home.id);
       kind = resident?.occupied ? home.name : 'Vacant home';
     }
-    const model = this.placements.find((item) => item.x === cell.x && item.y === cell.y);
+    const model = placements.find((item) => item.x === cell.x && item.y === cell.y);
     if (model) kind = this.getModel(model.id).name;
-    const nearby = this.placements.filter((item) =>
-      Math.abs(item.x - cell.x) + Math.abs(item.y - cell.y) <= 2);
+    const nearby = placements.filter((item) => manhattanDistance(item, cell) <= EFFECT_RADIUS);
     return {
       kind,
       beauty: 1 + nearby.reduce((total, item) => total + this.getModel(item.id).beauty, 0),
-      noise: (isRoad(cell.x, cell.y) ? 2 : 0) +
-        nearby.reduce((total, item) => total + this.getModel(item.id).noise, 0),
+      noise: (isRoad(cell.x, cell.y) ? 2 : 0)
+        + nearby.reduce((total, item) => total + this.getModel(item.id).noise, 0),
       crime: Math.max(0, 2 + nearby.reduce((total, item) => total + this.getModel(item.id).crime, 0))
+    };
+  }
+
+  tileInfo(cell: Cell | null): TileInfo | null {
+    return cell && isOnBoard(cell.x, cell.y)
+      ? this.calculateTileInfo(cell, this.placements)
+      : null;
+  }
+
+  // Shared, non-mutating prediction: the preview uses precisely the same
+  // scoring and road radius as the purchased model's real simulation effects.
+  previewPlacement(cell: Cell, id: ModelId): PlacementPreview {
+    const model = this.getModel(id);
+    const canPlace = this.canPlace(cell);
+    const canAfford = this.money >= model.cost;
+    const allowed = this.phase === 'playing' && !this.paused && !this.workshopOpen && canPlace && canAfford;
+    let reason = 'Click to build or drag the model box onto this square.';
+    if (!canPlace) reason = 'That square is occupied, on the road, or too far from it.';
+    else if (!canAfford) reason = 'Not enough coins for this model.';
+    else if (this.paused) reason = 'Resume the game before building.';
+    else if (this.workshopOpen || this.phase !== 'playing') reason = 'Return to the running town before building.';
+
+    const before = this.calculateTileInfo(cell, this.placements);
+    const after = canPlace
+      ? this.calculateTileInfo(cell, [...this.placements, { ...cell, id }])
+      : before;
+    const affectedRoadTiles = ROAD_CELLS.filter((road) =>
+      manhattanDistance(road, cell) <= EFFECT_RADIUS).length;
+
+    return {
+      cell, modelId: id, canPlace, canAfford, allowed, reason,
+      before, after, affectedRoadTiles,
+      affectedHouseholds: this.occupiedHomes,
+      irritationChangePerLap: Math.round(model.comfort * affectedRoadTiles * 10) / 10
     };
   }
 
@@ -165,7 +221,7 @@ export class GameStore {
     if (tile.x === 20 && tile.y >= 5) change += 0.2;
     if (tile.x <= 3 && tile.y >= 7) change += 0.15;
     this.placements.forEach((placed) => {
-      if (Math.abs(placed.x - tile.x) + Math.abs(placed.y - tile.y) <= 2) {
+      if (manhattanDistance(placed, tile) <= EFFECT_RADIUS) {
         change += this.getModel(placed.id).comfort;
       }
     });
