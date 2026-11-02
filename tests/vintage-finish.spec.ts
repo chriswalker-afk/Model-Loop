@@ -29,7 +29,11 @@ test('every activity, roadside trace, condition and care engraving is valid dist
       const {eventArtIds,eventSvg,eventDataUri,eventUiIcon,traceKinds,
         activityKinds}=await import('/src/ui/vintageEventArt.ts');
       const parser=new DOMParser();
-      return { ids:eventArtIds,trace:traceKinds,activities:activityKinds,
+      const {chapterMotorcarSvg}=await import('/src/ui/vintageWorldArt.ts');
+      const car=chapterMotorcarSvg();
+      return {car,carParseError:!!parser.parseFromString(
+        car,'image/svg+xml').querySelector('parsererror'),
+        ids:eventArtIds,trace:traceKinds,activities:activityKinds,
         drawings:eventArtIds.map(id=>({
           id,svg:eventSvg(id),uri:eventDataUri(id),dom:eventUiIcon(id),
           parseError:!!parser.parseFromString(
@@ -37,6 +41,10 @@ test('every activity, roadside trace, condition and care engraving is valid dist
           marks:(eventSvg(id).match(/<(?:path|ellipse|circle|rect|text)\b/g)||[]).length
         })) };
     });
+    expect(result.carParseError).toBe(false);
+    expect(result.car).toContain('viewBox="0 0 264 142"');
+    expect(result.car).toContain('MOTOR CARRIAGE');
+    expect((result.car.match(/<circle\s/g)||[]).length).toBeGreaterThanOrEqual(4);
     expect(result.ids).toHaveLength(22);
     expect(new Set(result.ids).size).toBe(22);
     expect(result.trace).toHaveLength(10);
