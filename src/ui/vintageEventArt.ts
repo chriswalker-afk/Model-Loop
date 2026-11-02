@@ -9,8 +9,8 @@ import type {ActivityKind} from '../game/activities';
 import {WORLD_ART,worldSvgDataUri} from './vintageWorldArt';
 
 export type EventArtId =
-  | \`trace-\${EnvironmentKind}\`
-  | \`activity-\${ActivityKind}\`
+  | `trace-${EnvironmentKind}`
+  | `activity-${ActivityKind}`
   | 'incident-damage' | 'incident-break'
   | 'care-economy' | 'care-bare';
 
@@ -21,8 +21,8 @@ export const activityKinds: readonly ActivityKind[] =
   ['explore','sketch','delivery','working-lunch','picnic','gathering',
     'heritage-visit','safety-round'] as const;
 export const eventArtIds: readonly EventArtId[] = [
-  ...traceKinds.map(kind => \`trace-\${kind}\` as EventArtId),
-  ...activityKinds.map(kind => \`activity-\${kind}\` as EventArtId),
+  ...traceKinds.map(kind => `trace-${kind}` as EventArtId),
+  ...activityKinds.map(kind => `activity-${kind}` as EventArtId),
   'incident-damage','incident-break','care-economy','care-bare'
 ];
 export const EVENT_ART_SIZE={width:72,height:62} as const;
