@@ -5,6 +5,7 @@ import { normalizedCare } from './economy';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { householdActionPair, type BehaviourReport } from './behaviors';
+import { activityDefinition, type ActiveActivity } from './activities';
 import { bendSpeedMultiplier, drivingProfile, type DrivingProfile } from './driving';
 import {
   HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, TRAFFIC_LANE_CHANGE_SECONDS,
@@ -27,6 +28,8 @@ interface Car {
   changingTo: RoadLane | null;
   laneChangeElapsed: number;
   laneOffset: number;
+  parkedForActivity: boolean;
+  parkingCell: Cell | null;
   homeBadge: Phaser.GameObjects.Text;
   brakeLights: Phaser.GameObjects.Graphics;
   lastThoughtAt: number;
@@ -55,6 +58,7 @@ export class TownScene extends Scene {
   private lastStopId = 0;
   private lastBehaviourSequence = 0;
   private feedbackChips: Phaser.GameObjects.Text[] = [];
+  private activityLabels = new Map<number, Phaser.GameObjects.Text>();
   private lastPlacementCount = 0;
   private cars: Car[] = [];
 
@@ -322,6 +326,8 @@ export class TownScene extends Scene {
       changingTo: null,
       laneChangeElapsed: 0,
       laneOffset: TRAFFIC_LEFT_LANE_OFFSET,
+      parkedForActivity: false,
+      parkingCell: null,
       homeBadge,
       brakeLights,
       lastThoughtAt: -20000
@@ -775,6 +781,8 @@ export class TownScene extends Scene {
         lane: car.lane,
         changingTo: car.changingTo,
         laneOffset: car.laneOffset,
+        parkedForActivity: car.parkedForActivity,
+        activity: store.activities.forResident(car.residentId)?.kind ?? null,
         x: car.container.x,
         y: car.container.y,
         visible: car.container.visible
@@ -797,6 +805,12 @@ export class TownScene extends Scene {
     for (const car of this.cars) {
       if (!store.residents[car.residentId]?.occupied) continue;
       const position = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+      if (car.cycle.phase === 'driving' &&
+        (car.parkedForActivity || store.activities.forResident(car.residentId))) {
+        // A family taking part in an activity is OFF the road; keeping a
+        // stopped car in the traffic solver would manufacture a false queue.
+        continue;
+      }
       if (car.cycle.phase === 'driving') {
         const index = Math.min(length - 1, Math.floor(position / BOARD.tile));
         const sign = store.speedMultiplierAt(ROAD_CELLS[index]);
@@ -829,6 +843,23 @@ export class TownScene extends Scene {
         lane: 'left', drivewayReservation: true });
     }
 
+    // At the end of an activity, a parked driver may ONLY rejoin when there
+    // is a safe gap in both directions. No jump into a passing vehicle.
+    for (const car of this.cars) {
+      if (!car.parkedForActivity || store.activities.forResident(car.residentId) ||
+        !store.residents[car.residentId]?.occupied || car.cycle.phase !== 'driving') continue;
+      const position = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+      if (!canReserveRoad(position, vehicles, totalDistance)) continue;
+      car.parkedForActivity = false;
+      car.parkingCell = null;
+      car.lane = 'left';
+      car.changingTo = null;
+      car.laneChangeElapsed = 0;
+      car.laneOffset = TRAFFIC_LEFT_LANE_OFFSET;
+      vehicles.push({ residentId: car.residentId, position, desiredSpeed: 0,
+        lane: 'left', drivewayReservation: true, driver: car.driver });
+    }
+
     // Reserve each requested lane change before advancing any vehicle.
     // Changing cars occupy *both* lanes so neither a passing nor a following
     // vehicle can cross their path. Cars waiting for a clear lane simply queue.
@@ -856,6 +887,29 @@ export class TownScene extends Scene {
 
       const homePoint = worldPoint(HOMES[car.residentId]);
       const roadPoint = roadPoseAt(car.startIndex * BOARD.tile, car.laneOffset);
+      const activeActivity = store.activities.forResident(car.residentId);
+      if (activeActivity) {
+        car.parkedForActivity = true;
+        car.parkingCell = activeActivity.cell;
+        car.lane = 'left';
+        car.changingTo = null;
+        car.laneChangeElapsed = 0;
+        car.laneOffset = TRAFFIC_LEFT_LANE_OFFSET;
+      }
+      if (car.parkedForActivity && car.cycle.phase === 'driving') {
+        // Pull over between the road and the activity props. A driver may
+        // wait here a little longer after packing up for a safe re-entry.
+        const parked = worldPoint(car.parkingCell ?? activeActivity!.cell);
+        const roadPosition = (car.startIndex * BOARD.tile + car.cycle.distance) % totalDistance;
+        const road = roadPoseAt(roadPosition);
+        car.container.setPosition(
+          road.x + (parked.x - road.x) * .48,
+          road.y + (parked.y - road.y) * .48
+        ).setRotation(road.rotation).setVisible(true);
+        car.homeBadge.setVisible(false);
+        car.brakeLights.setVisible(false);
+        continue;
+      }
       const movingBefore = car.cycle.phase === 'driving';
       const movement = byResident.get(car.residentId);
       if (movingBefore) {
@@ -890,7 +944,8 @@ export class TownScene extends Scene {
         let reaction: JourneyReaction | null = null;
         if (index !== car.tileIndex) {
           car.tileIndex = index;
-          reaction = store.passTile(car.residentId, ROAD_CELLS[index]);
+          reaction = store.passTile(car.residentId, ROAD_CELLS[index],
+            car.lane === 'left' && !car.changingTo);
         }
         if (car.changingTo) {
           car.laneChangeElapsed += dt;
