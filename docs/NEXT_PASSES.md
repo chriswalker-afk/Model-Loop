@@ -1,5 +1,24 @@
 # The Generational Cycle — Next passes
 
+## Pass 6B complete — staged roadside activities (November 2026)
+
+**Pass 6A** is merged. **Pass 6B** adds eight small, household-specific
+activities, three visible phases, parking and gap-checked return to the
+left lane, actual bin/litter consequences from meals/deliveries, limited
+local comfort/traffic effects and optional activity inspection. See
+[LIVING_ACTIVITIES_PASS6B.md](LIVING_ACTIVITIES_PASS6B.md).
+
+**Next: Pass 6C — accidents and restoration.** Connect low-probability
+collisions to a real car and a nearby placed miniature, add damaged and
+broken condition states, paid repairs, and genuine Hales restoration.
+Wards can direct traffic around the aftermath.
+
+**Then: Pass 6D — interactions and balancing.** Chain household reactions,
+test collisions/repairs for economic exploits, tune activity frequency,
+and polish the small-screen presentations.
+
+## Earlier design and rationale
+
 ## Driver personalities and activity roadmap (November 2026)
 
 **Pass 6A — implemented on the dedicated driver-personality branch:** six
@@ -9,9 +28,8 @@ an implausible charitable gap, Wards alone help shorten real stops; all
 twelve actions have authored after-remarks. Random wrappers from unrelated
 incidents have been retired.
 
-**Next: 6B — real activities and consequences.** Add visible, staged picnics,
-working lunches/deliveries, scenic pauses and community gatherings with
-their own cleanup, rubbish generation, bin catchment, and bounded duration.
+**Pass 6B is now implemented:** staged activities, visible props, actual
+litter from food and packaging, and safe off-road parking/rejoining.
 
 Then **6C — accidents and restoration** (rare impacts, model condition,
 paid repair and the Hales' genuine restoration role), followed by
