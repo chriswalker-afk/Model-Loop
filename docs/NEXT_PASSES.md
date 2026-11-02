@@ -23,7 +23,8 @@
 
 ## Pass 3: Roguelite depth
 - Larger permanent Blueprint upgrade tree.
-- More kinds of resident personalities and response to town design.
+- Expand the first six household personalities beyond model preferences to react to traffic, housing loss and new-era choices.
+- Keep the subtle family workshop narrative connected to play without spelling out the parallels; see HOUSEHOLD_VOICES.md.
 - Traffic congestion and deeper road/economy systems.
 - Model combinations, limited supply, events and run variation.
 - Resume/save active runs separate from permanent workshop progress.
