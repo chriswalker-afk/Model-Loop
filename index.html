@@ -7,21 +7,28 @@
   <meta name="description" content="The Generational Cycle: a hand-drawn miniature town-building roguelite about families, roads and the models we make.">
   <title>The Generational Cycle | Vintage Workshop</title>
   <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/styles/vintage-ui.css">
 </head>
 <body>
 <div id="app">
-  <header class="topbar">
-    <div class="brand">
+  <header class="topbar vintage-header">
+    <div class="brand vintage-brand">
       <div class="brand-kicker">THE FAMILY WORKSHOP PRESENTS</div>
       <div class="brand-name" aria-label="The Generational Cycle"><span class="brand-line">THE GENERATIONAL</span> <span class="brand-line brand-name-accent">CYCLE</span></div>
     </div>
-    <div class="era-mark">
+    <div class="era-mark vintage-era">
       <span class="eyebrow">CHAPTER I &middot; ERA</span>
       <strong>VINTAGE</strong>
       <span class="era-year">1908 &ndash; The first little town</span>
+      <svg class="vintage-era-flourish" viewBox="0 0 154 12" aria-hidden="true"
+        xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor"
+        stroke-linecap="round" stroke-width=".9">
+        <path d="M1 6h54m44 0h54M58 6q5-5 11 0q-6 5-11 0Zm38 0q-5-5-11 0q6 5 11 0Z"/>
+        <path d="M74 1q-3 5 0 10m6-10q3 5 0 10M70 6h14"/>
+      </svg>
     </div>
-    <div class="meters" id="meters" aria-label="Town conditions"></div>
-    <div class="top-controls">
+    <div class="meters vintage-instruments" id="meters" aria-label="Town conditions"></div>
+    <div class="top-controls vintage-controls">
       <div class="balances"><span class="coin-icon" aria-hidden="true">&#9679;</span>
         <b id="coins">145</b> <span class="balances-label">COINS</span></div>
       <button type="button" class="utility-button" data-action="pause" id="pause">Pause</button>
@@ -36,7 +43,7 @@
         <div id="game-container" tabindex="0" role="application" aria-label="Miniature town. Select a model box, then use your mouse or arrow keys to find a square. Press Enter to build, Escape to cancel."></div>
       </div>
       <div class="town-pan-hint" aria-hidden="true"><span>↔</span> Swipe to explore the whole town</div>
-      <aside id="tile-panel" class="tile-panel" aria-label="Selected square details" hidden></aside>
+      <aside id="tile-panel" class="tile-panel vintage-inspector" aria-label="Selected square details" hidden></aside>
       <div id="tile-peek" class="tile-peek" role="tooltip" hidden></div>
       <aside id="household-detail" class="household-detail" aria-label="Selected household" hidden></aside>
       <div class="board-stamp">NO. 001 &mdash; HANDCRAFTED TOWNS</div>

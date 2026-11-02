@@ -64,6 +64,8 @@ for (const screen of screens) {
     expect(geometry.canvas.width).toBeGreaterThan(250);
     expect(geometry.canvas.height).toBeGreaterThan(130);
     const compactWorkspace = screen.width >= 900 && screen.height >= 500 && screen.height <= 850;
+    const veryShortLandscape = screen.width >= 701 && screen.width <= 899 &&
+      screen.height <= 490;
     if (compactWorkspace) {
       expect(geometry.shopPosition).not.toBe('fixed');
       expect(geometry.shop.x).toBeGreaterThan(geometry.board.x + geometry.board.width - 2);
@@ -74,7 +76,8 @@ for (const screen of screens) {
       expect(geometry.shop.width).toBeGreaterThanOrEqual(screen.width - 24);
     }
 
-    if (!compactWorkspace && (screen.width <= 1100 || screen.height <= 820)) {
+    if (!compactWorkspace && !veryShortLandscape &&
+      (screen.width <= 1100 || screen.height <= 820)) {
       expect(geometry.shopPosition).toBe('fixed');
       expect(geometry.shop.bottom).toBeLessThanOrEqual(screen.height + 2);
       expect(geometry.shop.y).toBeGreaterThan(0);
@@ -85,6 +88,12 @@ for (const screen of screens) {
     } else if (!compactWorkspace) {
       expect(geometry.shopPosition).not.toBe('fixed');
       expect(geometry.shop.y).toBeGreaterThanOrEqual(geometry.board.y);
+      if(veryShortLandscape){
+        // At 390px height a fixed 205px shop hid the entire game canvas.
+        // The shop is now still scrollable and interactive *below* the town.
+        expect(geometry.shop.y).toBeGreaterThan(geometry.board.y+geometry.board.height-2);
+        expect(screen.height-geometry.board.y).toBeGreaterThan(95);
+      }
     }
 
     if (screen.width <= 700) {

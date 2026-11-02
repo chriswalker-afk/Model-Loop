@@ -1,0 +1,661 @@
+/*
+ * Vintage 1908 / Pass 7B — the engraved instrument layer.
+ *
+ * One authoritative, opt-in stylesheet for header, gauges and inspector.
+ * The existing style.css still owns the proven responsive layout/grid,
+ * miniature shop, household cards and game canvas until 7C–7E. Keeping
+ * visual ornament isolated prevents another cascade of unrelated overrides.
+ *
+ * Palette and stroke hierarchy: docs/art-direction/vintage-tokens.json
+ */
+:root {
+  --vintage-board: #101211;
+  --vintage-shadow: #090c0b;
+  --vintage-road: #1b201e;
+  --vintage-ivory: #e9e2d5;
+  --vintage-detail: #b8b2a5;
+  --vintage-muted: #9fa397;
+  --vintage-grid: #777c72;
+  --vintage-brass: #d9b66b;
+  --vintage-progress: #9fc99c;
+  --vintage-community: #a9cae0;
+  --vintage-safety: #de9990;
+  --vintage-income: #e0bf75;
+  --vintage-display: Georgia, 'Times New Roman', serif;
+  --vintage-small: system-ui, sans-serif;
+  --ink: var(--vintage-ivory);
+  --gold: var(--vintage-brass);
+}
+/* Illustrations and controls are structural, never cursor obstructions. */
+.vintage-frame-corners {
+  position: absolute;
+  inset: 1px;
+  display: block;
+  pointer-events: none;
+  overflow: hidden;
+  color: var(--vintage-ivory);
+  z-index: 2;
+}
+.vintage-frame-corner {
+  position: absolute;
+  width: 27px;
+  height: 27px;
+  pointer-events: none;
+  opacity: .86;
+}
+.vintage-frame-corner.corner-tl { top: 2px; left: 2px; }
+.vintage-frame-corner.corner-tr { top: 2px; right: 2px; transform: rotate(90deg); }
+.vintage-frame-corner.corner-br { bottom: 2px; right: 2px; transform: rotate(180deg); }
+.vintage-frame-corner.corner-bl { bottom: 2px; left: 2px; transform: rotate(270deg); }
+.vintage-icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  overflow: visible;
+  vertical-align: middle;
+}
+.vintage-icon .v-icon-ink { fill: currentColor; stroke: none; }
+
+.vintage-header {
+  isolation: isolate;
+  position: relative;
+  color: var(--vintage-ivory);
+  background:
+    radial-gradient(ellipse 45% 95% at 52% 12%, rgba(233,226,213,.065), transparent 83%),
+    repeating-linear-gradient(90deg, transparent 0 40px, rgba(184,178,165,.015) 40px 41px),
+    linear-gradient(180deg, #1a1d1a 0%, var(--vintage-board) 98%);
+  border-bottom: 1px solid rgba(233,226,213,.75);
+  box-shadow: inset 0 -4px 0 var(--vintage-board),
+              inset 0 -5px 0 rgba(184,178,165,.31),
+              0 6px 15px rgba(0,0,0,.24);
+}
+.vintage-header::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  left: 9px;
+  right: 9px;
+  bottom: 3px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(233,226,213,.54) 5%,
+    rgba(233,226,213,.54) 95%, transparent);
+  pointer-events: none;
+}
+.vintage-header .vintage-brand,
+.vintage-header .vintage-era,
+.vintage-header .vintage-instruments {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid rgba(233,226,213,.77);
+  border-radius: 7px;
+  background: linear-gradient(148deg, rgba(233,226,213,.055) 0%,
+    transparent 29%, transparent 75%, rgba(233,226,213,.04) 100%),
+    #121613;
+  box-shadow: inset 0 0 0 3px #121613,
+              inset 0 0 0 4px rgba(184,178,165,.34),
+              0 2px 1px rgba(0,0,0,.52);
+}
+.vintage-header .vintage-brand {
+  min-height: 64px;
+  padding: 10px clamp(9px,1.1vw,16px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+}
+.vintage-header .brand-kicker {
+  position: relative;
+  z-index: 2;
+  margin: 0 0 3px;
+  color: var(--vintage-detail);
+  font: 600 clamp(8px,.62vw,10px)/1.2 var(--vintage-small);
+  letter-spacing: .12em;
+}
+.vintage-header .brand-name {
+  position: relative;
+  z-index: 2;
+  font-family: var(--vintage-display);
+  font-weight: 700;
+  color: var(--vintage-ivory);
+  font-size: clamp(12px,1.18vw,17px);
+  line-height: 1.08;
+  letter-spacing: -.028em;
+  text-shadow: 0 1px 1px #080a09;
+}
+.vintage-header .brand-name .brand-name-accent { color: var(--vintage-brass); }
+.vintage-header .vintage-era {
+  min-height: 64px;
+  padding: 9px 25px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 0;
+}
+.vintage-header .vintage-era .eyebrow {
+  position: relative;
+  z-index: 3;
+  color: var(--vintage-detail);
+  font: 600 9px/1.15 var(--vintage-small);
+  letter-spacing: .14em;
+}
+.vintage-header .vintage-era strong {
+  position: relative;
+  z-index: 3;
+  font-family: var(--vintage-display);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: .035em;
+  color: var(--vintage-ivory);
+  text-shadow: 0 1px 1px #000;
+  font-size: clamp(20px,1.85vw,27px);
+}
+.vintage-header .vintage-era .era-year {
+  position: relative;
+  z-index: 3;
+  color: var(--vintage-detail);
+  letter-spacing: .015em;
+  font: 10px/1.2 var(--vintage-display);
+  white-space: nowrap;
+}
+.vintage-era-flourish {
+  position: relative;
+  z-index: 3;
+  width: min(100%, 120px);
+  height: 9px;
+  color: var(--vintage-detail);
+  opacity: .82;
+  margin-top: 2px;
+}
+/* Four gauges share one instrument plate, separated with fine engraved rules. */
+.vintage-header .vintage-instruments {
+  padding: 10px clamp(9px,1.1vw,17px);
+  gap: clamp(7px, .85vw, 14px);
+  align-items: stretch;
+  min-height: 64px;
+}
+.vintage-header .vintage-instruments .meter {
+  position: relative;
+  z-index: 3;
+  --gauge-ink: var(--vintage-ivory);
+  padding: 1px 4px;
+}
+.vintage-header .meter:nth-of-type(2) { --gauge-ink: var(--vintage-community); }
+.vintage-header .meter:nth-of-type(1) { --gauge-ink: var(--vintage-progress); }
+.vintage-header .meter:nth-of-type(3) { --gauge-ink: var(--vintage-safety); }
+.vintage-header .meter:nth-of-type(4) { --gauge-ink: var(--vintage-income); }
+.vintage-header .vintage-instruments .meter:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: calc(-.5 * clamp(7px, .85vw, 14px));
+  height: calc(100% - 4px);
+  width: 1px;
+  background: rgba(233,226,213,.39);
+  box-shadow: 2px 0 0 rgba(233,226,213,.09);
+  pointer-events: none;
+}
+.vintage-header .meter-top {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: nowrap;
+  min-height: 23px;
+  margin: 0 0 5px;
+  font: 600 clamp(10px,.79vw,12px)/1.15 var(--vintage-display);
+  color: var(--vintage-ivory);
+  letter-spacing: .015em;
+}
+.vintage-header .meter-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.vintage-header .meter-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  color: var(--gauge-ink);
+}
+.vintage-header .meter-icon .vintage-icon { width: 20px; height: 20px; }
+.vintage-header .meter-top b {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--vintage-ivory);
+  font: 600 11px/1 var(--vintage-small);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vintage-header .meter-rail,
+.vintage-header .flow-track {
+  position: relative;
+  height: 13px;
+  border: 1px solid rgba(233,226,213,.79);
+  border-radius: 3px;
+  padding: 2px;
+  background: linear-gradient(180deg,#080b09,#1e2520);
+  box-shadow: inset 0 1px 3px #020403,0 1px 0 rgba(233,226,213,.10);
+  overflow: hidden;
+}
+.vintage-header .meter-fill {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  height: 100%;
+  border-radius: 1px;
+  transition: width 200ms ease;
+  background: var(--gauge-ink);
+  opacity: .91;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14);
+}
+.vintage-header .meter .meter-graticule,
+.vintage-header .flow-graticule {
+  position: absolute;
+  z-index: 2;
+  inset: 2px;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg,
+    transparent 0,
+    transparent calc(20% - 1px),
+    rgba(5,8,6,.85) calc(20% - 1px),
+    rgba(5,8,6,.85) 20%);
+}
+.vintage-header .income-meter .meter-top b {
+  font: 600 11px/1 var(--vintage-small);
+  color: var(--vintage-ivory);
+}
+.vintage-header .income-meter .meter-top b small {
+  color: var(--vintage-muted);
+  font-size: 9px;
+}
+.vintage-header .income-meter .meter-top b.positive-flow { color: var(--vintage-income); }
+.vintage-header .income-meter .meter-top b.negative-flow { color: var(--vintage-safety); }
+.vintage-header .flow-track {
+  padding: 0;
+  overflow: hidden;
+}
+.vintage-header .flow-track .flow-fill { z-index: 1; top: 2px; bottom: 2px; }
+.vintage-header .flow-track .flow-fill.inflow { background: var(--vintage-income); }
+.vintage-header .flow-track .flow-fill.outflow { background: var(--vintage-safety); }
+.vintage-header .flow-center {
+  z-index: 3;
+  background: var(--vintage-ivory);
+  opacity: .94;
+}
+.vintage-header .flow-breakdown {
+  margin-top: 4px;
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  color: var(--vintage-detail);
+  font: 9px/1.25 var(--vintage-small);
+  font-variant-numeric: tabular-nums;
+}
+.vintage-header .flow-breakdown span:first-child { color: var(--vintage-income); }
+.vintage-header .flow-breakdown span:last-child { color: var(--vintage-detail); }
+.vintage-header .vintage-controls { position: relative; z-index: 1; }
+.vintage-header .balances {
+  gap: 7px;
+  color: var(--vintage-ivory);
+  font-family: var(--vintage-display);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.vintage-header .balances b {
+  color: var(--vintage-ivory);
+  font-size: clamp(20px,1.7vw,26px);
+}
+.vintage-header .balances .coin-icon { color: var(--vintage-brass); }
+.vintage-header .balances .vintage-icon { width: 23px; height: 23px; }
+.vintage-header .balances-label {
+  font: 600 10px/1.2 var(--vintage-small);
+  letter-spacing: .06em;
+  color: var(--vintage-detail);
+}
+.vintage-header .utility-button {
+  position: relative;
+  color: var(--vintage-ivory);
+  border: 1px solid rgba(233,226,213,.63);
+  border-radius: 4px;
+  background: linear-gradient(165deg,#2b302a,#151a16);
+  box-shadow: inset 0 0 0 2px #141914,
+    inset 0 0 0 3px rgba(184,178,165,.19),
+    0 1px 1px rgba(0,0,0,.6);
+  font: 600 11px/1.15 var(--vintage-display);
+  min-height: 36px;
+  padding: 8px 9px;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.vintage-header .utility-button:hover:not(:disabled) {
+  background: #31372f;
+  border-color: var(--vintage-ivory);
+}
+.vintage-header .utility-button:focus-visible {
+  outline: 3px solid var(--vintage-community);
+  outline-offset: 3px;
+}
+
+/* Selected-square paper label with a restraint of Victorian filigree.
+ * Existing layout/overflow stays owned by the mature responsive CSS.
+ */
+.tile-panel.vintage-inspector {
+  isolation: isolate;
+  color: var(--vintage-ivory);
+  background:
+    repeating-linear-gradient(0deg,transparent 0 29px,rgba(233,226,213,.012) 29px 30px),
+    linear-gradient(160deg,rgba(40,45,39,.97),rgba(14,18,16,.98) 56%);
+  border: 1px solid rgba(233,226,213,.84);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 3px #141915,
+    inset 0 0 0 4px rgba(184,178,165,.34),
+    4px 7px 0 rgba(0,0,0,.40),
+    0 13px 25px rgba(0,0,0,.36);
+}
+.tile-panel.vintage-inspector::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 1px solid rgba(233,226,213,.16);
+  border-radius: 3px;
+  z-index: 0;
+  pointer-events: none;
+}
+.tile-panel.vintage-inspector > :not(.vintage-frame-corners) {
+  position: relative;
+  z-index: 3;
+}
+.tile-panel.vintage-inspector .vintage-frame-corner {
+  width: 24px;
+  height: 24px;
+  opacity: .67;
+}
+.vintage-inspector .tile-detail-top {
+  padding: 3px 6px 9px;
+  margin: 0 0 5px;
+  border-bottom: 1px solid rgba(233,226,213,.48);
+  min-height: 31px;
+}
+.vintage-inspector .tile-detail-top .eyebrow {
+  color: var(--vintage-detail);
+  padding-top: 6px;
+  font: 600 10px/1.2 var(--vintage-small);
+  letter-spacing: .075em;
+}
+.vintage-inspector h3 {
+  margin: 5px 4px 9px;
+  color: var(--vintage-ivory);
+  font: 500 clamp(17px,1.3vw,21px)/1.16 var(--vintage-display);
+  letter-spacing: .02em;
+  text-wrap: balance;
+}
+.vintage-inspector .tile-close {
+  border: 1px solid rgba(233,226,213,.63);
+  border-radius: 3px;
+  background: #20251f;
+  color: var(--vintage-ivory);
+  min-height: 34px;
+  min-width: 34px;
+  margin: -3px -1px 0 0;
+  font: 22px/1 var(--vintage-display);
+  box-shadow: inset 0 0 0 2px #101211;
+}
+.vintage-inspector .tile-close:hover { background: #353b33; }
+.vintage-inspector .tile-close:focus-visible {
+  outline: 3px solid var(--vintage-community);
+  outline-offset: 2px;
+}
+.vintage-inspector .tile-score {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 7px;
+  min-height: 35px;
+  margin: 0 4px;
+  padding: 6px 2px;
+  border-top: 1px solid rgba(233,226,213,.27);
+  color: var(--vintage-detail);
+  font: 12px/1.2 var(--vintage-small);
+}
+.vintage-inspector .tile-score-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--vintage-ivory);
+  font: 500 12px/1.3 var(--vintage-small);
+}
+.vintage-inspector .tile-score-name .vintage-icon {
+  color: var(--vintage-detail);
+  width: 19px;
+  height: 19px;
+}
+.vintage-inspector .tile-score b {
+  margin-left: auto;
+  color: var(--vintage-ivory);
+  font: 650 13px/1.2 var(--vintage-small);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vintage-inspector .tile-score .score-comparison {
+  margin-left: auto;
+  font: 11px/1.3 var(--vintage-small);
+  font-variant-numeric: tabular-nums;
+}
+.vintage-inspector .tile-score .score-comparison b { margin-left: 0; }
+.vintage-inspector .tile-score .score-comparison .positive { color: var(--vintage-progress); }
+.vintage-inspector .tile-score .score-comparison .negative { color: var(--vintage-safety); }
+.vintage-inspector .tile-score .score-comparison .neutral { color: var(--vintage-detail); }
+.vintage-inspector .tile-tip {
+  margin-top: 10px;
+  padding: 8px 4px 1px;
+  border-top: 1px solid rgba(233,226,213,.26);
+  color: var(--vintage-detail);
+}
+.vintage-inspector .projection-caption {
+  font: 11px/1.3 var(--vintage-small);
+  letter-spacing: .03em;
+  color: var(--vintage-detail);
+}
+.vintage-inspector .care-option,
+.vintage-inspector .model-condition,
+.vintage-inspector .bin-status,
+.vintage-inspector .neighbourhood-stories,
+.vintage-inspector .behaviour-forecast {
+  border-color: rgba(233,226,213,.30);
+  background-color: rgba(15,19,16,.52);
+}
+.vintage-inspector .care-option.active,
+.vintage-inspector .model-condition.condition-damaged {
+  border-color: var(--vintage-brass);
+}
+.vintage-inspector button:not(.tile-close):focus-visible,
+.vintage-inspector summary:focus-visible {
+  outline: 2px solid var(--vintage-community);
+  outline-offset: 2px;
+}
+.vintage-inspector button { touch-action: manipulation; }
+
+/* Compact/laptop: keep the existing two-row HUD and the game's large canvas. */
+@media (min-width:701px) and (max-width:1100px) {
+  /* The old compact layout reset grid-column to auto after naming an area.
+   * Explicit rows prevent gauges and controls from landing on top of each
+   * other on 844px landscape and smaller tablets. */
+  .vintage-header {
+    grid-template-areas: "brand era controls" "meters meters meters";
+    grid-template-columns: minmax(145px,1fr) minmax(155px,190px) minmax(175px,1fr);
+  }
+  .vintage-header .vintage-brand { grid-area: brand; grid-row: 1; grid-column: 1; }
+  .vintage-header .vintage-era { grid-area: era; grid-row: 1; grid-column: 2; }
+  .vintage-header .vintage-instruments {
+    grid-area: meters; grid-row: 2; grid-column: 1 / -1; width: 100%;
+  }
+  .vintage-header .vintage-controls {
+    grid-area: controls; grid-row: 1; grid-column: 3;
+  }
+  .vintage-header .vintage-brand,
+  .vintage-header .vintage-era,
+  .vintage-header .vintage-instruments { min-height: 60px; }
+  .vintage-header .vintage-instruments { padding: 9px 13px; }
+  .vintage-header .meter-top { font-size: 12px; }
+}
+@media (min-width:900px) and (min-height:500px) and (max-height:850px) {
+  .vintage-header .vintage-brand,
+  .vintage-header .vintage-era,
+  .vintage-header .vintage-instruments { min-height: 55px; }
+  .vintage-header .vintage-brand { padding-top: 7px; padding-bottom: 7px; }
+  .vintage-header .vintage-era { padding-top: 6px; padding-bottom: 6px; }
+  .vintage-header .vintage-instruments { padding-top: 6px; padding-bottom: 6px; }
+  .vintage-header .meter-top { min-height: 17px; margin-bottom: 4px; }
+  .vintage-header .meter-icon { flex-basis: 18px; width: 18px; }
+  .vintage-header .meter-icon .vintage-icon { width: 17px; height: 17px; }
+  .vintage-header .meter-rail,
+  .vintage-header .flow-track { height: 11px; }
+}
+/* Small screen: the new antique plate must not flatten or hide instruments. */
+@media (max-width:700px) {
+  /* Keep the four gauges in a full-width 2x2 instrument case. A half-width
+   * case with controls beside it made the labels and values collide. */
+  .vintage-header {
+    grid-template-areas: "brand era" "meters meters" "controls controls";
+    grid-template-columns: minmax(0,1fr) minmax(120px,.75fr);
+    grid-template-rows: auto auto auto;
+  }
+  .vintage-header .vintage-brand { grid-area: brand; grid-row: 1; grid-column: 1; }
+  .vintage-header .vintage-era { grid-area: era; grid-row: 1; grid-column: 2; }
+  .vintage-header .vintage-instruments {
+    grid-area: meters; grid-row: 2; grid-column: 1 / -1; width: 100%;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+  .vintage-header .vintage-controls {
+    grid-area: controls; grid-row: 3; grid-column: 1 / -1; width: 100%;
+    justify-content: space-between;
+  }
+  .vintage-header .vintage-brand,
+  .vintage-header .vintage-era { min-height: 68px; }
+  .vintage-header .vintage-brand { padding: 9px 11px; }
+  .vintage-header .vintage-era { padding: 8px 13px; }
+  .vintage-header .vintage-era strong { font-size: clamp(18px,5.1vw,23px); }
+  .vintage-header .vintage-era .eyebrow { font-size: 8px; }
+  .vintage-header .vintage-era .era-year { font-size: 9px; }
+  .vintage-era-flourish { height: 7px; margin-top: 1px; }
+  .vintage-header .vintage-instruments {
+    padding: 8px 13px;
+    gap: 8px 9px;
+    min-height: 110px;
+  }
+  .vintage-header .vintage-instruments .meter {
+    min-height: 41px;
+    border: none;
+    padding: 2px 3px;
+    background: none;
+  }
+  .vintage-header .vintage-instruments .meter:not(:last-child)::after { display: none; }
+  .vintage-header .vintage-instruments .meter:nth-of-type(even) {
+    border-left: 1px solid rgba(233,226,213,.3);
+    padding-left: 9px;
+  }
+  .vintage-header .meter-top { font-size: clamp(10px,2.8vw,12px); min-height: 21px; margin-bottom: 4px; }
+  .vintage-header .meter-top b { font-size: 11px; }
+  .vintage-header .income-meter .meter-top b { font-size: 10px; }
+  .vintage-header .meter-icon { flex: 0 0 18px; width: 18px; }
+  .vintage-header .meter-icon .vintage-icon { width: 18px; height: 18px; }
+  .vintage-header .meter-rail,
+  .vintage-header .flow-track { height: 12px; }
+  .vintage-header .flow-breakdown { font-size: 9px; }
+  .vintage-header .vintage-controls .utility-button { min-height: 44px; padding: 9px 8px; }
+  .tile-panel.vintage-inspector { border-radius: 6px; padding: 11px 14px; }
+  /* The old panel lived under the long town canvas, where a fixed shelf
+   * could cover it despite Playwright considering it "visible". A deliberate
+   * tile selection now opens a small, scrollable inspection sheet ABOVE
+   * the model shelf, and never blocks drag/tap interaction while closed. */
+  .tile-panel.vintage-inspector.is-active:not([hidden]) {
+    position: fixed;
+    z-index: 24;
+    top: auto;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(var(--model-dock-height) + 9px);
+    width: auto;
+    max-width: none;
+    max-height: min(36dvh, 255px);
+    min-height: 110px;
+    margin: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background-color: var(--vintage-board);
+    box-shadow: inset 0 0 0 3px #141915,
+      inset 0 0 0 4px rgba(184,178,165,.34),
+      0 12px 28px rgba(0,0,0,.72);
+  }
+  .tile-panel.vintage-inspector > .tile-detail-top {
+    position: sticky;
+    top: -6px;
+    z-index: 6;
+    background: rgba(19,24,20,.98);
+  }
+  .vintage-inspector .tile-detail-top { min-height: 34px; }
+  .vintage-inspector .tile-close { min-width: 44px; min-height: 44px; }
+  .vintage-inspector .tile-score { min-height: 36px; }
+  .vintage-inspector .tile-score-name { font-size: 12px; }
+}
+/* On a low landscape phone the fixed 205px kit dock plus the HUD would
+ * leave no usable town. Keep the board first and place the shop beneath it,
+ * reachable by ordinary vertical scrolling, instead of covering the game. */
+@media (min-width:701px) and (max-width:899px) and (max-height:490px) {
+  .main-content { padding-bottom: max(13px,env(safe-area-inset-bottom)); }
+  .main-content #shop-section {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    min-height: 205px;
+    height: 229px;
+    margin: 0;
+    z-index: 4;
+  }
+  .tile-panel.vintage-inspector.is-active:not([hidden]) {
+    position: fixed;
+    z-index: 24;
+    top: 46dvh;
+    right: 8px;
+    bottom: auto;
+    left: auto;
+    width: min(340px, 47vw);
+    max-width: none;
+    max-height: min(44dvh, 185px);
+    min-height: 95px;
+    margin: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background-color: var(--vintage-board);
+    box-shadow: 0 12px 28px rgba(0,0,0,.73);
+  }
+  .tile-panel.vintage-inspector > .tile-detail-top {
+    position: sticky;
+    top: -6px;
+    z-index: 6;
+    background: rgba(19,24,20,.98);
+  }
+}
+@media (max-width:385px) {
+  .tile-panel.vintage-inspector.is-active:not([hidden]) {
+    max-height: min(29dvh, 190px);
+  }
+  .vintage-header .vintage-brand { padding: 8px 9px; }
+  .vintage-header .vintage-era { padding: 8px 10px; }
+  .vintage-header .vintage-era .era-year { font-size: 8.5px; }
+  .vintage-header .vintage-instruments { padding: 7px 11px; gap: 7px 6px; }
+  .vintage-header .meter-top { gap: 3px; font-size: 10px; }
+  .vintage-header .meter-top b { font-size: 10px; }
+  .vintage-header .vintage-instruments .meter:nth-of-type(even) { padding-left: 6px; }
+  .vintage-header .flow-breakdown { font-size: 8px; }
+  .vintage-header .vintage-controls .utility-button { padding: 8px 6px; font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vintage-header .meter-fill,
+  .vintage-header .flow-fill,
+  .vintage-header .utility-button { transition: none; }
+}

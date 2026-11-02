@@ -4,6 +4,25 @@
 
 A miniature town-building roguelite about generations of fathers and sons making models together. Cars belonging to six households circle an irregular, grid-aligned road, generating coins and getting irritated by their surroundings. When too many houses close, the run ends, but permanent Blueprints persist.
 
+## Engraved Vintage interface — Pass 7B
+
+The first visual implementation follows the 1908 art direction: a double-line
+antique HUD, decorative era plaque, coordinated gears/people/shield/coin
+registers with restrained colour, and a fine-framed **Selected Tile**
+inspector. Beauty, Noise, Crime and Road safety remain explicit and readable;
+none of the game values or simulation rules have changed.
+
+A new [Vintage UI layer](src/styles/vintage-ui.css) shares handmade
+[engraved icons](src/ui/vintageIcons.ts) between HUD and tile/placement
+inspector. The [7B implementation notes](docs/art-direction/PASS_7B_ENGRAVED_UI.md)
+describe review screenshots, responsive support and the remaining major art
+rebuilds.
+
+**The physical model cartons and game-world art are not yet replaced.**
+Next is Pass 7C (genuinely dimensional collectible model boxes and matching
+shop/board miniature drawings); then Pass 7D vintage cars, houses and town
+landmarks, followed by 7E final aesthetic consistency.
+
 ## Visual identity reset — Pass 7A
 
 The original 1908 concept is the standard for the game's art: **fine engraved

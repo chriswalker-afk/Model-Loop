@@ -28,6 +28,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser smoke test
         run: npm run test:smoke
+      - name: Upload Vintage interface review screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vintage-visual-review
+          path: test-results/visual-review/
+          if-no-files-found: ignore
+          retention-days: 14
 
   publish:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
