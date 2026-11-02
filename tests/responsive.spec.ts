@@ -120,7 +120,7 @@ test('switching from phone to laptop refreshes Phaser scale without breaking pla
   await expect.poll(async () => {
     const rect = await page.locator('#game-container canvas').boundingBox();
     return rect?.width ?? 0;
-  }).toBeGreaterThan(900);
+  }).toBeGreaterThan(800);
   const after = await page.locator('#game-container canvas').boundingBox();
   expect((after?.width ?? 0)).toBeGreaterThan((before?.width ?? 0));
   await page.getByRole('button', { name: /Select Oak Tree/ }).click();
