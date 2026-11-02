@@ -145,8 +145,9 @@ export class RoadsideAccidentEngine {
     return before!==this.active.length;
   }
   /** Wards shorten the physical roadside disruption, not erase damage. */
-  wardAssistance(road: Cell, now: number): RoadsideIncident | null {
+  wardAssistance(road: Cell, now: number, incidentId?:number): RoadsideIncident | null {
     const event=this.active.filter(incident=>
+      (incidentId===undefined||incident.id===incidentId) &&
       !incident.wardHelped && incident.endsAt>now &&
       manhattanDistance(road,incident.road)<=2
     ).sort((a,b)=>manhattanDistance(road,a.road)-manhattanDistance(road,b.road) ||
