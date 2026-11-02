@@ -2543,3 +2543,13 @@ summary:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .neighbourhood-stories, .family-neighbourhood { scroll-behavior: auto; }
 }
+
+.household-recovery:not([hidden]) {
+  margin: 6px 0;
+  padding: 5px 8px;
+  color: #d6c59f;
+  font-size: 10.5px;
+  line-height: 1.4;
+  border-left: 2px solid rgba(201,166,106,.72);
+  background: rgba(201,166,106,.07);
+}
