@@ -95,8 +95,8 @@ test('the six showroom SVGs have distinct era-specific detail and are cached as 
       expect(row.svg).toContain('viewBox="0 0 130 104"');
       expect(row.svg).toContain('display plinth');
       expect(row.elements).toBeGreaterThan(13);
-      expect(row.uri.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
-      expect(decodeURIComponent(row.uri.split(',')[1])).toBe(row.svg);
+      expect(row.uri.startsWith('data:image/svg+xml;base64,')).toBe(true);
+      expect(Buffer.from(row.uri.split(',')[1],'base64').toString('utf8')).toBe(row.svg);
     }
     // The period speed notice and constable post must not retain cheap modern
     // 20-in-a-red-circle or blue police telephone box silhouettes.
