@@ -413,8 +413,8 @@ export class TownScene extends Scene {
           g.fillStyle(palette.gold, 1);
           g.fillCircle(px, py, 1.8);
         }
-      } else {
-        // Curved tyre marks on the asphalt. A faded accent indicates a safety hazard.
+      } else if (effect.kind === 'skid') {
+        // The Finches have left chalk tyre scuffs across the road.
         g.lineStyle(3, palette.danger, 0.63);
         g.lineBetween(x - 18, y - 7, x - 8, y - 11);
         g.lineBetween(x - 8, y - 11, x + 11, y - 6);
@@ -422,6 +422,61 @@ export class TownScene extends Scene {
         g.lineBetween(x - 8, y - 2, x + 11, y + 3);
         g.lineStyle(1.1, palette.chalk, 0.5);
         g.strokeCircle(x + 16, y - 14, 4);
+      } else if (effect.kind === 'courtesy') {
+        // Two soft chevrons show that the road is being shared.
+        g.lineStyle(2.1, palette.mint, 0.88);
+        g.lineBetween(x - 11, y - 5, x - 2, y);
+        g.lineBetween(x - 2, y, x - 11, y + 5);
+        g.lineBetween(x + 3, y - 5, x + 12, y);
+        g.lineBetween(x + 12, y, x + 3, y + 5);
+        g.lineStyle(1, palette.chalk, 0.7);
+        g.strokeCircle(x, y, 15);
+      } else if (effect.kind === 'mended') {
+        // An etched rectangular road-repair patch with little stitches.
+        g.fillStyle(0x667367, 0.35);
+        g.fillRoundedRect(x - 15, y - 12, 30, 24, 3);
+        g.lineStyle(1.3, palette.mint, 0.88);
+        g.strokeRoundedRect(x - 15, y - 12, 30, 24, 3);
+        for (let t = -8; t <= 8; t += 8) {
+          g.lineBetween(x + t - 2, y - 11, x + t + 3, y - 7);
+          g.lineBetween(x + t - 2, y + 8, x + t + 3, y + 12);
+        }
+      } else if (effect.kind === 'tidied') {
+        // A little neat sweep and sparkling cleared grass.
+        g.lineStyle(2, palette.mint, 0.9);
+        g.lineBetween(x - 13, y + 6, x + 12, y + 6);
+        g.lineBetween(x - 9, y + 11, x + 8, y + 11);
+        g.lineBetween(x - 11, y + 3, x - 11, y - 5);
+        g.lineBetween(x - 15, y - 1, x - 7, y - 1);
+        g.fillStyle(0xe2dab7, 0.93);
+        g.fillCircle(x + 12, y - 6, 2.5);
+      } else if (effect.kind === 'heritage') {
+        // A small restored iron/plaque miniature beside the street.
+        g.lineStyle(1.5, palette.chalk, 0.85);
+        g.strokeRect(x - 12, y - 14, 24, 22);
+        g.lineBetween(x - 8, y - 8, x + 8, y - 8);
+        g.lineBetween(x - 8, y - 2, x + 4, y - 2);
+        g.lineBetween(x, y + 8, x, y + 15);
+        g.strokeCircle(x, y + 16, 2.5);
+        g.fillStyle(palette.gold, 0.7);
+        g.fillCircle(x + 7, y + 3, 3);
+      } else if (effect.kind === 'display') {
+        // A heritage display/notice board drawing cars toward it.
+        g.fillStyle(0x5b6355, 0.58);
+        g.fillRoundedRect(x - 14, y - 13, 28, 22, 2);
+        g.lineStyle(2, palette.gold, 0.92);
+        g.strokeRoundedRect(x - 14, y - 13, 28, 22, 2);
+        g.lineBetween(x - 9, y - 6, x + 9, y - 6);
+        g.lineBetween(x - 9, y + 1, x + 6, y + 1);
+        g.lineBetween(x - 9, y + 9, x - 9, y + 16);
+        g.lineBetween(x + 9, y + 9, x + 9, y + 16);
+      } else if (effect.kind === 'guidance') {
+        // The Wards leave a small, temporary safe-way marker.
+        g.lineStyle(2, palette.mint, 0.94);
+        g.lineBetween(x - 12, y + 2, x + 12, y + 2);
+        g.lineBetween(x + 12, y + 2, x + 5, y - 6);
+        g.lineBetween(x + 12, y + 2, x + 5, y + 10);
+        g.strokeCircle(x - 8, y - 7, 4);
       }
     }
   }
@@ -752,7 +807,8 @@ export class TownScene extends Scene {
         const x = culprit.container.x, y = culprit.container.y;
         this.trafficLayer.lineStyle(1.7, palette.gold, 0.85);
         this.trafficLayer.strokeCircle(x, y, 20);
-        this.trafficLabel.setText(stop.kind === 'admiring' ? 'A MOMENT...' : 'CAREFUL...')
+        this.trafficLabel.setText(stop.kind === 'admiring' ? 'A MOMENT...' :
+          stop.kind === 'chatting' ? 'A CHAT...' : 'CAREFUL...')
           .setPosition(x, y - 36).setVisible(true);
       } else {
         this.trafficLabel.setVisible(false);
