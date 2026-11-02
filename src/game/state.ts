@@ -825,6 +825,11 @@ export class GameStore {
       reaction = { residentId: id, text: profile.warning, calmer: false };
       this.notify();
     }
+    // Optional linked response is checked once per real tile crossing, not
+    // every frame. Passing cars, parked cars and stopped drivers are excluded.
+    if (canParkForActivity && !this.activities.forResident(id) &&
+        !this.traffic.shouldStop(id))
+      this.respondToNeighbourhood(id,tile);
     if (resident.irritation >= 100) {
       resident.occupied = false;
       this.activities.cancelResident(id);
@@ -842,10 +847,11 @@ export class GameStore {
 
   /** One genuinely damaged miniature restored by the Hales, at most one
    * condition step per action; a broken miniature needs two helping visits. */
-  private haleRestoreOne(road: Cell): {model: PlacedModel; before: ModelCondition} | null {
+  private haleRestoreOne(road: Cell, target?: Cell): {model: PlacedModel; before: ModelCondition} | null {
     const model=this.placements.filter(placed =>
       modelCondition(placed.condition)!=='intact' &&
-      manhattanDistance(placed,road)<=2)
+      manhattanDistance(placed,road)<=2 &&
+      (!target || (placed.x===target.x && placed.y===target.y)))
       .sort((a,b)=>manhattanDistance(a,road)-manhattanDistance(b,road) ||
         a.x-b.x||a.y-b.y)[0];
     if(!model)return null;
@@ -853,6 +859,76 @@ export class GameStore {
     model.condition=before==='broken'?'damaged':'intact';
     this.ledger.haleRestorations=(this.ledger.haleRestorations??0)+1;
     return {model,before};
+  }
+
+  /**
+   * A chance encounter with a *real* outstanding need, on the actor's
+   * actual left-lane route. These small responses consume no coins and
+   * award no circuits, Progress or additional official helpful action.
+   * They have their own seed, cooldown, maximum requests and expiry.
+   */
+  private respondToNeighbourhood(residentId:number,road:Cell):boolean {
+    const task=this.neighbours.candidate(residentId,road,this.clockSeconds);
+    if(!task)return false;
+    const source=this.residents[task.sourceResidentId];
+    let message:string|null=null;
+    const model=this.getPlacedModel(task.target);
+    if(task.kind==='ward-visit'){
+      if(!model||modelCondition(model.condition)==='intact'){
+        this.neighbours.discard(task.id);return false;
+      }
+      const helped=this.accidents.active.find(event=>event.id===task.incidentId);
+      const assisted=helped?.wardHelped ? null :
+        this.accidents.wardAssistance(road,this.clockSeconds);
+      if(assisted){
+        this.ledger.wardAssists=(this.ledger.wardAssists??0)+1;
+        message='The Wards came past the damaged '+this.getModel(model.id).name+
+          ' and helped traffic through the corner.';
+      }else{
+        message='The Wards slowed to check the damaged '+
+          this.getModel(model.id).name+' and the nearby sightline.';
+      }
+    }else if(task.kind==='hale-restore'){
+      if(!model||modelCondition(model.condition)==='intact'){
+        this.neighbours.discard(task.id);return false;
+      }
+      const repaired=this.haleRestoreOne(road,task.target);
+      if(!repaired){this.neighbours.discard(task.id);return false;}
+      message='The Hales noticed the damaged '+this.getModel(repaired.model.id).name+
+        ' and restored it from '+repaired.before+' to '+repaired.model.condition+'.';
+    }else if(task.kind==='marsh-clean'){
+      const litter=this.environment.effects.find(effect=>
+        effect.id===task.effectId && effect.kind==='litter' &&
+        effect.cell.x===task.target.x&&effect.cell.y===task.target.y);
+      if(!litter){this.neighbours.discard(task.id);return false;}
+      if(!this.environment.removeEffect(litter.id,'litter'))return false;
+      message='The Marshes collected the scraps left after a neighbour’s visit.';
+    }else if(task.kind==='marsh-admire'){
+      const sketch=this.environment.effects.find(effect=>
+        effect.id===task.effectId&&effect.kind==='sketch');
+      if(!sketch){this.neighbours.discard(task.id);return false;}
+      message='The Marshes paused to admire the Bells’ sketch of the town.';
+    }
+    if(!message)return false;
+    const note=this.neighbours.complete(task,this.clockSeconds,message);
+    if(!note)return false;
+    this.ledger.neighbourResponses=(this.ledger.neighbourResponses??0)+1;
+    if(source?.occupied && source.id!==residentId) {
+      source.irritation=clamp(source.irritation-.38,0,100);
+      source.lastRemark=task.kind==='hale-restore'
+        ? 'It was good of them to mend what was damaged.'
+        : task.kind==='ward-visit' ? 'Someone checked that everything was safe.'
+        : 'A neighbour noticed. That was thoughtful.';
+    }
+    const actor=this.residents[residentId];
+    if(actor)actor.lastRemark=task.kind==='marsh-clean'
+      ? 'A shared space deserves a little care.'
+      : task.kind==='hale-restore' ? 'We should look after things worth keeping.'
+      : task.kind==='ward-visit' ? 'Best to make sure everyone can get past safely.'
+      : 'It is lovely when someone shares their work.';
+    this.publishNotice(message,1);
+    this.notify();
+    return true;
   }
 
   /**
