@@ -91,3 +91,21 @@ test('compact landscape model selection and care inspection stay usable', async 
   await page.locator('#tile-panel [data-care="economy"]').click();
   await expect(page.locator('#tile-panel [data-care="economy"]')).toHaveAttribute('aria-pressed','true');
 });
+
+
+test('last collectible kit remains selectable after scrolling the short-window side shelf', async ({page}) => {
+  await page.setViewportSize({width:1266,height:548});
+  await page.goto('/');
+  const shelf=page.locator('.shop-track');
+  await shelf.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+  expect(await shelf.evaluate(el=>el.scrollTop)).toBeGreaterThan(160);
+  await page.getByRole('button',{name:/Select Police Box/}).click();
+  await expect(page.locator('#placement-status')).toContainText('Police Box is ready');
+  const rect=await page.locator('#game-container canvas').boundingBox();
+  if(!rect)throw new Error('Town canvas missing');
+  const x=rect.x+(60+4.5*43)/1152*rect.width;
+  const y=rect.y+(48+4.5*43)/620*rect.height;
+  await page.mouse.click(x,y);
+  await expect(page.locator('#coins')).toHaveText('90');
+  await expect(page.locator('#tile-panel')).toContainText('MODEL CARE');
+});
