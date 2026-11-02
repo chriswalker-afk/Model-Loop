@@ -19,6 +19,22 @@ const game = new Game({
   scene: [TownScene]
 });
 
+// The CSS layout can change when the HUD wraps or a phone rotates even if the
+// browser's width stays the same. Phaser's FIT scale must follow the actual
+// available board viewport, not a guessed breakpoint.
+const townViewport = document.getElementById('town-pan');
+if (townViewport && typeof ResizeObserver !== 'undefined') {
+  let pendingFrame = 0;
+  const observer = new ResizeObserver(() => {
+    if (pendingFrame) cancelAnimationFrame(pendingFrame);
+    pendingFrame = requestAnimationFrame(() => {
+      pendingFrame = 0;
+      game.scale.refresh();
+    });
+  });
+  observer.observe(townViewport);
+}
+
 function byId<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
