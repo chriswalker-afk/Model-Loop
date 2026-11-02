@@ -119,7 +119,9 @@
   font-family: var(--vintage-display);
   font-weight: 700;
   color: var(--vintage-ivory);
-  letter-spacing: .005em;
+  font-size: clamp(12px,1.18vw,17px);
+  line-height: 1.08;
+  letter-spacing: -.028em;
   text-shadow: 0 1px 1px #080a09;
 }
 .vintage-header .brand-name .brand-name-accent { color: var(--vintage-brass); }
