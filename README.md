@@ -82,6 +82,21 @@ tap positions and placement previews continue to match visible squares after
 the browser is resized or the device rotated. No manual zoom or settings
 change is required.
 
+## The living environment (Driver Behaviour Pass 1)
+
+Residents now occasionally change the roadside while completing their
+circuits. The Bells leave little flowers, the Millers sometimes leave
+packaging, and the Finches can leave tyre scuffs after a sharp turn.
+These details appear on the board, influence nearby residents and local
+conditions, and fade naturally. Select an affected square to see who caused
+the change and how long it will remain. **Safety** now reflects actual road
+hazards and maintained protections, not how irritated households feel.
+
+These events are deterministic when run with the same seed, limited to one
+opportunity per circuit, and capped to prevent visual clutter. See
+[Living Environment: rules, testing and next passes](docs/LIVING_ENVIRONMENT.md)
+for the full system and development-only event triggers.
+
 ## Compact landscape windows
 
 A short but fairly wide browser window (for example **1266 × 548**) is
