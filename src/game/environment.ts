@@ -242,8 +242,9 @@ export class LivingEnvironment {
 
   /** Explicit, reproducible trigger for automated tests and DEV-only tools. */
   force(kind: EnvironmentKind, residentId: number, roadCell: Cell, now: number,
-    blocked: readonly Cell[] = [], intercept?: LitterInterceptor): EnvironmentalEvent | null {
-    return this.spawn(kind, residentId, roadCell, now, blocked, intercept);
+    blocked: readonly Cell[] = [], intercept?: LitterInterceptor,
+    preferredCell?: Cell): EnvironmentalEvent | null {
+    return this.spawn(kind, residentId, roadCell, now, blocked, intercept, preferredCell);
   }
 
   private noteLitter(
@@ -267,7 +268,8 @@ export class LivingEnvironment {
   }
 
   private spawn(kind: EnvironmentKind, residentId: number, roadCell: Cell, now: number,
-    blocked: readonly Cell[], intercept?: LitterInterceptor): EnvironmentalEvent | null {
+    blocked: readonly Cell[], intercept?: LitterInterceptor,
+    preferredCell?: Cell): EnvironmentalEvent | null {
     if (!HOMES.some(home => home.id === residentId) || !isRoad(roadCell.x, roadCell.y)) return null;
     const diversion = kind === 'litter' ? intercept?.(roadCell, residentId, now) : null;
     if (diversion?.status === 'captured') return this.noteLitter(residentId, now, diversion);
@@ -297,7 +299,9 @@ export class LivingEnvironment {
       );
       if (available.length === 0) return diversion?.status === 'overflow'
         ? this.noteLitter(residentId, now, diversion) : null;
-      cell = available[this.rng.int(available.length)];
+      const preferred = preferredCell && available.find(candidate =>
+        candidate.x === preferredCell.x && candidate.y === preferredCell.y);
+      cell = preferred ?? available[this.rng.int(available.length)];
     } else if (this.effects.some(effect => effect.kind === kind
       && effect.cell.x === cell.x && effect.cell.y === cell.y)) {
       return null;
