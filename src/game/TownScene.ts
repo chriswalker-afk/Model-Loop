@@ -5,7 +5,7 @@ import { normalizedCare } from './economy';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { householdActionPair, type BehaviourReport } from './behaviors';
-import { activityDefinition, type ActiveActivity } from './activities';
+import { type ActiveActivity } from './activities';
 import { bendSpeedMultiplier, drivingProfile, type DrivingProfile } from './driving';
 import {
   HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, TRAFFIC_LANE_CHANGE_SECONDS,
@@ -673,7 +673,7 @@ export class TownScene extends Scene {
       this.activityLabels.delete(id);
     }
     for (const activity of store.activities.active) {
-      const name = activity.kind.replaceAll('-', ' ').toUpperCase();
+      const name = activity.kind.replace(/-/g, ' ').toUpperCase();
       const stage = activity.phase === 'setting-up' ? 'ARRIVING' :
         activity.phase === 'underway' ? 'UNDERWAY' : 'PACKING';
       const point = worldPoint(activity.cell);
