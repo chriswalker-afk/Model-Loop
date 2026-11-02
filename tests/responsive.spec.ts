@@ -160,7 +160,8 @@ test('the far side of the town is tappable after horizontal panning on a phone',
   expect(point.x).toBeGreaterThan(0);
   expect(point.x).toBeLessThan(390);
   await page.mouse.move(point.x, point.y);
-  await expect(page.locator('#tile-panel')).toContainText('READY TO PLACE');
+  await expect(page.locator('#tile-panel')).toBeHidden();
+  await expect(page.locator('#tile-peek')).toBeHidden();
   await page.mouse.click(point.x, point.y);
   await expect(page.locator('#coins')).toHaveText('120');
   expect(errors).toEqual([]);
