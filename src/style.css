@@ -2225,3 +2225,118 @@ body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .behaviour-forecast, .family-actions { scroll-behavior: auto; }
 }
+
+
+/* Contextual town inspection: no large inspector until the player clicks. */
+.tile-panel[hidden], .tile-peek[hidden] { display: none !important; }
+.tile-panel {
+  min-height: 0;
+}
+.tile-detail-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 27px;
+  margin-bottom: 2px;
+}
+.tile-detail-top .eyebrow {
+  flex: 1 1 auto;
+  padding-top: 5px;
+  line-height: 1.25;
+}
+.tile-close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: -4px -5px 0 0;
+  padding: 0;
+  color: #e7e3d7;
+  border: 1px solid rgba(198,203,184,.55);
+  border-radius: 4px;
+  background: rgba(36,47,38,.95);
+  font: 23px/1 Georgia,serif;
+  cursor: pointer;
+}
+.tile-close:hover { background: #354538; border-color: #cee1c4; }
+.tile-close:focus-visible { outline: 3px solid #b8e9d3; outline-offset: 2px; }
+
+/* A compact on-board label only after a sustained pointer hover. It never
+   captures clicks or drag/drop gestures, and is hidden entirely on phones. */
+.tile-peek {
+  position: absolute;
+  z-index: 16;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: max-content;
+  max-width: min(230px, 48%);
+  padding: 8px 10px;
+  color: #eae8dd;
+  background: rgba(14,22,18,.96);
+  border: 1px solid rgba(190,208,186,.7);
+  border-radius: 5px;
+  box-shadow: 0 8px 22px rgba(0,0,0,.42);
+  pointer-events: none;
+  text-align: left;
+  font: 10px/1.4 system-ui,sans-serif;
+  letter-spacing: 0;
+}
+.tile-peek strong {
+  font: 600 13px/1.25 Georgia,serif;
+  color: #f0e9d4;
+}
+.tile-peek span { color: #b9d0bb; overflow-wrap: anywhere; }
+.tile-peek:has(span:first-of-type) { isolation: isolate; }
+
+/* Brand is a deliberately two-line lockup, not a long unbreakable headline.
+   Remove pressure on the era mark, meters and utility buttons at all widths. */
+.brand { min-width: 0; }
+.brand-name {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: normal;
+  font-size: clamp(15px, 1.55vw, 21px);
+  line-height: 1.05;
+  letter-spacing: -.015em;
+}
+.brand-name .brand-line {
+  display: block;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.brand-name .brand-name-accent { color: var(--gold); }
+.brand-kicker {
+  margin-bottom: 4px;
+  font-size: 9px;
+  letter-spacing: .08em;
+  line-height: 1.25;
+}
+@media (min-width: 900px) and (min-height: 500px) and (max-height: 850px) {
+  .brand-name {
+    max-width: 100%;
+    font-size: clamp(14px, 1.43vw, 19px);
+    white-space: normal;
+    line-height: 1.08;
+  }
+  .brand-kicker { margin-bottom: 3px; font-size: 8px; }
+}
+@media (max-width: 700px) {
+  .brand-name { font-size: clamp(12.5px, 3.6vw, 18px); }
+  .brand-kicker { font-size: clamp(7px, 1.85vw, 9px); letter-spacing: .04em; }
+  .tile-peek { display: none !important; }
+  .tile-panel { min-height: 0; }
+}
+@media (max-width: 385px) {
+  .brand-name { font-size: clamp(11.5px, 3.65vw, 14px); }
+}
+@media (hover: none), (pointer: coarse) {
+  .tile-peek { display: none !important; }
+}
