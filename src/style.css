@@ -1038,3 +1038,454 @@ body { overflow: hidden; }
   .care-stats,.care-speed { font-size: 8px; }
   .income-meter .meter-top b { font-size: 11px; }
 }
+
+
+/* Adaptive-screen pass: scale interface groups separately, keep town legible.
+   Large screens retain the all-in-one composition. Short/medium screens scroll
+   naturally with a persistent kit dock; on phones the enlarged town pans
+   horizontally instead of becoming an unreadable 300-pixel miniature. */
+:root {
+  --adaptive-gap: clamp(6px, .85vw, 12px);
+  --model-dock-height: clamp(194px, 27dvh, 246px);
+}
+.brand,.era-mark,.meters,.top-controls,.meter { min-width: 0; }
+.town-pan {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.town-pan-hint { display: none; }
+.brand-name { font-size: clamp(23px, 2.4vw, 34px); }
+.shop-topline h2 { font-size: clamp(15px, 1.4vw, 19px); }
+.shop-heading,.shop-instructions { min-width: 0; }
+.shop-instructions { line-height: 1.35; }
+.model-box .box-upkeep { font-size: clamp(8px, .72vw, 10px); }
+.utility-button { min-height: 34px; }
+.modal { padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+.dialog { max-height: min(92dvh, 820px); }
+
+/* An adaptive, scrollable page prevents the canvas from being squeezed into a
+   few unusable pixels by a tall HUD or short landscape viewport. */
+@media (max-width: 1100px), (max-height: 720px) {
+  html,body {
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  body { min-height: 100dvh; overflow-y: auto; }
+  #app {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+  .main-content {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--adaptive-gap);
+    width: min(100%, 1000px);
+    min-width: 0;
+    padding: 0 clamp(4px, 1vw, 12px)
+      calc(var(--model-dock-height) + max(15px, env(safe-area-inset-bottom)));
+    margin: 0 auto;
+  }
+  .world-frame {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-width: 100%;
+    max-height: none;
+    aspect-ratio: auto;
+    margin: 0 auto;
+    overflow: hidden;
+    align-self: auto;
+    justify-self: auto;
+  }
+  .town-pan {
+    display: grid;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1152 / 620;
+    overflow: hidden;
+  }
+  #game-container {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    aspect-ratio: 1152 / 620;
+    display: grid;
+    place-items: center;
+  }
+  #game-container canvas { display: block; max-width: 100%; max-height: 100%; }
+  .tile-panel {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    width: 100%;
+    max-width: none;
+    max-height: min(29dvh, 228px);
+    min-height: 72px;
+    margin: 0;
+    padding: 10px 14px;
+    border: 0;
+    border-top: 1px solid #667567;
+    border-radius: 0;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,.18);
+    background: #19221c;
+    overflow-x: hidden;
+    overflow-y: auto;
+    pointer-events: auto;
+  }
+  .tile-panel h3 { font-size: clamp(15px, 1.9vw, 19px); }
+  .tile-panel .eyebrow { font-size: 10px; }
+  .tile-panel p { font-size: 11px; }
+  .tile-score { font-size: 11px; }
+  .tile-panel .care-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: 6px;
+  }
+  .tile-panel .care-label { flex-wrap: wrap; }
+  .household-detail {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: 5;
+    width: 100%;
+    max-width: none;
+    max-height: min(40dvh, 300px);
+    margin: 0;
+    border-width: 1px 0 0;
+    outline: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 13px 18px;
+    overflow-y: auto;
+  }
+  .households-shelf {
+    flex: none;
+    width: 100%;
+    height: clamp(49px, 6.5dvh, 59px);
+    min-height: 0;
+    padding: 4px 7px;
+  }
+  .shop-section {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 22;
+    width: 100%;
+    height: var(--model-dock-height);
+    min-height: 0;
+    margin: 0;
+    padding: 0 clamp(6px,1.4vw,14px)
+      calc(5px + env(safe-area-inset-bottom));
+    border-radius: 11px 11px 0 0;
+    box-shadow: 0 -12px 30px rgba(0,0,0,.78), inset 0 2px 13px #070c08;
+  }
+  .shop-track {
+    justify-content: flex-start;
+    min-height: 0;
+    padding: 13px clamp(9px,1.4vw,18px) 12px;
+    gap: clamp(10px,1.5vw,17px);
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+  }
+  .model-box {
+    flex-basis: clamp(146px, 17vw, 175px);
+    min-height: 0;
+  }
+  .box-title { font-size: clamp(12px,1.3vw,15px); }
+  .box-description { min-height: 0; }
+  .footer {
+    min-height: 28px;
+    padding: 5px 8px;
+    margin: 0;
+  }
+  .workbench-note { max-width: 65%; }
+}
+
+/* Tablet and compact desktop: two HUD rows, not three overflowing rows. */
+@media (min-width: 701px) and (max-width: 1100px) {
+  .topbar {
+    display: grid;
+    grid-template-areas:
+      "brand era controls"
+      "meters meters meters";
+    grid-template-columns: minmax(145px, 1fr) minmax(155px, 190px) minmax(175px, 1fr);
+    gap: 7px clamp(12px, 1.8vw, 22px);
+    padding: clamp(9px,1.3vw,14px) clamp(13px,2vw,24px);
+  }
+  .brand { grid-area: brand; }
+  .era-mark { grid-area: era; min-height: 54px; }
+  .meters { grid-area: meters; grid-column: auto; grid-row: auto; gap: 10px; }
+  .top-controls {
+    grid-area: controls;
+    grid-column: auto;
+    grid-row: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .top-controls .balances {
+    margin: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .balances b { font-size: 20px; }
+  .meter-top { font-size: 11px; }
+  .shop-section { --model-dock-height: clamp(205px, 27dvh, 238px); }
+  .households-heading { flex-basis: 125px; }
+  .household-ticket { flex: 0 0 130px; }
+}
+
+/* Phone widths: the model town is deliberately larger than the viewport.
+   Panning the road is more usable than scaling 24 grid columns to 320px. */
+@media (max-width: 700px) {
+  :root { --model-dock-height: clamp(185px, 26dvh, 222px); }
+  .topbar {
+    display: grid;
+    grid-template-areas:
+      "brand era"
+      "meters meters"
+      "controls controls";
+    grid-template-columns: minmax(0, 1fr) minmax(120px, .75fr);
+    grid-template-rows: auto auto auto;
+    gap: 7px 10px;
+    width: 100%;
+    padding: 10px clamp(10px, 3vw, 16px);
+  }
+  .brand { grid-area: brand; }
+  .brand-name { font-size: clamp(22px, 6vw, 29px); }
+  .brand-kicker,.brand-sub { font-size: clamp(8px, 2vw, 10px); }
+  .brand-sub { max-width: 175px; }
+  .era-mark {
+    grid-area: era;
+    min-height: 56px;
+    padding: 5px 6px;
+    outline-offset: 2px;
+  }
+  .era-mark strong { font-size: clamp(17px,4.8vw,22px); }
+  .era-year,.era-mark .eyebrow { font-size: clamp(8px,1.9vw,10px); }
+  .meters {
+    grid-area: meters;
+    grid-column: auto;
+    grid-row: auto;
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 6px 9px;
+  }
+  .meter {
+    min-width: 0;
+    min-height: 36px;
+    padding: 5px 7px;
+    border: 1px solid rgba(171,187,170,.28);
+    border-radius: 3px;
+    background: rgba(39,51,42,.5);
+  }
+  .meter-top {
+    display: flex;
+    flex-wrap: nowrap;
+    font-size: clamp(10px,2.6vw,12px);
+    line-height: 1.2;
+    margin-bottom: 5px;
+    gap: 5px;
+  }
+  .meter-top b { font-size: clamp(10px,2.5vw,12px); white-space: nowrap; }
+  .income-meter .meter-top b { font-size: clamp(10px,2.6vw,12px); }
+  .income-meter .meter-top b small { font-size: 8px; }
+  .flow-breakdown { font-size: 9px; }
+  .meter-rail { height: 7px; }
+  .top-controls {
+    grid-area: controls;
+    grid-column: auto;
+    grid-row: auto;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+  }
+  .top-controls .balances {
+    width: auto;
+    min-width: 0;
+    margin-right: auto;
+    justify-content: flex-start;
+  }
+  .balances b { font-size: 20px; }
+  .utility-button {
+    min-height: 38px;
+    padding: 7px clamp(6px,2vw,11px);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .main-content {
+    width: 100%;
+    padding-inline: 0;
+    gap: 6px;
+  }
+  .world-frame {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0;
+  }
+  .town-pan {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    scrollbar-width: thin;
+    scrollbar-color: #8d967f #141c17;
+  }
+  #game-container {
+    width: max(720px, 150vw);
+    min-width: 720px;
+    max-width: none;
+    height: auto;
+    aspect-ratio: 1152 / 620;
+    display: block;
+    touch-action: pan-x;
+  }
+  #game-container canvas {
+    display: block;
+    max-width: 100%;
+    max-height: none;
+    touch-action: pan-x;
+  }
+  .town-pan-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 26px;
+    padding: 4px 9px;
+    border-top: 1px solid rgba(145,165,145,.3);
+    color: #bdcaba;
+    background: #1c2a20;
+    font: 10px/1.2 system-ui,sans-serif;
+    letter-spacing: .025em;
+  }
+  .town-pan-hint span { color: #e5d6aa; font-size: 16px; line-height: 0.9; }
+  .board-stamp { display: none; }
+  .tile-panel {
+    position: relative;
+    width: 100%;
+    max-height: min(35dvh, 225px);
+    min-height: 75px;
+    padding: 10px 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .tile-panel:has(.care-options) { max-height: min(39dvh, 260px); }
+  .tile-panel .care-options { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .tile-panel .care-label { display: block; }
+  .tile-panel .care-label b { display: block; margin-top: 3px; }
+  .tile-panel .care-option .care-description { display: none; }
+  .household-detail { max-height: 300px; }
+  .households-shelf {
+    width: 100%;
+    height: 56px;
+    min-height: 0;
+    gap: 5px;
+  }
+  .households-heading {
+    flex: 0 0 84px;
+    font-size: 9px;
+    padding: 0 3px;
+  }
+  .households-heading small { display: none; }
+  .household-ticket { flex: 0 0 138px; }
+  .family-name { font-size: 11px; }
+  .shop-section {
+    width: 100%;
+    height: var(--model-dock-height);
+    padding: 0 8px calc(5px + env(safe-area-inset-bottom));
+  }
+  .shop-topline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 6px 8px 4px;
+  }
+  .shop-heading { flex: 0 0 auto; }
+  .shop-heading .eyebrow { font-size: 8px; }
+  .shop-topline h2 { font-size: clamp(14px,3.6vw,17px); }
+  .shop-instructions {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+    min-width: 0;
+    font-size: 10px;
+    text-align: right;
+  }
+  .shop-instructions strong { display: block; font-size: 10px; }
+  .shop-instructions span {
+    display: block;
+    max-width: 185px;
+    font-size: 9px;
+  }
+  .cancel-placement {
+    flex: none;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 5px 7px;
+    font-size: 0;
+  }
+  .cancel-placement span { margin: 0; font-size: 18px; }
+  .shop-track { justify-content: flex-start; gap: 10px; padding: 12px 9px 12px; }
+  .model-box { flex-basis: clamp(144px,39vw,166px); min-height: 0; }
+  .box-title { font-size: 13px; }
+  .box-upkeep { font-size: 9px; }
+  .footer { padding: 6px 12px; margin: 0; }
+  .workbench-note { max-width: 60%; font-size: 10px; }
+}
+
+@media (max-width: 385px) {
+  .topbar { padding: 8px 10px; gap: 6px 8px; }
+  .brand-name { font-size: 22px; }
+  .brand-kicker { letter-spacing: .08em; }
+  .era-mark { min-height: 50px; }
+  .era-mark strong { font-size: 17px; }
+  .era-year { font-size: 8px; }
+  .meter { min-height: 33px; padding: 4px 6px; }
+  .top-controls .balances b { font-size: 19px; }
+  .top-controls .utility-button { padding: 6px; min-height: 36px; font-size: 10px; }
+  .shop-topline { gap: 5px; }
+  .shop-instructions span { display: none; }
+  .shop-track { padding-inline: 7px; }
+  .workbench-note { max-width: 50%; }
+}
+
+@media (max-height: 560px) {
+  :root { --model-dock-height: 174px; }
+  .shop-topline { min-height: 39px; padding-block: 3px; }
+  .box-description { display: none; }
+  .box-series { font-size: 7px; }
+  .box-title { margin: 2px 0 4px; }
+  .model-box { padding-top: 5px; padding-bottom: 3px; }
+  .shop-track { padding-block: 10px 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .household-ticket,.flow-fill,.miniature-svg { transition: none; }
+}
