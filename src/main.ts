@@ -3,7 +3,8 @@ import { TownScene } from './game/TownScene';
 import { BOARD, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
 import { miniatureSvg } from './ui/modelArt';
 import { store } from './game/state';
-import { CARE_LEVELS, careName, careDescription, modelEffects, normalizedCare,
+import { CARE_LEVELS, careName, careDescription, modelEffects,
+  modelCondition, modelConditionName, modelRepairCost, normalizedCare,
   UPKEEP_INTERVAL_SECONDS, type CareLevel } from './game/economy';
 import { householdProfile, moodClass, moodName } from './game/households';
 import { drivingProfile } from './game/driving';
@@ -290,6 +291,23 @@ function renderBehaviourForecast(
     '</details>';
 }
 
+function accidentNotes(tile: Cell): string {
+  const recent = store.accidents.active.find(incident =>
+    (incident.model.x === tile.x && incident.model.y === tile.y) ||
+    (incident.road.x === tile.x && incident.road.y === tile.y));
+  if (!recent) return '';
+  const model = store.getModel(recent.modelId);
+  return '<div class="environment-notes accident-notes">' +
+    '<span class="eyebrow">ROADSIDE INCIDENT</span>' +
+    '<div class="environment-note"><span class="environment-mark" aria-hidden="true">◇</span>' +
+    '<span><strong>' + model.name + ' · ' + modelConditionName(recent.after) +
+    '</strong><p>One of the cars clipped this model. Roadside traffic is slower ' +
+    'until the area is clear. Wards can help with the traffic; the Hales ' +
+    'may restore part of the damage.</p><p>About ' +
+    Math.ceil(Math.max(0,recent.endsAt-store.elapsedSeconds)) +
+    ' game seconds of disruption remain.</p></span></div></div>';
+}
+
 function activityNotes(tile: Cell): string {
   const activity = store.activities.active.find(item =>
     (item.cell.x === tile.x && item.cell.y === tile.y) ||
@@ -435,7 +453,10 @@ function renderTilePeek(): void {
       ? 'READY TO PLACE · ' + model.name + ' · ' + model.cost + ' coins'
       : 'CANNOT PLACE HERE · ' + preview.reason;
   } else if (store.getPlacedModel(tile)) {
-    description = 'Placed miniature · Click to change care';
+    const placed = store.getPlacedModel(tile)!;
+    const state = modelCondition(placed.condition);
+    description = state !== 'intact' ? modelConditionName(state) + ' miniature · Click to repair'
+      : 'Placed miniature · Click to change care';
   } else if (store.activities.isOccupied(tile)) {
     const ongoing = store.activities.at(tile)[0];
     description = activityDefinition(ongoing.kind).title + ' · Click to inspect';
@@ -473,7 +494,9 @@ function renderPlacedModelCare(): boolean {
   if (!placed || store.activeModel) return false;
   const level = normalizedCare(placed.care);
   const model = store.getModel(placed.id);
-  const current = modelEffects(placed.id, level);
+  const condition = modelCondition(placed.condition);
+  const current = modelEffects(placed.id, level, condition);
+  const repairPrice = modelRepairCost(placed.id,condition);
   const cell = store.selected!;
   const info = store.tileInfo(cell);
   const panel = byId('tile-panel');
@@ -481,13 +504,27 @@ function renderPlacedModelCare(): boolean {
   const content =
     tileDetailsHeader('MODEL CARE · GRID ' + (cell.x + 1) + '/' + (cell.y + 1)) +
     '<h3>' + model.name + '</h3>' +
+    '<div class="model-condition condition-' + condition + '">' +
+    '<strong>Condition · ' + modelConditionName(condition) + '</strong>' +
+    '<p>' + (condition === 'intact' ? 'The miniature is undamaged.' :
+      condition === 'damaged' ?
+        'Roadside impact: approximately half its usual benefits remain.' :
+        'Broken by a roadside impact. Benefits and regular upkeep are suspended.') +
+    '</p>' +
+    (condition !== 'intact' ? '<button type="button" class="repair-model-button" ' +
+      'data-action="repair-model" data-x="' + cell.x + '" data-y="' + cell.y + '"' +
+      (store.money < repairPrice || store.paused || store.workshopOpen ? ' disabled' : '') +
+      '>Repair miniature · ' + repairPrice + ' coins</button>' : '') +
+    '</div>' +
     '<div class="care-heading"><span>' + careName(level) + '</span>' +
     '<strong>' + current.upkeep + ' coins / ' + UPKEEP_INTERVAL_SECONDS + 's</strong></div>' +
-    '<p class="tile-tip">Next bill for this model in ' + store.careDueIn(placed) +
-    ' game seconds. Choose how carefully it is maintained.</p>' +
+    '<p class="tile-tip">' + (condition === 'broken'
+      ? 'No regular upkeep is due while broken. Repair it to restore benefits.'
+      : 'Next bill in ' + store.careDueIn(placed) +
+        ' game seconds. Choose how carefully it is maintained.') + '</p>' +
     '<div class="care-options" role="group" aria-label="Maintenance level for ' + model.name + '">' +
     CARE_LEVELS.map(care => {
-      const effects = modelEffects(placed.id, care);
+      const effects = modelEffects(placed.id, care, condition);
       return '<button type="button" class="care-option ' +
         (care === level ? 'active' : '') + '" data-care="' + care +
         '" aria-pressed="' + (care === level) + '">' +
@@ -509,7 +546,7 @@ function renderPlacedModelCare(): boolean {
     '<p class="care-warning">A reduced care bill can mean less beauty, more noise or more crime. ' +
     'The effects on residents change too.</p>' +
     (placed.id === 'bin' ? binStatusPanel(cell) : '') +
-    activityNotes(cell) + environmentNotes(cell);
+    activityNotes(cell) + accidentNotes(cell) + environmentNotes(cell);
   updateTilePanelMarkup(content, 'care:' + cell.x + ',' + cell.y);
   return true;
 }
@@ -562,7 +599,7 @@ function renderTilePanel(): void {
     (store.traffic.queuedNear(tile) > 0
       ? '<p class="traffic-tile-note">Cars are queueing nearby: slower journeys, higher noise and irritation.</p>'
       : '') +
-    activityNotes(tile) + environmentNotes(tile) +
+    activityNotes(tile) + accidentNotes(tile) + environmentNotes(tile) +
     (store.environment.at(tile, 0).some(effect => effect.kind === 'litter') ?
       '<button type="button" class="clear-litter-button" data-action="clear-litter" data-x="' +
       tile.x + '" data-y="' + tile.y + '"' +
@@ -736,6 +773,10 @@ if (import.meta.env.DEV) {
         behaviour: store.behaviourHistory.map(x => ({ ...x })),
         activities: store.activities.active.map(x => ({ ...x })),
         activityHistory: store.activities.history.map(x => ({ ...x })),
+        accidents: store.accidents.history.map(x => ({ ...x })),
+        activeAccidents: store.accidents.active.map(x => ({ ...x })),
+        modelConditions: store.placements.map(item => ({
+          x:item.x,y:item.y,id:item.id,condition:modelCondition(item.condition)})),
         summary: store.runSummary, workbench: store.workbenchMoments.map(x => ({ ...x })) };
     },
     trafficStop(id: number, duration?: number): boolean {
@@ -753,6 +794,13 @@ if (import.meta.env.DEV) {
     activity(kind:ActivityKind,x:number,y:number):boolean {
       if (!Number.isInteger(x) || !Number.isInteger(y)) return false;
       return store.debugActivity(kind,{x,y});
+    },
+    impact(id:number,roadX:number,roadY:number,modelX:number,modelY:number,
+      severity:'damage'|'break'='damage'):boolean {
+      if(!Number.isInteger(id)||id<0||id>5||
+        ![roadX,roadY,modelX,modelY].every(Number.isInteger))return false;
+      return store.debugRoadsideAccident(id,
+        {x:roadX,y:roadY},{x:modelX,y:modelY},severity);
     }
   };
   (window as typeof window & { __modelLoopDebug?: typeof debug }).__modelLoopDebug = debug;
@@ -800,10 +848,11 @@ document.addEventListener('click', (event) => {
     byId('game-container').focus({ preventScroll: true });
     return;
   }
-  if (action === 'empty-bin' || action === 'clear-litter') {
+  if (action === 'empty-bin' || action === 'clear-litter' || action === 'repair-model') {
     const x = Number(actionButton.dataset.x), y = Number(actionButton.dataset.y);
     if (Number.isInteger(x) && Number.isInteger(y) && isOnBoard(x,y)) {
       if (action === 'empty-bin') store.emptyBin({ x,y });
+      else if (action === 'repair-model') store.repairModel({x,y});
       else store.cleanLitter({ x,y });
     }
     return;
