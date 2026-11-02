@@ -42,13 +42,15 @@ export interface RunLedger {
   repairSpending?: number;
   haleRestorations?: number;
   wardAssists?: number;
+  neighbourResponses?: number;
 }
 export const newRunLedger = (): RunLedger => ({
   completedLaps: 0, coinsEarned: 0, carePaid: 0, miniaturePurchases: 0,
   helpfulActions: 0, troublesomeActions: 0, litterCaught: 0,
   overflowingBins: 0, manualClearances: 0, manualCollections: 0,
   maximumEnvironmentalEffects: 0, largestQueue: 0, secondsLostInTraffic: 0,
-  roadsideAccidents: 0, repairSpending: 0, haleRestorations: 0, wardAssists: 0
+  roadsideAccidents: 0, repairSpending: 0, haleRestorations: 0, wardAssists: 0,
+  neighbourResponses: 0
 });
 
 export interface BalancedRunSummary {
@@ -67,6 +69,7 @@ export interface BalancedRunSummary {
   repairSpending: number;
   haleRestorations: number;
   wardAssists: number;
+  neighbourResponses: number;
 }
 export function summariseRun(ledger: Readonly<RunLedger>): BalancedRunSummary {
   const incidents = ledger.helpfulActions + ledger.troublesomeActions;
@@ -85,6 +88,7 @@ export function summariseRun(ledger: Readonly<RunLedger>): BalancedRunSummary {
     roadsideAccidents: ledger.roadsideAccidents ?? 0,
     repairSpending: ledger.repairSpending ?? 0,
     haleRestorations: ledger.haleRestorations ?? 0,
-    wardAssists: ledger.wardAssists ?? 0
+    wardAssists: ledger.wardAssists ?? 0,
+    neighbourResponses: ledger.neighbourResponses ?? 0
   };
 }
