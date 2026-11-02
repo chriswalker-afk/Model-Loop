@@ -14,8 +14,9 @@ the town and Selected Tile inspector. They are cached once and reused,
 with no new simulation hitboxes or changes to resident behaviour.
 
 The Family Workshop now displays the canonical Gas Lamppost miniature;
-the chapter result uses the **same Edwardian landaulette car illustration**
-as the actual town. Keyboard-accessible dialogs keep focus during live
+the chapter result displays a **side-profile Edwardian landaulette**
+from the same car-art library as the playable town (whose traffic views
+are correctly top-down). Keyboard-accessible dialogs keep focus during live
 updates and return it to the prior control when closed. A dedicated
 [Vintage finish stylesheet](src/styles/vintage-finish.css) handles the
 final engraving/touch/contrast details, rather than another unrelated
