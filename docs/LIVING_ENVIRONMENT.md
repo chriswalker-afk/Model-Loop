@@ -110,12 +110,45 @@ occasionally generate ordinary rubbish, while the Millers remain more
 prone to delivery-packaging incidents. A bin is a town-management tool,
 not a personality type.
 
-## What comes next
+## Pass 3 — Real Traffic Behaviour (implemented)
 
-**Pass 3 — Real Traffic Behaviour:** Actual car following, stop propagation,
-queue recovery, effects of speed signs and congestion on lap income.
-A tyre scuff is currently a road-safety hazard only; it doesn't physically
-stop a car.
+The town now has one shared circular-traffic simulation rather than six
+independent vehicle animations. `advanceTraffic` in traffic.ts uses
+physical forward distance, a 38-pixel minimum gap, braking based on
+available headway and iterative constraints that propagate sudden stops
+to every car behind. It handles the wrap from the final road tile back to
+the first, and queues dissolve as the leader begins to move again.
+
+The existing home-return lifecycle is retained without any extra payouts.
+A resident's car leaves the road after completing the paid circuit,
+travels home, stays a while, and attempts to rejoin only when an empty
+58-pixel gap is available in both directions. Departure reserves the
+entry point during its visible journey from driveway to road, preventing
+another car from driving through it.
+
+Initial traffic incidents: **Bells** occasionally stop to admire the town
+(4.2 seconds); **Wards** hesitate (3 seconds). Each resident has a seeded
+event offset per circuit, an opportunity/chance depending on their mood
+and nearby speed-sign reassurance, and a 65-second personal cooldown.
+Only one stop can be active on the loop, separated by at least 15
+simulated seconds; they can always clear. Full household action pairs
+remain for Pass 4.
+
+Following-car queueing adds a small amount of irritation proportional to
+*real lost time*, not arbitrary lap penalties. Longer physical circuits
+mean lower *lap earnings per minute* and a lower rolling net Income.
+Queued cars temporarily increase nearby Noise and decrease real road
+Safety. Car tail-lamps illuminate while braking; an active stop shows a
+small roadside label and waiting cars have subtle rings. The existing
+footer shows a compact traffic indicator only while affected.
+
+The dev-only console exposes `__modelLoopDebug.trafficStop(1, 4.2)`
+and `__modelLoopDebug.trafficSnapshot()` for deterministic
+browser verification. Regression tests check collisions/wrap, queue
+formation and recovery, driveway merge safety, 1-paid-lap rules,
+simulated-time pause and compact-screen feedback.
+
+## What comes next
 
 **Pass 4 — Household Behaviour Profiles:** The complete set of one positive
 and one troublesome action per family, weighted by mood and model context.
