@@ -1137,8 +1137,17 @@ export class TownScene extends Scene {
           car.tileIndex = index;
           reaction = store.passTile(car.residentId, ROAD_CELLS[index],
             car.lane === 'left' && !car.changingTo);
-          store.considerRoadsideAccident(car.residentId,ROAD_CELLS[index],
+          const incident=store.considerRoadsideAccident(car.residentId,ROAD_CELLS[index],
             movement?.speed??0,car.lane,!!car.changingTo);
+          if(incident){
+            car.brakeLights.setVisible(true);
+            this.showCarThought(car,{
+              residentId:car.residentId,calmer:false,
+              text:incident.after==='broken'
+                ? 'Oh! I have broken that little roadside model.'
+                : 'I have clipped something beside the road.'
+            });
+          }
         }
         if (car.changingTo) {
           car.laneChangeElapsed += dt;
