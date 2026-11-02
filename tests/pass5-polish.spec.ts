@@ -122,11 +122,14 @@ test('opened behaviour forecast survives income refreshes but resets for a new s
   await expect(forecast).toHaveAttribute('open','');
   await expect(forecast).toContainText('Chance of any incident');
   await expect(forecast).toContainText('Helpful share');
+  await forecast.locator('summary').focus();
+  await expect(forecast.locator('summary')).toBeFocused();
   await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
     store.tickEconomy(1.2);
   });
   await expect(forecast).toHaveAttribute('open','');
+  await expect(forecast.locator('summary')).toBeFocused();
   await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
     store.setHovered({x:7,y:3});
