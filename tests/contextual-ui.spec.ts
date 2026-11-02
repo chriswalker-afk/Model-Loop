@@ -109,7 +109,8 @@ test('clicking opens complete square details; X and Escape dismiss them',async({
 test('click-to-inspect persists across hover movement until explicitly closed',async({page})=>{
   await page.setViewportSize({width:1440,height:900});
   await page.goto('/');
-  await page.mouse.click(...Object.values(await tilePoint(page,4,4)) as [number,number]);
+  const first = await tilePoint(page,4,4);
+  await page.mouse.click(first.x, first.y);
   const panel=page.locator('#tile-panel');
   await expect(panel).toContainText('Grass tile');
   const next=await tilePoint(page,8,3);
@@ -118,7 +119,8 @@ test('click-to-inspect persists across hover movement until explicitly closed',a
   await expect(panel).toContainText('Grass tile');
   await expect(page.locator('#tile-peek')).toBeHidden();
   await page.mouse.click(next.x,next.y);
-  await expect(panel).toContainText('Road tile');
+  await expect(panel).toContainText('GRID 9 / 4');
+  await expect(panel).not.toContainText('GRID 5 / 5');
 });
 
 test('hold hover for short model cue; Shift+click shows full forecast without buying',async({page})=>{
@@ -158,4 +160,18 @@ test('phone has no mouse hover tooltip, but a tap still opens full details',asyn
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('Grass tile');
   await expect(panel.getByRole('button',{name:'Close square details'})).toBeVisible();
+});
+
+
+test('keyboard can navigate and open square details even with no kit selected',async({page})=>{
+  await page.setViewportSize({width:1024,height:768});
+  await page.goto('/');
+  await page.locator('#game-container').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#tile-panel')).toBeHidden();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#tile-panel')).toBeVisible();
+  await expect(page.locator('#tile-panel')).toContainText('GRID 6 / 5');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#tile-panel')).toBeHidden();
 });
