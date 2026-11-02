@@ -135,7 +135,10 @@ function renderShop(): void {
       '" class="model-box kit-carton ' + (picked ? 'selected ' : '') +
       (poor ? 'unaffordable ' : '') + '" data-model="' + item.id +
       '" aria-pressed="' + picked +
-      '" aria-label="Select ' + item.name + ', costs ' + item.cost + ' coins" ' +
+      '" aria-label="Select ' + item.name + ', costs ' + item.cost +
+      ' coins; Beauty ' + signed(item.beauty) + ', Noise ' + signed(item.noise) +
+      ', Crime ' + signed(item.crime) + '; upkeep ' + item.upkeep +
+      ' coins every ' + UPKEEP_INTERVAL_SECONDS + ' seconds" ' +
       (disabled ? 'disabled' : '') + '>' +
       // Each actual plane has its own shape, folded print and cast shadow.
       // The box is a single button: art never intercepts a drag or a click.
