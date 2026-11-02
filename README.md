@@ -37,7 +37,8 @@ npm run preview
 3. Traffic earns coins and Progress, but irritation accumulates during journeys.
 4. Six boxed models with illustrated transparent windows, costs and environmental effects.
 5. Buy a model by selecting its box and placing it on an empty square next to the road.
-6. Inspect square Beauty, Noise and Crime values on hover or selection.
+6. A prolonged mouse hover gives a short square label; **click the square** to open
+   full Beauty, Noise, Crime and care details, with an explicit close control.
 7. Three home closures end the run; filling Progress completes the Vintage chapter.
 8. Both outcomes award permanent Blueprints. Starting-coin and patience upgrades are purchasable between runs.
 
@@ -48,14 +49,19 @@ This is a prototype vertical slice rather than a complete multi-era release. Lat
 The model shelf is docked below the town and stays visible while you play.
 
 1. Choose a boxed miniature. Its model rises inside the window to show it is selected.
-2. Hover an empty square beside the road. The ghost model, affected-area overlay,
-   Beauty / Noise / Crime before-and-after values, and estimated irritation impact appear.
-3. Click to buy and place. The selected box returns to the shelf and the money is charged.
-4. Alternatively, **drag a box onto a square** with a mouse, or tap a box and then
-   the board on touch devices.
-5. Press **Escape** or **Return to box** to cancel. After selecting a model,
-   **arrow keys** choose squares and **Enter** places the miniature.
-6. Existing houses, trees, landmarks, roads and purchased miniatures cannot overlap.
+2. Hover briefly over an empty square beside the road to see a compact placement
+   hint and the ghost model. The detailed inspector stays closed.
+3. **Shift+click** a square to inspect Beauty / Noise / Crime before-and-after
+   values and household reactions without buying yet; close the inspector with
+   the × button or Escape. (With a keyboard, use Shift+Enter.)
+4. Click normally to buy and place. The box returns to the shelf and the
+   full model care details open only because you explicitly chose that square.
+5. Alternatively, **drag a box onto a square** with a mouse, or tap a box and
+   then the board on touch devices.
+6. Press **Escape** or **Return to box** to cancel a model selection. With
+   focus on the town, **arrow keys** move the highlight, **Enter** inspects
+   a square when no model is selected, and **Enter** places a selected miniature.
+7. Existing houses, trees, landmarks, roads and purchased miniatures cannot overlap.
 
 The irritation estimate is an approximation **per completed circuit**, before
 individual household temperament. Every household drives the same road loop.
@@ -66,7 +72,8 @@ The Generational Cycle adjusts to screen width **and** available height, includi
 portrait/landscape rotation and browser-window resizing.
 
 - **Large desktop:** town, household strip and model kits form a single-screen
-  composition, with floating inspection panels inside the board.
+  composition. The detailed inspector is hidden until a square is clicked.
+  Short hover labels follow the square after a 600ms pause.
 - **Compact laptop / tablet / short landscape:** the HUD reflows, the board
   retains its natural aspect ratio, and the main content can scroll vertically.
   The kit dock and household strip remain available at the foot of the screen.
@@ -74,8 +81,9 @@ portrait/landscape rotation and browser-window resizing.
   left/right** rather than compressing every square into an unreadable grid.
   The model shop scrolls sideways; tap a miniature and then tap a square to
   place it. Swiping no longer causes accidental purchases.
-- **Care panel and resident notes:** these move below the board on smaller
-  screens instead of obscuring the street.
+- **Care panel and resident notes:** the tile inspector is opened deliberately
+  by a tap; on smaller screens it moves below the board instead of obscuring the
+  street. Mouse hover labels are disabled on touch screens.
 
 The Phaser canvas uses FIT scaling and an observed viewport size so clicks,
 tap positions and placement previews continue to match visible squares after
