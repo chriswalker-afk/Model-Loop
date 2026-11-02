@@ -13,8 +13,7 @@
   <header class="topbar">
     <div class="brand">
       <div class="brand-kicker">THE FAMILY WORKSHOP PRESENTS</div>
-      <div class="brand-name">THE GENERATIONAL <span>CYCLE</span></div>
-      <div class="brand-sub">Small roads. A lasting legacy.</div>
+      <div class="brand-name" aria-label="The Generational Cycle"><span class="brand-line">THE GENERATIONAL</span><span class="brand-line brand-name-accent">CYCLE</span></div>
     </div>
     <div class="era-mark">
       <span class="eyebrow">CHAPTER I &middot; ERA</span>
@@ -37,7 +36,8 @@
         <div id="game-container" tabindex="0" role="application" aria-label="Miniature town. Select a model box, then use your mouse or arrow keys to find a square. Press Enter to build, Escape to cancel."></div>
       </div>
       <div class="town-pan-hint" aria-hidden="true"><span>↔</span> Swipe to explore the whole town</div>
-      <aside id="tile-panel" class="tile-panel" aria-live="polite"></aside>
+      <aside id="tile-panel" class="tile-panel" aria-label="Selected square details" hidden></aside>
+      <div id="tile-peek" class="tile-peek" role="tooltip" hidden></div>
       <aside id="household-detail" class="household-detail" aria-label="Selected household" hidden></aside>
       <div class="board-stamp">NO. 001 &mdash; HANDCRAFTED TOWNS</div>
     </section>
