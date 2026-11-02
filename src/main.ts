@@ -2,6 +2,8 @@ import { AUTO, Game, Scale } from 'phaser';
 import { TownScene } from './game/TownScene';
 import { BOARD, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
 import { miniatureSvg } from './ui/modelArt';
+import { carSvg } from './ui/vintageWorldArt';
+import { eventUiIcon } from './ui/vintageEventArt';
 import { vintageIcon, vintageFrameCorners, type VintageIcon } from './ui/vintageIcons';
 import { store } from './game/state';
 import { CARE_LEVELS, careName, careDescription, modelEffects,
@@ -387,7 +389,9 @@ function accidentNotes(tile: Cell): string {
   const model = store.getModel(recent.modelId);
   return '<div class="environment-notes accident-notes">' +
     '<span class="eyebrow">ROADSIDE INCIDENT</span>' +
-    '<div class="environment-note"><span class="environment-mark" aria-hidden="true">◇</span>' +
+    '<div class="environment-note"><span class="environment-mark" aria-hidden="true">' +
+    eventUiIcon(recent.after === 'broken' ? 'incident-break' : 'incident-damage') +
+    '</span>' +
     '<span><strong>' + model.name + ' · ' + modelConditionName(recent.after) +
     '</strong><p>One of the cars clipped this model. Roadside traffic is slower ' +
     'until the area is clear. Wards can help with the traffic; the Hales ' +
@@ -406,7 +410,8 @@ function activityNotes(tile: Cell): string {
     activity.phase === 'underway' ? 'Underway' : 'Packing up';
   return '<div class="environment-notes activity-notes"><span class="eyebrow">' +
     'A LITTLE ACTIVITY</span><div class="environment-note"><span class="environment-mark" ' +
-    'aria-hidden="true">◌</span><span><strong>' + details.title + '</strong>' +
+    'aria-hidden="true">' + eventUiIcon(`activity-${activity.kind}`) +
+    '</span><span><strong>' + details.title + '</strong>' +
     '<p>' + details.description + '</p><p>' + phase + ' · About ' +
     Math.ceil(Math.max(0, activity.endsAt - store.elapsedSeconds)) +
     ' game seconds remaining. Cars pull over and rejoin when the road is clear.</p>' +
@@ -420,12 +425,9 @@ function environmentNotes(tile: Cell): string {
     nearby.slice(0, 4).map(effect => {
       const source = store.residents[effect.residentId]?.name ?? 'A neighbour';
       const timeLeft = Math.max(0, Math.ceil(effect.expiresAt - store.elapsedSeconds));
-      const icon = ['flowers','tidied','heritage','sketch'].includes(effect.kind) ? '✿'
-        : ['courtesy','mended','guidance'].includes(effect.kind) ? '➜'
-        : effect.kind === 'skid' ? '◇'
-        : effect.kind === 'display' ? '▤' : '▱';
       return '<div class="environment-note ' + effect.kind + '">' +
-        '<span aria-hidden="true" class="environment-mark">' + icon + '</span>' +
+        '<span aria-hidden="true" class="environment-mark">' +
+          eventUiIcon(`trace-${effect.kind}`) + '</span>' +
         '<span><strong>' + environmentLabel(effect.kind) + '</strong>' +
         '<small>' + source + ' · fades in ' + timeLeft + 's</small></span></div>';
     }).join('') +
@@ -763,9 +765,12 @@ function renderModal(): void {
   if (store.workshopOpen) {
     modal.hidden = false;
     modal.innerHTML =
-      '<div class="dialog" role="dialog" aria-modal="true" aria-label="The family workshop">' +
+      '<div class="dialog vintage-dialog workshop-dialog" role="dialog" aria-modal="true" aria-labelledby="workshop-title">' +
+      vintageFrameCorners() +
       '<span class="eyebrow">A PLACE BETWEEN GENERATIONS</span>' +
-      '<h2>The Family Workshop</h2>' +
+      '<h2 id="workshop-title" tabindex="-1">The Family Workshop</h2>' +
+      '<div class="workbench-engraving" aria-hidden="true">' +
+      miniatureSvg('lamp') + '<span>THE COLLECTOR\'S DESK · 1908</span></div>' +
       '<p>Every little town leaves something behind. Blueprints survive even when a run ends.</p>' +
       '<div class="blueprint-wallet">Saved blueprints <strong>' + store.legacy.blueprints + '</strong></div>' +
       upgradeRow('savings', 'Family Savings', 'Start future runs with 35 extra coins per level.', 20) +
@@ -784,11 +789,15 @@ function renderModal(): void {
   const won = store.phase === 'complete';
   modal.hidden = false;
   modal.innerHTML =
-    '<div class="dialog story-dialog" role="dialog" aria-modal="true" aria-label="Chapter result">' +
+    '<div class="dialog story-dialog vintage-dialog" role="dialog" aria-modal="true" aria-labelledby="chapter-title">' +
+    vintageFrameCorners() +
     '<span class="eyebrow">' + (won ? 'CHAPTER I COMPLETED' : 'THE TOWN HAS FALLEN QUIET') + '</span>' +
-    '<h2>' + (won ? 'The Vintage Years' : 'A Town Remembered') + '</h2>' +
-    '<div class="story-frame"><div class="story-moon"></div><div class="story-car"></div>' +
-    '<span>THE WORKBENCH &middot; 1908</span></div>' +
+    '<h2 id="chapter-title" tabindex="-1">' +
+      (won ? 'The Vintage Years' : 'A Town Remembered') + '</h2>' +
+    '<div class="story-frame vintage-story-frame">' +
+      '<div class="story-vehicle" aria-hidden="true">' +
+      carSvg(5,'#566858') + '</div>' +
+      '<span>THE WORKBENCH &middot; 1908</span></div>' +
     '<p class="story-quote">' + (won ?
       'Father smiled at the little town. "I think we have made something worth keeping."' :
       '"We can always try a different road," his father said, and put the model back on the shelf.') +
