@@ -158,10 +158,10 @@ test('a real roadside impact shows a seal without hiding the canonical model and
       path:'test-results/visual-review/7e-broken-miniature.png',
       animations:'disabled'
     });
-    await page.evaluate(async()=>{
+    await page.evaluate(async(model)=>{
       const {store}=await import('/src/game/state.ts');
-      store.repairModel({x:outcome!.model.x,y:outcome!.model.y});
-    });
+      store.repairModel(model);
+    },outcome!.model);
     await expect.poll(async()=>(await art(page)).sprites.some(x=>
       x.id.startsWith('condition:'))).toBe(false);
     expect((await art(page)).loaded).toHaveLength(22);
