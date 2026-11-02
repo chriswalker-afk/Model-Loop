@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { BOARD, ROAD_CELLS, worldPoint } from '../src/game/config';
+import { BOARD, ROAD_CELLS } from '../src/game/config';
 import {
   TRAFFIC_LEFT_LANE_OFFSET, TRAFFIC_PASSING_LANE_OFFSET, TRAFFIC_MIN_GAP,
   advanceTraffic, passingStretchClear, planLaneChanges, roadPoseAt,
