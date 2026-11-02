@@ -83,11 +83,12 @@ export function modelEffects(id: ModelId, level: CareLevel = 'full',
   const conditionFactor = modelConditionFactor(condition);
   const sign = id === 'limit'
     ? care === 'full' ? 0.58 : care === 'economy' ? 0.76 : 0.95 : 1;
+  const scaled = (value:number):number => conditionFactor===0 ? 0 : value*conditionFactor;
   return {
-    beauty: (base.beauty + loss.beauty) * conditionFactor,
-    noise: (base.noise + loss.noise) * conditionFactor,
-    crime: (base.crime + loss.crime) * conditionFactor,
-    comfort: (base.comfort + loss.comfort) * conditionFactor,
+    beauty: scaled(base.beauty + loss.beauty),
+    noise: scaled(base.noise + loss.noise),
+    crime: scaled(base.crime + loss.crime),
+    comfort: scaled(base.comfort + loss.comfort),
     // A broken miniature has no functioning parts to maintain. The repair
     // is separately purchased; normal upkeep resumes after it is fixed.
     upkeep: conditionFactor === 0 ? 0 :
