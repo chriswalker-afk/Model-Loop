@@ -567,12 +567,45 @@
   .vintage-header .flow-breakdown { font-size: 9px; }
   .vintage-header .vintage-controls .utility-button { min-height: 44px; padding: 9px 8px; }
   .tile-panel.vintage-inspector { border-radius: 6px; padding: 11px 14px; }
+  /* The old panel lived under the long town canvas, where a fixed shelf
+   * could cover it despite Playwright considering it "visible". A deliberate
+   * tile selection now opens a small, scrollable inspection sheet ABOVE
+   * the model shelf, and never blocks drag/tap interaction while closed. */
+  .tile-panel.vintage-inspector.is-active:not([hidden]) {
+    position: fixed;
+    z-index: 24;
+    top: auto;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(var(--model-dock-height) + 9px);
+    width: auto;
+    max-width: none;
+    max-height: min(36dvh, 255px);
+    min-height: 110px;
+    margin: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background-color: var(--vintage-board);
+    box-shadow: inset 0 0 0 3px #141915,
+      inset 0 0 0 4px rgba(184,178,165,.34),
+      0 12px 28px rgba(0,0,0,.72);
+  }
+  .tile-panel.vintage-inspector > .tile-detail-top {
+    position: sticky;
+    top: -6px;
+    z-index: 6;
+    background: rgba(19,24,20,.98);
+  }
   .vintage-inspector .tile-detail-top { min-height: 34px; }
   .vintage-inspector .tile-close { min-width: 44px; min-height: 44px; }
   .vintage-inspector .tile-score { min-height: 36px; }
   .vintage-inspector .tile-score-name { font-size: 12px; }
 }
 @media (max-width:385px) {
+  .tile-panel.vintage-inspector.is-active:not([hidden]) {
+    max-height: min(29dvh, 190px);
+  }
   .vintage-header .vintage-brand { padding: 8px 9px; }
   .vintage-header .vintage-era { padding: 8px 10px; }
   .vintage-header .vintage-era .era-year { font-size: 8.5px; }
