@@ -2,7 +2,7 @@ import { AUTO, Game, Scale } from 'phaser';
 import { TownScene } from './game/TownScene';
 import { BOARD, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
 import { miniatureSvg } from './ui/modelArt';
-import { carSvg } from './ui/vintageWorldArt';
+import { chapterMotorcarSvg } from './ui/vintageWorldArt';
 import { eventUiIcon } from './ui/vintageEventArt';
 import { vintageIcon, vintageFrameCorners, type VintageIcon } from './ui/vintageIcons';
 import { store } from './game/state';
@@ -861,7 +861,7 @@ function renderModal(): void {
       (won ? 'The Vintage Years' : 'A Town Remembered') + '</h2>' +
     '<div class="story-frame vintage-story-frame">' +
       '<div class="story-vehicle" aria-hidden="true">' +
-      carSvg(5,'#566858') + '</div>' +
+      chapterMotorcarSvg() + '</div>' +
       '<span>THE WORKBENCH &middot; 1908</span></div>' +
     '<p class="story-quote">' + (won ?
       'Father smiled at the little town. "I think we have made something worth keeping."' :
