@@ -164,6 +164,11 @@ simulated-time cooldown.
 | Hales | Restore an old roadside detail and improve Beauty | Put out a display that slows cars within two tiles |
 | Wards | Guide cars through a difficult section and help clear queues | Hesitate in the road, causing others to brake |
 
+Incidental rubbish can still accompany another family's troublesome
+action (about 22% of those successful incidents). This is a **side effect
+of the same event**, not a second independent behaviour opportunity. It
+keeps collection useful without making the Millers the sole source of litter.
+
 The positive and negative action share the same understandable personal
 motivation without naming a psychological cause. The town changes visibly:
 greenish etched courtesy arrows and guidance markers, mended road patches,
