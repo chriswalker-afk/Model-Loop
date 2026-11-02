@@ -230,8 +230,8 @@ document.addEventListener('click', (event) => {
   if (!(target instanceof Element)) return;
   const modelButton = target.closest<HTMLElement>('[data-model]');
   if (modelButton) {
-    const id = modelButton.dataset.model;
-    if (isModelId(id || null)) {
+    const id = modelButton.dataset.model || null;
+    if (isModelId(id)) {
       store.selectModel(id);
       // Keyboard players can move the preview with arrows and press Enter.
       if (store.activeModel) byId('game-container').focus({ preventScroll: true });
