@@ -897,6 +897,9 @@ if (import.meta.env.DEV) {
     miniatureArt() {
       return (game.scene.getScene('TownScene') as TownScene).miniatureArtSnapshot();
     },
+    worldArt() {
+      return (game.scene.getScene('TownScene') as TownScene).worldArtSnapshot();
+    },
     behaviourAction(id:number,action:HouseholdActionId,x:number,y:number):boolean {
       if(!Number.isInteger(id) || id<0 || id>5 ||
         !Number.isInteger(x) || !Number.isInteger(y))return false;
