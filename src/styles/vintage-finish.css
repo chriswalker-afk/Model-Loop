@@ -124,8 +124,11 @@
 }
 .vintage-dialog h2:focus { outline: none; }
 .vintage-dialog h2:focus-visible {
-  outline: 2px solid var(--vintage-community,#A9CAE0);
-  outline-offset: 5px;
+  /* The keyboard focus remains visible, but as a fine antique brass
+     registration rule instead of an unrelated modern blue rectangle. */
+  outline: 1.5px solid var(--v-finish-brass);
+  outline-offset: 4px;
+  box-shadow: 0 0 0 2px rgba(233,226,213,.06);
 }
 .vintage-dialog p {
   color: var(--v-finish-muted);
@@ -197,6 +200,12 @@
 .vintage-dialog button:not(:disabled):hover {
   background: #394539;
   border-color: var(--v-finish-ivory);
+}
+.vintage-dialog button:disabled {
+  opacity: .73;
+  background: #252B24;
+  color: var(--v-finish-muted);
+  border-color: rgba(233,226,213,.36);
 }
 .vintage-dialog button:focus-visible,
 .vintage-dialog summary:focus-visible {
