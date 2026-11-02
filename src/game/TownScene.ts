@@ -409,6 +409,24 @@ export class TownScene extends Scene {
     }
   }
 
+  /** Inspect the art pipeline from dev/Playwright without exposing simulation internals. */
+  miniatureArtSnapshot(): {
+    loaded: ModelId[]; placed: { cell: string; texture: string; alpha: number }[];
+    ghost: { texture: string; visible: boolean; alpha: number };
+  } {
+    return {
+      loaded: MODELS.filter(model =>
+        this.textures.exists(miniatureTextureKey(model.id))).map(model=>model.id),
+      placed: [...this.kitSprites.entries()].map(([cell,image])=>({
+        cell, texture: image.texture.key, alpha: image.alpha
+      })),
+      ghost: {
+        texture: this.kitGhost.texture.key,
+        visible: this.kitGhost.visible, alpha: this.kitGhost.alpha
+      }
+    };
+  }
+
   /** Sync board models to purchased state using the cached shop SVG textures. */
   private syncKitSprites(): void {
     const current = new Set<string>();
