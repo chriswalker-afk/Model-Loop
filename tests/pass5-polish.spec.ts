@@ -67,7 +67,7 @@ test('workbench reveals three distinct grounded notes and audited run totals',as
   await expect(page.locator('.workbench-ledger')).toContainText('Earned from circuits');
   await expect(page.locator('.workbench-ledger')).toContainText('27');
   await expect(page.locator('.workbench-ledger')).toContainText('only the last 60 seconds');
-  await expect(page.locator('[data-action="workshop"]')).toBeVisible();
+  await expect(page.locator('#modal [data-action="workshop"]')).toBeVisible();
 });
 
 test('end-of-chapter story responds to town actions and does not change Blueprint rewards',async({page})=>{
