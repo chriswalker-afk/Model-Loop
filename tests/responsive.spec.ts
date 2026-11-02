@@ -79,6 +79,9 @@ for (const screen of screens) {
 
     if (screen.width <= 700) {
       expect(geometry.panScrollWidth).toBeGreaterThan(geometry.panClientWidth + 100);
+      // No negative auto-centering offsets: the leftmost road must be reachable.
+      expect(geometry.canvas.x).toBeGreaterThanOrEqual(geometry.pan.x - 2);
+      expect(geometry.panScrollWidth).toBeGreaterThanOrEqual(geometry.canvas.width - 5);
       await expect(page.locator('.town-pan-hint')).toBeVisible();
       const scroll = await page.locator('#town-pan').evaluate((el) => {
         el.scrollLeft = 100000;
