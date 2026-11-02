@@ -60,6 +60,42 @@ The model shelf is docked below the town and stays visible while you play.
 The irritation estimate is an approximation **per completed circuit**, before
 individual household temperament. Every household drives the same road loop.
 
+## Money, maintenance and traffic
+
+**Coins** (the balance in the top-right corner) are available savings. **Income**
+is different: a *signed net flow over the most recent 60 game seconds*.
+It shows actual lap earnings minus recurring maintenance, never the price
+of building models. The Income bar fills to the right for a surplus, or
+to the left for a deficit. Income can rise or fall even when coin savings
+are high; spending coins to buy a model does not count as a recurring loss.
+Cars earn coins **only when a complete circuit ends**. A small gold-coin
+pop-up appears; the resident then returns to their house, pauses briefly,
+and heads back onto the road.
+
+Every miniature defaults to **Well cared for** and is billed separately
+every **20 simulated seconds after placement**, while the run is active.
+Select a placed model to open the maintenance panel and choose:
+
+- **Well cared for**: regular full bill and full benefits.
+- **Economy care**: about half the cost, but worse beauty, noise, crime
+  and weaker household benefits.
+- **Minimal care**: no recurring bill, but neglect and significantly
+  reduced benefits. Some residents may become more irritated.
+
+Different features have different base maintenance costs. Unpaid debts
+can temporarily make the coin balance negative; later completed laps
+can recover the deficit. You cannot buy new models until you have enough
+coins. The only current run-loss condition remains closing three homes.
+
+Speed limit signs now **physically slow passing cars within the same
+two-grid-square Manhattan effect radius** as their normal local effects.
+At full care, a speed sign slows traffic to 58% of its normal speed.
+At economy care this is 76%, and a minimally maintained sign only
+reduces speed to 95%. Traffic transitions smoothly into and out of the
+affected area. Slower trips can reduce lap earnings and Progress per
+minute, which creates a real trade-off against residents who value
+quieter, safer streets.
+
 ## Publish on GitHub Pages
 
 This repository includes a workflow that runs npm ci and npm run check for pull requests. On a push to main, it additionally builds and deploys to Pages.
