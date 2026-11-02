@@ -69,7 +69,7 @@ const noteFor = (kind: EnvironmentKind, residentId: number): string => {
     litter: 'left some packaging by the road.',
     flowers: 'added flowers to a roadside corner.',
     skid: 'left tyre marks after taking a bend rather sharply.',
-    courtesy: 'made room for another car.',
+    courtesy: 'found a clearer line through the bend.'
     mended: 'smoothed a worn piece of road.',
     tidied: 'tidied the verge.',
     heritage: 'restored an old roadside detail.',
@@ -81,7 +81,7 @@ const noteFor = (kind: EnvironmentKind, residentId: number): string => {
 
 const EFFECT_LABELS: Readonly<Record<EnvironmentKind,string>> = {
   litter:'Discarded packaging', flowers:'Roadside flowers', skid:'Tyre scuffs',
-  courtesy:'A considerate gap', mended:'A mended road', tidied:'Freshly tidied verge',
+  courtesy:'A clearer route', mended:'A mended road', tidied:'Freshly tidied verge',
   heritage:'Restored roadside detail', display:'Roadside display', guidance:'Helpful directions'
 };
 const HELPFUL_EFFECTS: readonly EnvironmentKind[] =
