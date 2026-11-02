@@ -25,6 +25,7 @@ interface TestCar {
   lane:RoadLane;
   changingTo:RoadLane|null;
   laneChangeElapsed:number;
+  parkedForActivity:boolean;
 }
 interface TrialResult {
   seed:number;
@@ -66,7 +67,8 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
       residentId:home.id,
       startIndex:ROAD_CELLS.findIndex(cell=>manhattanDistance(cell,home)===1),
       cycle:newCarCycle(),tileIndex:-1,speed:driver.cruiseSpeed,speedFactor:1,
-      driver,lane:'left' as const,changingTo:null,laneChangeElapsed:0
+      driver,lane:'left' as const,changingTo:null,laneChangeElapsed:0,
+      parkedForActivity:false
     };
   });
   expect(cars.every(car=>car.startIndex>=0)).toBe(true);
@@ -81,6 +83,11 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
     for(const car of cars){
       if(!store.residents[car.residentId].occupied)continue;
       const position=(car.startIndex*BOARD.tile+car.cycle.distance)%length;
+      if(car.cycle.phase==='driving' &&
+        (car.parkedForActivity || store.activities.forResident(car.residentId))){
+        car.parkedForActivity=true;
+        continue;
+      }
       if(car.cycle.phase==='driving'){
         const index=Math.min(ROAD_CELLS.length-1,Math.floor(position/BOARD.tile));
         const sign=store.speedMultiplierAt(ROAD_CELLS[index]);
@@ -106,6 +113,16 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
       vehicles.push({residentId:car.residentId,position,desiredSpeed:0,
         lane:'left',drivewayReservation:true});
     }
+    for(const car of cars){
+      if(!car.parkedForActivity||store.activities.forResident(car.residentId)||
+        !store.residents[car.residentId].occupied||car.cycle.phase!=='driving')continue;
+      const position=(car.startIndex*BOARD.tile+car.cycle.distance)%length;
+      if(!canReserveRoad(position,vehicles,length))continue;
+      car.parkedForActivity=false;
+      car.lane='left';car.changingTo=null;car.laneChangeElapsed=0;
+      vehicles.push({residentId:car.residentId,position,desiredSpeed:0,
+        lane:'left',drivewayReservation:true,driver:car.driver});
+    }
     const laneChanges=planLaneChanges(vehicles,length,vergeObstructions);
     for(const car of cars){
       const target=laneChanges.get(car.residentId);
@@ -121,6 +138,10 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
     for(const car of cars){
       const resident=store.residents[car.residentId];
       if(!resident.occupied)continue;
+      if(car.parkedForActivity||store.activities.forResident(car.residentId)){
+        car.parkedForActivity=true;
+        continue;
+      }
       const oldPhase=car.cycle.phase;
       const movement=byResident.get(car.residentId);
       if(oldPhase==='driving'){
@@ -155,7 +176,8 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
         const index=Math.min(ROAD_CELLS.length-1,Math.floor(position/BOARD.tile));
         if(index!==car.tileIndex){
           car.tileIndex=index;
-          store.passTile(car.residentId,ROAD_CELLS[index]);
+          store.passTile(car.residentId,ROAD_CELLS[index],
+            car.lane==='left'&&!car.changingTo);
         }
       }
     }
