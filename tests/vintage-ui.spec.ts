@@ -177,6 +177,13 @@ for(const view of views){
         expect(card!.y+card!.height,'Inspector must not hide under the fixed shelf')
           .toBeLessThanOrEqual(shop!.y+1);
       }
+      if(view.name==='phone-landscape'){
+        // Shopping remains possible with a deliberate vertical scroll; the
+        // miniature shelf no longer conceals the entire town at 390px high.
+        await page.locator('#shop-section').scrollIntoViewIfNeeded();
+        await page.getByRole('button',{name:/Select Gas Lamppost/}).click();
+        await expect(page.locator('#placement-status')).toContainText('Gas Lamppost is ready');
+      }
       if(view.width<=700) {
         const pause=page.getByRole('button',{name:'Pause'});
         expect((await pause.boundingBox())!.height).toBeGreaterThanOrEqual(44);
