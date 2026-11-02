@@ -1,7 +1,9 @@
 import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, type Cell, type ModelId } from './config';
 import { householdProfile, modelReactionPerTile } from './households';
-import { careName, FLOW_WINDOW_SECONDS, modelEffects, normalizedCare, summarizeFlow,
-  UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent } from './economy';
+import { careName, FLOW_WINDOW_SECONDS, modelEffects, modelRepairCost,
+  modelCondition, modelConditionFactor, modelConditionName, normalizedCare, summarizeFlow,
+  UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent,
+  type ModelCondition } from './economy';
 import { LivingEnvironment, type EnvironmentKind, type EnvironmentalEvent, type LitterDiversion } from './environment';
 import {
   BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCatchChance,
@@ -19,6 +21,10 @@ import {
   ActivityEngine, activityDefinition, type ActivityKind,
   type ActivityCompletion, type ActivityOutcome
 } from './activities';
+import { RoadsideAccidentEngine, type RoadsideIncident,
+  type ImpactSeverity } from './damage';
+import { isBendApproach } from './driving';
+import type { RoadLane } from './traffic';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -49,6 +55,7 @@ export interface HouseholdEffect {
 export interface PlacedModel extends Cell {
   id: ModelId;
   care?: CareLevel; // Older prototype saves/tests without a care level default to full.
+  condition?: ModelCondition; // Physical state is independent of selected care.
   nextBillAt?: number;
   fill?: number; // Only bin models use these three collection fields.
   overflowed?: boolean;
@@ -128,6 +135,7 @@ export class GameStore {
   traffic = new RoadTraffic(1);
   behaviour = new HouseholdBehaviourEngine(1);
   activities = new ActivityEngine(1);
+  accidents = new RoadsideAccidentEngine(1);
   behaviourHistory: BehaviourReport[] = [];
   latestBehaviourReport: BehaviourReport | null = null;
   private nextBehaviourSequence = 1;
@@ -136,7 +144,8 @@ export class GameStore {
   get elapsedSeconds(): number { return this.clockSeconds; }
   get cashflow(): Cashflow {
     const scheduled = this.placements.reduce((total, item) =>
-      total + modelEffects(item.id, normalizedCare(item.care)).upkeep, 0);
+      total + modelEffects(item.id, normalizedCare(item.care),
+        modelCondition(item.condition)).upkeep, 0);
     return summarizeFlow(this.cashflowEvents, this.clockSeconds, scheduled, this.placements.length);
   }
   // Deliberately excludes purchase costs: income tracks regular money earned
@@ -148,6 +157,7 @@ export class GameStore {
     const environmentChanged = this.environment.tick(this.clockSeconds);
     const trafficCleared = this.traffic.tick(this.clockSeconds);
     const activityTick = this.activities.tick(this.clockSeconds);
+    const accidentChanged = this.accidents.tick(this.clockSeconds);
     for (const finished of activityTick.completed) this.finishActivity(finished);
     this.ledger.maximumEnvironmentalEffects = Math.max(
       this.ledger.maximumEnvironmentalEffects, this.environment.effects.length
@@ -156,7 +166,8 @@ export class GameStore {
     for (const placed of this.placements) {
       if (placed.nextBillAt === undefined) placed.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
       while (placed.nextBillAt <= this.clockSeconds) {
-        const price = modelEffects(placed.id, normalizedCare(placed.care)).upkeep;
+        const price = modelEffects(placed.id, normalizedCare(placed.care),
+          modelCondition(placed.condition)).upkeep;
         if (price > 0) {
           this.money -= price; // A temporary deficit is recoverable through later laps.
           billed += price;
@@ -165,6 +176,10 @@ export class GameStore {
         placed.nextBillAt += UPKEEP_INTERVAL_SECONDS;
       }
       if (placed.id !== 'bin') continue;
+      if (modelCondition(placed.condition) === 'broken') {
+        placed.nextCollectionAt = undefined;
+        continue;
+      }
       const interval = binCollectionInterval(normalizedCare(placed.care));
       if (interval === null) {
         placed.nextCollectionAt = undefined;
@@ -189,7 +204,7 @@ export class GameStore {
     }
     this.cashflowEvents = this.cashflowEvents.filter(
       entry => entry.at > this.clockSeconds - FLOW_WINDOW_SECONDS);
-    if (environmentChanged || trafficCleared || activityTick.changed) this.notify();
+    if (environmentChanged || trafficCleared || activityTick.changed || accidentChanged) this.notify();
     if (billed > 0) {
       this.publishNotice('Workshop care bill: −' + billed + ' coins. ' +
         (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' :
@@ -245,6 +260,7 @@ export class GameStore {
     this.traffic = new RoadTraffic(runSeed);
     this.behaviour = new HouseholdBehaviourEngine(runSeed);
     this.activities = new ActivityEngine(runSeed);
+    this.accidents = new RoadsideAccidentEngine(runSeed);
     this.behaviourHistory = [];
     this.latestBehaviourReport = null;
     this.nextBehaviourSequence = 1;
@@ -309,10 +325,12 @@ export class GameStore {
       const points = item.id === 'limit' ? 4 : item.id === 'lamp' ? 2 :
         item.id === 'police' ? 3 : 0;
       const care = normalizedCare(item.care);
-      return sum + points * (care === 'full' ? 1 : care === 'economy' ? 0.5 : 0.1);
+      return sum + points * (care === 'full' ? 1 : care === 'economy' ? 0.5 : 0.1)
+        * modelConditionFactor(item.condition);
     }, 0);
     return Math.round(clamp(90 + Math.min(10, protections) -
-      this.environment.hazardPenalty - Math.min(6, this.traffic.queuedCars.length * 2),
+      this.environment.hazardPenalty - this.accidents.hazardPenalty -
+      Math.min(6, this.traffic.queuedCars.length * 2),
       0, 100));
   }
 
@@ -335,7 +353,7 @@ export class GameStore {
       placed.nextCollectionAt = interval === null ? undefined
         : this.clockSeconds + interval;
     }
-    const price = modelEffects(placed.id, care).upkeep;
+    const price = modelEffects(placed.id, care, modelCondition(placed.condition)).upkeep;
     this.notice = this.getModel(placed.id).name + ': ' + careName(care) +
       '. Next service bill ' + price + ' coins per ' + UPKEEP_INTERVAL_SECONDS + 's.';
     this.selected = { x: placed.x, y: placed.y };
@@ -353,12 +371,13 @@ export class GameStore {
     const interval = binCollectionInterval(level);
     return {
       fill: item.fill ?? 0, capacity: BIN_CAPACITY, overflowed: !!item.overflowed,
-      radius: BIN_CATCH_RADIUS, reliability: binCatchChance(level),
+      radius: BIN_CATCH_RADIUS,
+      reliability: binCatchChance(level) * modelConditionFactor(item.condition),
       collectionPrice: collectionCost(item.fill ?? 0, !!item.overflowed),
       collectionDueIn: interval === null ? null :
         Math.ceil(Math.max(0, (item.nextCollectionAt ??
           this.clockSeconds + interval) - this.clockSeconds)),
-      regularUpkeep: modelEffects('bin', level).upkeep
+      regularUpkeep: modelEffects('bin', level,modelCondition(item.condition)).upkeep
     };
   }
 
@@ -413,6 +432,7 @@ export class GameStore {
 
   private interceptLitter(roadCell: Cell): LitterDiversion | null {
     const covered = this.placements.filter(item => item.id === 'bin'
+      && modelCondition(item.condition) !== 'broken'
       && withinBinCatchment(item, roadCell))
       .sort((a, b) =>
         manhattanDistance(a, roadCell) - manhattanDistance(b, roadCell)
@@ -423,7 +443,8 @@ export class GameStore {
     // useful. Missed catches from poor maintenance still become roadside litter.
     for (const bin of covered) {
       if ((bin.fill ?? 0) >= BIN_CAPACITY) continue;
-      if (this.environment.rng.next() >= binCatchChance(normalizedCare(bin.care))) continue;
+      if (this.environment.rng.next() >= binCatchChance(normalizedCare(bin.care))
+        * modelConditionFactor(bin.condition)) continue;
       bin.fill = Math.min(BIN_CAPACITY, (bin.fill ?? 0) + 1);
       this.ledger.litterCaught++;
       return { status: 'captured', bin: { x: bin.x, y: bin.y } };
@@ -441,10 +462,11 @@ export class GameStore {
     let multiplier = 1;
     for (const placed of this.placements) {
       if (placed.id !== 'limit' || manhattanDistance(placed, tile) > EFFECT_RADIUS) continue;
-      multiplier = Math.min(multiplier, modelEffects(placed.id, normalizedCare(placed.care)).speedMultiplier);
+      multiplier = Math.min(multiplier, modelEffects(placed.id,
+        normalizedCare(placed.care),modelCondition(placed.condition)).speedMultiplier);
     }
     return Math.min(multiplier, this.environment.slowdownAt(tile),
-      this.activities.slowdownAt(tile));
+      this.activities.slowdownAt(tile), this.accidents.slowAt(tile));
   }
   selectResident(id: number | null): void {
     this.selectedResident = this.selectedResident === id ? null : id;
@@ -522,7 +544,7 @@ export class GameStore {
     }
     this.money -= model.cost;
     this.ledger.miniaturePurchases += model.cost;
-    this.placements.push({ ...cell, id, care: 'full',
+    this.placements.push({ ...cell, id, care: 'full', condition: 'intact',
       nextBillAt: this.clockSeconds + UPKEEP_INTERVAL_SECONDS,
       ...(id === 'bin' ? {
         fill: 0, overflowed: false, nextCollectionAt: this.clockSeconds + 60
