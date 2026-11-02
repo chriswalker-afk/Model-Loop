@@ -7,6 +7,7 @@ import {
   BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCatchChance,
   binCollectionInterval, collectionCost, withinBinCatchment
 } from './bins';
+import { RoadTraffic, type QueuedRoadCar } from './traffic';
 
 export type Phase = 'playing' | 'complete' | 'lost';
 export interface Resident {
@@ -22,6 +23,9 @@ export interface Resident {
   seenModels: Record<string, number>;
   lastEventLap: number;
   nextEventOffset: number;
+  lastTrafficAttemptLap: number;
+  nextTrafficOffset: number;
+  trafficDelay: number; // Total seconds lost behind other road users.
 }
 export interface JourneyReaction {
   residentId: number;
@@ -103,6 +107,8 @@ export class GameStore {
   private cashflowEvents: CashflowEvent[] = [];
   environment = new LivingEnvironment(1);
   lastEnvironmentEvent: EnvironmentalEvent | null = null;
+  traffic = new RoadTraffic(1);
+  private lastCongestionNoticeAt = -Infinity;
 
   get elapsedSeconds(): number { return this.clockSeconds; }
   get cashflow(): Cashflow {
@@ -117,6 +123,7 @@ export class GameStore {
         !Number.isFinite(seconds) || seconds <= 0) return;
     this.clockSeconds += seconds;
     const environmentChanged = this.environment.tick(this.clockSeconds);
+    const trafficCleared = this.traffic.tick(this.clockSeconds);
     let billed = 0;
     for (const placed of this.placements) {
       if (placed.nextBillAt === undefined) placed.nextBillAt = this.clockSeconds + UPKEEP_INTERVAL_SECONDS;
@@ -154,7 +161,7 @@ export class GameStore {
     }
     this.cashflowEvents = this.cashflowEvents.filter(
       entry => entry.at > this.clockSeconds - FLOW_WINDOW_SECONDS);
-    if (environmentChanged) this.notify();
+    if (environmentChanged || trafficCleared) this.notify();
     if (billed > 0) {
       this.notice = 'Workshop care bill: −' + billed + ' coins. ' +
         (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' : 'Adjust each model’s care to manage expenses.');
@@ -179,7 +186,10 @@ export class GameStore {
   notify(): void { this.listeners.forEach((listener) => listener()); }
 
   newRun(seed?: number): void {
-    this.environment = new LivingEnvironment(seed ?? (Date.now() >>> 0));
+    const runSeed = seed ?? (Date.now() >>> 0);
+    this.environment = new LivingEnvironment(runSeed);
+    this.traffic = new RoadTraffic(runSeed);
+    this.lastCongestionNoticeAt = -Infinity;
     this.lastEnvironmentEvent = null;
     this.phase = 'playing';
     this.money = 145 + this.legacy.upgrades.savings * 35;
@@ -210,7 +220,10 @@ export class GameStore {
       lastRemark: householdProfile(home.id).firstRemark,
       seenModels: {},
       lastEventLap: -1,
-      nextEventOffset: this.environment.opportunityOffset(ROAD_CELLS.length)
+      nextEventOffset: this.environment.opportunityOffset(ROAD_CELLS.length),
+      lastTrafficAttemptLap: -1,
+      nextTrafficOffset: this.traffic.opportunityOffset(ROAD_CELLS.length),
+      trafficDelay: 0
     }));
     this.notice = 'The year is 1908. Keep the neighbourhood happy as the cars circle.';
     this.notify();
@@ -235,7 +248,8 @@ export class GameStore {
       return sum + points * (care === 'full' ? 1 : care === 'economy' ? 0.5 : 0.1);
     }, 0);
     return Math.round(clamp(90 + Math.min(10, protections) -
-      this.environment.hazardPenalty, 0, 100));
+      this.environment.hazardPenalty - Math.min(6, this.traffic.queuedCars.length * 2),
+      0, 100));
   }
 
   getModel(id: ModelId) { return MODELS.find((model) => model.id === id)!; }
@@ -452,12 +466,14 @@ export class GameStore {
       beauty: 1 + environmental.beauty - 2 * overflowing + nearby.reduce((total, item) =>
         total + modelEffects(item.id, normalizedCare(item.care)).beauty, 0),
       noise: (isRoad(cell.x, cell.y) ? 2 : 0) + environmental.noise
+        + Math.min(3, this.traffic.queuedNear(cell))
         + nearby.reduce((total, item) =>
           total + modelEffects(item.id, normalizedCare(item.care)).noise, 0),
       crime: Math.max(0, 2 + overflowing + nearby.reduce((total, item) =>
         total + modelEffects(item.id, normalizedCare(item.care)).crime, 0)),
       roadSafety: Math.round(clamp(90 -
-        this.environment.at(cell).filter(effect => effect.kind === 'skid').length * 12, 0, 100))
+        this.environment.at(cell).filter(effect => effect.kind === 'skid').length * 12 -
+        this.traffic.queuedNear(cell) * 2, 0, 100))
     };
   }
 
@@ -549,6 +565,27 @@ export class GameStore {
         if (event) this.recordEnvironmentEvent(event);
       }
     }
+    // One seeded possibility per journey. A pause is an actual physical
+    // blocker on the road, so following cars will have to brake or queue.
+    if (tileIndex >= 0 && startIndex >= 0 &&
+      resident.lastTrafficAttemptLap !== resident.laps) {
+      const offset = (tileIndex - startIndex + ROAD_CELLS.length) % ROAD_CELLS.length;
+      if (offset >= resident.nextTrafficOffset) {
+        resident.lastTrafficAttemptLap = resident.laps;
+        resident.nextTrafficOffset = this.traffic.opportunityOffset(ROAD_CELLS.length);
+        const nearSign = this.placements.some(item => item.id === 'limit'
+          && manhattanDistance(item, tile) <= EFFECT_RADIUS);
+        const stop = this.traffic.attempt(id, resident.irritation, tile,
+          this.clockSeconds, nearSign);
+        if (stop) {
+          resident.lastRemark = id === 1
+            ? 'There was something rather lovely by the roadside.'
+            : 'Better to check the road before going on.';
+          this.notice = stop.message;
+          this.notify();
+        }
+      }
+    }
     let reaction: JourneyReaction | null = null;
     if (encountered && Math.abs(strongestReaction) >= 0.15) {
       const text = profile.remarks[encountered.id];
@@ -580,6 +617,42 @@ export class GameStore {
     this.statusTick++;
     if (reaction || this.statusTick % 14 === 0) this.notify();
     return reaction;
+  }
+
+  /**
+   * Queue delays cost time and generate irritation, but do not directly
+   * generate or remove coins: fewer completed circuits means less income.
+   */
+  reportTrafficFlow(queued: QueuedRoadCar[]): void {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen) return;
+    const prior = this.traffic.queuedCars.length;
+    const changed = this.traffic.updateQueue(queued);
+    for (const item of queued) {
+      const resident = this.residents[item.residentId];
+      if (!resident?.occupied) continue;
+      resident.trafficDelay += item.delaySeconds;
+      resident.irritation = clamp(resident.irritation +
+        item.delaySeconds * resident.temperament * 0.42, 0, 100);
+    }
+    if (changed) {
+      if (this.traffic.queuedCars.length >= 2 && prior < 2 &&
+        this.clockSeconds - this.lastCongestionNoticeAt >= 25) {
+        this.notice = this.traffic.queuedCars.length +
+          ' cars have queued behind slower traffic. Circuits are taking longer.';
+        this.lastCongestionNoticeAt = this.clockSeconds;
+      }
+      this.notify();
+    }
+  }
+
+  debugTrafficStop(id: number, cell: Cell, duration?: number): boolean {
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen ||
+      !this.residents[id]?.occupied || !isRoad(cell.x, cell.y)) return false;
+    const incident = this.traffic.forceStop(id, cell, this.clockSeconds, duration);
+    if (!incident) return false;
+    this.notice = incident.message;
+    this.notify();
+    return true;
   }
 
   private recordEnvironmentEvent(event: EnvironmentalEvent): void {
