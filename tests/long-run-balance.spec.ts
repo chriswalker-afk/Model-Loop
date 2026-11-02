@@ -95,7 +95,8 @@ function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
         vehicles.push({residentId:car.residentId,position,
           desiredSpeed:store.traffic.shouldStop(car.residentId)||
             (car.lane==='passing'&&passingLaneBlockedAhead(position,vergeObstructions,30))
-            ?0:car.speed*car.speedFactor*bendSpeedMultiplier(position,car.driver),
+            ?0:car.speed*car.speedFactor*bendSpeedMultiplier(position,car.driver)
+              *store.driverCautionFactor(car.residentId),
           lane:car.lane,changingTo:car.changingTo,driver:car.driver});
       }else if(car.cycle.phase==='departing'){
         vehicles.push({residentId:car.residentId,
