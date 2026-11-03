@@ -575,12 +575,20 @@ export class TownScene extends Scene {
         if(newTexture||becomingVisible){
           this.tweens.killTweensOf(image);
           image.setVisible(true);
+          image.setData('homeGroundTargetAlpha',fadeTo);
           if(this.reduceMotion())image.setAlpha(fadeTo);
           else {
             image.setAlpha(0);
             this.tweens.add({targets:image,alpha:fadeTo,
               duration:420,ease:'Sine.Out'});
           }
+        }else if(image.getData('homeGroundTargetAlpha')!==fadeTo){
+          // A family may move out *during* the installation reveal. Stop
+          // its old alpha=1 tween immediately; no later notification should
+          // be required to fade the abandoned house's boundary and garden.
+          this.tweens.killTweensOf(image);
+          image.setData('homeGroundTargetAlpha',fadeTo);
+          image.setAlpha(fadeTo);
         }else if(!this.tweens.isTweening(image)){
           image.setAlpha(fadeTo);
         }
