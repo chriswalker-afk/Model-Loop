@@ -11,6 +11,8 @@ import {
   worldSvgDataUri, WORLD_CAR_SIZE, WORLD_HOUSE_SIZE
 } from '../ui/vintageWorldArt';
 import { store, type FoundingArrival, type HomeSite, type JourneyReaction } from './state';
+import { GARDEN_VARIANTS } from './livingScenery';
+import { gardenSvg, gardenTextureKey, GARDEN_ART_SIZE } from '../ui/gardenArt';
 import { boundaryBetween, type BoundaryKind } from './boundaries';
 import { normalizedCare, modelCondition } from './economy';
 import type { RoadsideIncident } from './damage';
@@ -89,6 +91,8 @@ export class TownScene extends Scene {
   private lastFoundingArrivalRevision = 0;
   private houseSprites: Phaser.GameObjects.Image[] = [];
   private scenerySprites: Phaser.GameObjects.Image[] = [];
+  private civicSprites=new Map<string,Phaser.GameObjects.Image>();
+  private gardenSprites=new Map<string,Phaser.GameObjects.Image>();
   // 22 small engraved props shared with the inspector. One sprite per active
   // trace/activity/incident or model-care state, reused on every store notify.
   private eventSprites = new Map<string, Phaser.GameObjects.Image>();
@@ -130,6 +134,13 @@ export class TownScene extends Scene {
         width: size.width * 2, height: size.height * 2
       });
     }
+    for(const variant of GARDEN_VARIANTS){
+      const key=gardenTextureKey(variant);
+      if(!this.textures.exists(key))this.load.svg(key,
+        worldSvgDataUri(gardenSvg(variant)),{
+          width:GARDEN_ART_SIZE.width*2,height:GARDEN_ART_SIZE.height*2
+        });
+    }
     for (const id of eventArtIds) {
       const key = eventTextureKey(id);
       if (!this.textures.exists(key)) this.load.svg(key,eventDataUri(id),{
@@ -139,6 +150,8 @@ export class TownScene extends Scene {
   }
 
   create(): void {
+    this.civicSprites.clear();
+    this.gardenSprites.clear();
     this.cameras.main.setBackgroundColor('#111515');
     this.drawBoard();
     if (store.phase !== 'founding') this.drawScenery();
@@ -188,8 +201,12 @@ export class TownScene extends Scene {
         this.lastNeighbourNoteId = 0;
       }
       if (store.phase === 'playing' && this.cars.length === 0) {
-        this.drawScenery();
+        this.drawScenery(true);
         this.activateCars();
+      } else {
+        // Existing civic miniatures remain in place; new ones are gently
+        // assembled rather than popping in or rebuilding every frame.
+        this.drawScenery(true);
       }
       this.drawDynamic();
       const arrival = store.foundingRecentArrival;
@@ -232,6 +249,8 @@ export class TownScene extends Scene {
       unsubscribe();
       this.kitSprites.clear(); // Phaser scene shutdown destroys images.
       this.scenerySprites = [];
+      this.civicSprites.clear();
+      this.gardenSprites.clear();
       this.houseSprites = [];
       this.eventSprites.clear();
     });
@@ -359,35 +378,77 @@ export class TownScene extends Scene {
     }
   }
 
-  private drawScenery(): void {
-    for (const sprite of this.scenerySprites) sprite.destroy();
-    this.scenerySprites = [];
-    // The ten existing reserved scenery plots remain exactly as before.
-    // Plot 0 is now a bandstand in the park; the other nine are finely
-    // etched oak variations. No extra land is taken from buildable tiles.
-    SCENERY_CELLS.slice(0,10).forEach((cell,i)=>{
-      if (!store.scenerySites.some(s=>s.x===cell.x&&s.y===cell.y)) return;
+  private drawScenery(animateNew=false):void {
+    const listed=new Set(store.scenerySites.map(cell=>cell.x+','+cell.y));
+    for(const [key,sprite] of [...this.civicSprites]){
+      if(listed.has(key))continue;
+      this.tweens.killTweensOf(sprite);
+      sprite.destroy();
+      this.civicSprites.delete(key);
+    }
+    SCENERY_CELLS.forEach((cell,i)=>{
+      const key=cell.x+','+cell.y;
+      if(!listed.has(key)||this.civicSprites.has(key))return;
       const point=worldPoint(cell);
-      const style = i===0?'bandstand' :
-        (['oak-a','oak-b','oak-c'] as const)[i%3];
-      const image=this.add.image(point.x,point.y+21,sceneryTextureKey(style))
-        .setOrigin(.5,1)
-        .setDisplaySize(i===0?59:53,i===0?57:61)
-        .setDepth(i===0?2:1);
-      this.scenerySprites.push(image);
+      const variant=i===0?'bandstand':i<10
+        ?(['oak-a','oak-b','oak-c'] as const)[i%3]
+        :i===10?'clock-hall':i===11?'garden-fountain':'park-notice';
+      const item=i===10?{y:point.y+43,w:111,h:112,depth:2}:
+        i===11?{y:point.y+22,w:59,h:47,depth:2}:
+        i===12?{y:point.y+24,w:52,h:53,depth:2}:
+        i===0?{y:point.y+21,w:59,h:57,depth:2}:
+        {y:point.y+21,w:53,h:61,depth:1};
+      const image=this.add.image(point.x,item.y,sceneryTextureKey(variant))
+        .setOrigin(.5,1).setDisplaySize(item.w,item.h).setDepth(item.depth);
+      this.civicSprites.set(key,image);
+      if(animateNew&&!this.reduceMotion()){
+        const fullX=image.scaleX,fullY=image.scaleY;
+        image.setAlpha(0).setScale(fullX*.78,fullY*.78).setY(item.y+8);
+        this.tweens.add({targets:image,alpha:1,x:point.x,y:item.y,
+          scaleX:fullX,scaleY:fullY,duration:720,ease:'Sine.Out'});
+      }
     });
-    const hall=worldPoint({x:11,y:6});
-    if (store.scenerySites.some(s=>s.x===11&&s.y===6)) this.scenerySprites.push(this.add.image(
-      hall.x,hall.y+43,sceneryTextureKey('clock-hall'))
-      .setOrigin(.5,1).setDisplaySize(111,112).setDepth(2));
-    const fountain=worldPoint({x:16,y:6});
-    if (store.scenerySites.some(s=>s.x===16&&s.y===6)) this.scenerySprites.push(this.add.image(
-      fountain.x,fountain.y+22,sceneryTextureKey('garden-fountain'))
-      .setOrigin(.5,1).setDisplaySize(59,47).setDepth(2));
-    const notice=worldPoint({x:7,y:7});
-    if (store.scenerySites.some(s=>s.x===7&&s.y===7)) this.scenerySprites.push(this.add.image(
-      notice.x,notice.y+24,sceneryTextureKey('park-notice'))
-      .setOrigin(.5,1).setDisplaySize(52,53).setDepth(2));
+    this.scenerySprites=[...this.civicSprites.values()];
+  }
+
+  /** Gentle, tiny props are rendered UNDER houses and purchased miniatures.
+   * They neither reserve land nor survive in an occupied model square.
+   * Every redraw uses a pure stable plan, so removing a model can bring back
+   * greenery without saving decorative game-state or RNG steps.
+   */
+  private syncGardenSprites():void {
+    const wanted=store.gardenDetails;
+    const keys=new Set(wanted.map(detail=>detail.key));
+    for(const [key,sprite] of [...this.gardenSprites]){
+      if(keys.has(key))continue;
+      this.tweens.killTweensOf(sprite);
+      sprite.destroy();
+      this.gardenSprites.delete(key);
+    }
+    for(const detail of wanted){
+      if(this.gardenSprites.has(detail.key))continue;
+      const point=worldPoint(detail.cell);
+      const image=this.add.image(point.x,point.y+13,
+        gardenTextureKey(detail.variant))
+        .setOrigin(.5,1)
+        .setDisplaySize(detail.displayWidth,detail.displayHeight)
+        .setDepth(detail.variant==='sapling'?1.8:1.9);
+      image.setData('gardenResident',detail.residentId);
+      this.gardenSprites.set(detail.key,image);
+    }
+  }
+
+  private animateGardenArrival(residentId:number):void {
+    if(this.reduceMotion())return;
+    const sprites=[...this.gardenSprites.values()].filter(sprite=>
+      sprite.getData('gardenResident')===residentId);
+    sprites.forEach((sprite,i)=>{
+      this.tweens.killTweensOf(sprite);
+      const x=sprite.x,y=sprite.y,sx=sprite.scaleX,sy=sprite.scaleY;
+      sprite.setAlpha(0).setScale(sx*.65,sy*.65).setY(y+6);
+      this.tweens.add({targets:sprite,alpha:1,x,y,scaleX:sx,scaleY:sy,
+        delay:410+i*170,duration:560,ease:'Back.Out'});
+    });
   }
 
   private activateCars(): void {
@@ -430,6 +491,7 @@ export class TownScene extends Scene {
     this.tweens.add({
       targets:house,y:site.y+22,alpha:1,duration:650,ease:'Back.Out'
     });
+    this.animateGardenArrival(arrival.id);
     const label=this.add.text(site.x,site.y-62,
       arrival.moved?'A NEW PLOT':'WELCOME HOME',{
         fontFamily:'Georgia, serif',fontSize:'10px',color:'#e9d8ae',
@@ -560,6 +622,14 @@ export class TownScene extends Scene {
         .filter(key=>this.textures.exists(key)),
       loadedScenery: sceneryVariants.map(sceneryTextureKey)
         .filter(key=>this.textures.exists(key)),
+      loadedGardens:GARDEN_VARIANTS.map(gardenTextureKey)
+        .filter(key=>this.textures.exists(key)),
+      civicStage:store.civicStage,
+      gardens:store.gardenDetails.map(detail=>{
+        const image=this.gardenSprites.get(detail.key);
+        return {...detail,visible:!!image?.visible,
+          alpha:image?.alpha??0,x:image?.x??0,y:image?.y??0};
+      }),
       variants: [...carVariants],
       cars: this.cars.map(car=>{
         const art=car.container.list[0] as Phaser.GameObjects.Image;
@@ -950,6 +1020,7 @@ export class TownScene extends Scene {
     this.kitGhost.setVisible(false);
     this.foundingGhost.setVisible(false);
     this.syncKitSprites();
+    this.syncGardenSprites();
 
     store.placements.forEach((placed) => {
       const point = worldPoint(placed);

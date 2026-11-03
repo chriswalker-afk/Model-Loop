@@ -32,6 +32,10 @@ import { RoadsideAccidentEngine, type RoadsideIncident,
   type ImpactSeverity } from './damage';
 import { isBendApproach } from './driving';
 import { NeighbourhoodStories } from './neighbours';
+import {
+  planGardenDetails, civicStageAt, eligibleCivicSites,
+  type GardenDetail
+} from './livingScenery';
 import type { RoadLane } from './traffic';
 
 export type Phase = 'founding' | 'playing' | 'complete' | 'lost';
@@ -142,7 +146,10 @@ export class GameStore {
   // Homes belong to this particular run. HOMES holds immutable identities,
   // artwork and temperaments; its historical coordinates are test fixtures only.
   homeSites: Array<Cell | null> = Array.from({length: HOMES.length}, () => null);
+  /** Actual visible civic pieces, not invisible future reservations. */
   scenerySites: Cell[] = [];
+  private plannedCivicSites:Cell[] = [];
+  civicStage = 0;
   foundingFamily: number | null = null;
   foundingIntroId: number | null = null;
   foundingReviewOpen = false;
@@ -333,6 +340,8 @@ export class GameStore {
     this.phase = 'founding';
     this.homeSites = HOMES.map(() => null);
     this.scenerySites = [];
+    this.plannedCivicSites = [];
+    this.civicStage = 0;
     setActiveScenery([]);
     this.foundingFamily = null;
     this.foundingIntroId = null;
@@ -377,6 +386,27 @@ export class GameStore {
     this.notice = '1908 — A road awaits six families. Choose the first household to settle.';
     if (this.referenceLayoutFixture) this.foundFromReferenceLayout();
     this.notify();
+  }
+
+  /**
+   * Pure display state: no garden decoration enters placements, scenerySites,
+   * the traffic simulation, ledger, safety or even the tile occupancy rules.
+   * Recalculate rather than mutate, so models and activity props automatically
+   * take precedence over foliage without charging the player.
+   */
+  get gardenDetails():GardenDetail[] {
+    const boundaryPoints=this.boundaryImprovements.flatMap(piece=>{
+      const a=this.homeFor(piece.a),b=this.homeFor(piece.b);
+      return a&&b?[boundaryBetween(a,b)]:[];
+    });
+    return planGardenDetails({
+      homes:this.placedHomes,
+      modelCells:this.placements,
+      civicCells:SCENERY_CELLS,
+      activityCells:this.activities.active.map(activity=>activity.cell),
+      effectCells:this.environment.effects.map(effect=>effect.cell),
+      boundaryPoints
+    });
   }
 
   get foundingCount(): number { return this.homeSites.filter(Boolean).length; }
@@ -587,10 +617,14 @@ export class GameStore {
   /** No traffic, wages, purchases, time or incidents can start before this. */
   beginVintageYears(): boolean {
     if (this.phase !== 'founding' || this.foundingCount !== HOMES.length) return false;
-    this.scenerySites = SCENERY_CELLS.filter(cell => this.placedHomes.every(home =>
+    this.plannedCivicSites = SCENERY_CELLS.filter(cell => this.placedHomes.every(home =>
       Math.max(Math.abs(cell.x - home.x), Math.abs(cell.y - home.y)) >=
         (cell.x === 11 && cell.y === 6 ? 3 : 2)));
-    setActiveScenery(this.scenerySites);
+    // Landmarks now grow with the town. Nothing is invisibly blocked in
+    // advance; a paid model on a future civic plot takes precedence.
+    this.scenerySites = [];
+    this.civicStage = 0;
+    setActiveScenery([]);
     this.phase = 'playing';
     this.foundingFamily = null;
     this.foundingIntroId = null;
@@ -609,9 +643,37 @@ export class GameStore {
     // Preserve the original decorative baseline for historical regression tests.
     if (this.referenceLayoutFixture) {
       this.scenerySites = SCENERY_CELLS.map(site => ({ ...site }));
+      this.civicStage = 4;
       setActiveScenery(this.scenerySites);
     }
   }
+  /** Four small civic growth milestones. Revealed landmarks occupy only
+   * available squares and cannot displace paid kits or active activities.
+   * Delayed civic pieces carry no income, beauty, safety or mood bonus.
+   */
+  private revealCivicGrowth():void {
+    if(this.phase!=='playing'||this.referenceLayoutFixture)return;
+    const nextStage=civicStageAt(this.progress);
+    if(nextStage<=this.civicStage)return;
+    const eligible=eligibleCivicSites(nextStage,this.plannedCivicSites,
+      this.placedHomes,this.placements,[
+        ...this.activities.active.map(activity=>activity.cell),
+        ...this.environment.effects.map(effect=>effect.cell)
+      ]);
+    this.civicStage=nextStage;
+    this.scenerySites=eligible;
+    setActiveScenery(eligible);
+    const names=[
+      'The first little trees take root around the town.',
+      'A park and notice board are taking shape.',
+      'The fountain arrives as the town finds its rhythm.',
+      'The clock hall completes the town centre.'
+    ];
+    if(eligible.length){
+      this.publishNotice(names[nextStage-1]??'The town grows a little more.',1);
+    }
+  }
+
   get occupiedHomes(): number {
     return this.phase === 'founding'
       ? this.foundingCount : this.residents.filter(resident => resident.occupied).length;
@@ -1588,6 +1650,7 @@ export class GameStore {
     this.recordCashflow(earned, 'lap');
     this.publishNotice(resident.name + ' completed a circuit: +' + earned + ' coins.');
     this.progress = clamp(this.progress + (resident.irritation < 65 ? 3.0 : 1.7), 0, 100);
+    this.revealCivicGrowth();
     const milestone = Math.min(3, Math.floor(this.progress / 25));
     if (milestone > this.reachedMilestone) {
       for (let step = this.reachedMilestone + 1; step <= milestone; step++) {
