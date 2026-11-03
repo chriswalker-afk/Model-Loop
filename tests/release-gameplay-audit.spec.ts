@@ -153,15 +153,24 @@ test('release audit: a completed chapter can restart with new cars and no old de
         residentId:number;phase:string;position:number
       }>}
     }).__modelLoopDebug!.trafficSnapshot();
-    return {cars,expected:store.placedHomes.map(home=>{
-      const idx=ROAD_CELLS.findIndex(cell=>manhattanDistance(cell,home)===1);
-      return {id:home.id,position:idx*BOARD.tile};
-    })};
+    return {cars,roadLength:ROAD_CELLS.length*BOARD.tile,
+      expected:store.placedHomes.map(home=>{
+        const idx=ROAD_CELLS.findIndex(cell=>manhattanDistance(cell,home)===1);
+        return {id:home.id,position:idx*BOARD.tile};
+      })};
   });
   expect(replay.cars).toHaveLength(6);
   expect(replay.cars.filter(car=>car.phase==='driving').length).toBeLessThan(6);
   for(const car of replay.cars){
-    expect(car.position).toBe(replay.expected.find(p=>p.id===car.residentId)?.position);
+    const entry=replay.expected.find(p=>p.id===car.residentId);
+    expect(entry).toBeDefined();
+    // Real Phaser frames can run between beginning Vintage and reading the
+    // snapshot. A newly driving car MUST advance from its new home entrance,
+    // not be frozen at the exact entrance pixel or inherit an old startIndex.
+    const travelled=(car.position-entry!.position+replay.roadLength)%replay.roadLength;
+    expect(travelled).toBeGreaterThanOrEqual(0);
+    expect(travelled).toBeLessThan(BOARD.tile*3);
+    if(car.phase==='at-home'||car.phase==='departing')expect(travelled).toBe(0);
   }
 });
 
