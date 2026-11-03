@@ -54,7 +54,9 @@ test('stacked conflicts have a hard cap and distant or departed neighbours do no
   expect(social.uncappedPerLap).toBe(3.6);
   expect(social.irritationPerLap).toBe(MAX_NEIGHBOUR_EFFECT_PER_LAP);
   expect(neighbourhoodSummary(0,[close[0]]).irritationPerLap).toBe(0);
-  expect(neighbourhoodSummary(5,close).irritationPerLap).toBe(1.8);
+  // The Wards are uneasy with the Finches (+1.80) but take some comfort
+  // in the nearby Hales at distance four (-0.50): a genuine mixed outcome.
+  expect(neighbourhoodSummary(5,close).irritationPerLap).toBe(1.3);
 });
 
 test('founding forecast reflects directional effects on family AND already-settled neighbours',()=>{
