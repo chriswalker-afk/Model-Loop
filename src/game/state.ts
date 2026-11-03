@@ -1,6 +1,8 @@
 import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, SCENERY_CELLS, setActiveScenery, type Cell, type ModelId } from './config';
 import { householdProfile, modelReactionPerTile } from './households';
-import { foundingNeighbourHints, type FoundingNeighbourHint } from './founding';
+import { foundingNeighbourHints, forecastNeighbourhoodPlacement, neighbourhoodSummary,
+  type FoundingNeighbourHint, type NeighbourhoodPlacementForecast,
+  type NeighbourhoodSummary } from './founding';
 import { careName, FLOW_WINDOW_SECONDS, modelEffects, modelRepairCost,
   modelCondition, modelConditionFactor, normalizedCare, summarizeFlow,
   UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent,
@@ -31,7 +33,11 @@ import type { RoadLane } from './traffic';
 export type Phase = 'founding' | 'playing' | 'complete' | 'lost';
 export type HomeSite = Cell & Pick<(typeof HOMES)[number], 'id' | 'name' | 'color' | 'temperament'>;
 export interface FoundingPlotPreview {
-  allowed:boolean; reason:string; neighbours:FoundingNeighbourHint[];
+  allowed:boolean;
+  reason:string;
+  neighbours:FoundingNeighbourHint[];
+  /** Null for invalid plots. Uses the exact same scoring as the live circuit. */
+  relationshipForecast:NeighbourhoodPlacementForecast | null;
 }
 export interface FoundingArrival { id:number; cell:Cell; revision:number; moved:boolean; }
 export interface Resident {
@@ -358,6 +364,14 @@ export class GameStore {
   homeAt(cell: Cell): (HomeSite) | null {
     return this.placedHomes.find(home => home.x === cell.x && home.y === cell.y) ?? null;
   }
+  /** Household comfort belongs to the selected run, not static HOME sites.
+   * Empty homes are visible, but families who moved away no longer contribute
+   * positive or negative social effects to other families' circuits.
+   */
+  neighbourhoodFor(residentId:number):NeighbourhoodSummary {
+    const living=this.placedHomes.filter(home=>this.residents[home.id]?.occupied);
+    return neighbourhoodSummary(residentId,living);
+  }
   /** Houses need an actual adjoining road and enough space for their artwork. */
   canPlaceHome(cell: Cell, id: number | null = this.foundingFamily): boolean {
     if (this.phase !== 'founding' || id === null || !HOMES[id] ||
@@ -369,7 +383,8 @@ export class GameStore {
   }
   previewFoundingHome(cell: Cell, id: number | null = this.foundingFamily): FoundingPlotPreview {
     if (this.phase !== 'founding' || id === null || !HOMES[id])
-      return { allowed:false, reason:'Choose a family from the tray.', neighbours:[] };
+      return { allowed:false, reason:'Choose a family from the tray.',
+        neighbours:[],relationshipForecast:null };
     const neighbours = isOnBoard(cell.x,cell.y)
       ? foundingNeighbourHints(id,cell,this.placedHomes) : [];
     let reason = 'A valid roadside plot. Select to settle this family here.';
@@ -379,7 +394,10 @@ export class GameStore {
     else if (this.placedHomes.some(home => home.id !== id &&
       Math.max(Math.abs(home.x-cell.x),Math.abs(home.y-cell.y))<2))
       reason = 'Leave at least one clear grid square between house plots.';
-    return { allowed:this.canPlaceHome(cell,id),reason,neighbours };
+    const allowed=this.canPlaceHome(cell,id);
+    return { allowed,reason,neighbours:allowed?neighbours:[],
+      relationshipForecast:allowed
+        ? forecastNeighbourhoodPlacement(id,cell,this.placedHomes) : null };
   }
   chooseFoundingFamily(id: number | null): void {
     if (this.phase !== 'founding' ||
@@ -1373,10 +1391,48 @@ export class GameStore {
   }
 
   finishLap(id: number): number {
-    if (this.phase !== 'playing') return 0;
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen) return 0;
     const resident = this.residents[id];
     if (!resident?.occupied) return 0;
+    // Apply once per REAL completed circuit, never on a paused frame, a
+    // ceremonial arrival or a road tile. A distance-four warm neighbour has
+    // exactly the same effect in the forecast and here.
+    const social=this.neighbourhoodFor(id);
+    resident.irritation=clamp(resident.irritation+social.irritationPerLap,0,100);
     resident.laps += 1;
+    // Their first completed circuit is a grounded opportunity to notice the
+    // neighbours. No invented random friendship bonus or extra HUD meter.
+    if (resident.laps===1 && social.neighbours.length) {
+      const notable=social.neighbours.filter(n=>n.irritationPerLap!==0)
+        .sort((a,b)=>Math.abs(b.irritationPerLap)-Math.abs(a.irritationPerLap))[0];
+      if(notable) {
+        resident.lastRemark=notable.irritationPerLap<0
+          ? 'It is lovely having '+notable.name+' so close.'
+          : 'We would feel calmer with a little distance from '+notable.name+'.';
+        this.publishNotice(resident.name+
+          (notable.irritationPerLap<0
+            ? ' appreciate living near ' : ' are uneasy living near ')+
+          notable.name+'.',1);
+      }
+    }
+    if (resident.irritation >= VINTAGE_BALANCE.firstWarningIrritation && !resident.unsettled) {
+      resident.unsettled=true;
+      this.publishNotice(resident.name+' seem unsettled on their journeys.',1);
+    }
+    if (resident.irritation >= VINTAGE_BALANCE.secondWarningIrritation && !resident.warned) {
+      resident.warned=true;
+      resident.lastRemark=householdProfile(id).warning;
+      this.publishNotice(resident.name+' are close to leaving. Listen to what troubles them.',2);
+    }
+    if (resident.irritation>=100) {
+      resident.occupied=false;
+      this.activities.cancelResident(id);
+      resident.lastRemark='The house is quiet now.';
+      this.publishNotice(resident.name+' have moved away. Their home has closed.',2);
+      if (this.closedHomes>=3) this.endRun(false);
+      this.notify();
+      return 0;
+    }
     const earned = resident.irritation < 65 ? 15 : 8;
     this.money += earned;
     this.recordCashflow(earned, 'lap');
