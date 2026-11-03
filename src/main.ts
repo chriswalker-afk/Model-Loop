@@ -214,7 +214,12 @@ function renderShop(): void {
 function renderBoundaryStudio():void {
   const workshop=byId<HTMLDetailsElement>('boundary-studio');
   workshop.hidden=store.phase!=='playing';
-  if(workshop.hidden||!workshop.open)return;
+  if(workshop.hidden) {
+    // Each generation begins with the miniature tray closed.
+    workshop.open=false;
+    return;
+  }
+  if(!workshop.open)return;
   const panel=byId('boundary-studio-content');
   const pairs=store.boundaryPairs;
   const selected=store.boundaryPair
