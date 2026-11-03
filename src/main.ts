@@ -4,7 +4,8 @@ import { BOARD, HOMES, isOnBoard, MODELS, type Cell, type ModelId } from './game
 import { miniatureSvg } from './ui/modelArt';
 import { chapterMotorcarSvg } from './ui/vintageWorldArt';
 import { foundingKeepsakeSvg } from './ui/foundingArt';
-import { foundingStory } from './game/founding';
+import { foundingStory, MAX_NEIGHBOUR_EFFECT_PER_LAP,
+  type NeighbourhoodPlacementForecast } from './game/founding';
 import { eventUiIcon } from './ui/vintageEventArt';
 import { vintageIcon, vintageFrameCorners, type VintageIcon } from './ui/vintageIcons';
 import { store } from './game/state';
@@ -60,6 +61,32 @@ const coinMark = document.querySelector<HTMLElement>('.balances .coin-icon');
 if (coinMark) coinMark.innerHTML = vintageIcon('income');
 
 function signed(n: number): string { return n > 0 ? '+' + n : String(n); }
+function signedRelationship(n:number):string {
+  return (n>0?'+':'')+n.toFixed(2);
+}
+function relationshipTone(n:number):string {
+  return n<-.005?'warm':n>.005?'wary':'ordinary';
+}
+function relationshipForecastMarkup(forecast:NeighbourhoodPlacementForecast|null):string {
+  if(!forecast)return '';
+  const changed=forecast.affected.filter(effect=>effect.residentId!==forecast.residentId);
+  return '<section class="founding-relationship-forecast" aria-label="Neighbourhood comfort projection">' +
+    '<div class="relationship-forecast-heading"><strong>Life beside this road</strong>' +
+    '<span class="relationship-score '+relationshipTone(forecast.predictedPerLap)+'">' +
+    signedRelationship(forecast.predictedPerLap)+' irritation / circuit</span></div>' +
+    '<p>' + (forecast.previousPerLap!==0
+      ? 'Change from current plot: '+signedRelationship(forecast.changePerLap)+' per circuit.'
+      : 'Estimated change for this household once the Vintage Years begin.')+'</p>' +
+    (changed.length
+      ? '<div class="relationship-other-effects"><b>Changes for existing neighbours</b>'+
+        changed.map(effect=>'<div class="relationship-other-row"><span>'+effect.name+
+          '</span><strong class="relationship-score '+relationshipTone(effect.changePerLap)+'">'+
+          signedRelationship(effect.changePerLap)+'</strong></div>').join('')+'</div>'
+      : '<p class="relationship-note">No other settled family changes their neighbour comfort.</p>')+
+    '<p class="relationship-note">Negative numbers soothe irritation. Positive numbers increase it. '+
+    'The total effect is capped at ±'+MAX_NEIGHBOUR_EFFECT_PER_LAP.toFixed(2)+
+    ' per completed circuit; preferences are not necessarily mutual.</p></section>';
+}
 
 /** One set of hand-engraved icons for the town gauges and tile inspection. */
 type TileScoreLabel = 'Beauty' | 'Noise' | 'Crime' | 'Road safety';
@@ -281,6 +308,11 @@ function renderHouseholdDetail(): void {
       '<p class="household-recovery" hidden>Driving a little more carefully after a roadside accident.</p>' +
       '<blockquote class="household-remark"></blockquote>' +
       '<p class="household-traffic-delay"></p>' +
+      '<details class="family-relations"><summary>Who lives nearby · '+
+      '<strong class="family-relations-total"></strong></summary>'+
+      '<p class="family-relations-explanation">Neighbour comfort affects irritation once per completed circuit; '+
+      'other street and driving conditions still matter.</p>'+
+      '<div class="family-relations-list"></div></details>' +
        '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
       '<span class="household-last-action"></span></div>' +
       '<details class="family-neighbourhood"><summary>Shared moments</summary>' +
@@ -299,6 +331,24 @@ function renderHouseholdDetail(): void {
     ? 'Time lost waiting behind traffic: ' + resident.trafficDelay.toFixed(1) + ' seconds.'
     : '';
   delay.hidden = resident.trafficDelay <= 0.1;
+  const relations=store.neighbourhoodFor(id);
+  const relationsPanel=panel.querySelector<HTMLDetailsElement>('.family-relations')!;
+  const total=panel.querySelector<HTMLElement>('.family-relations-total')!;
+  total.className='family-relations-total relationship-score '+
+    relationshipTone(relations.irritationPerLap);
+  total.textContent=signedRelationship(relations.irritationPerLap)+'/circuit';
+  const content=resident.occupied
+    ? relations.neighbours.length
+      ? relations.neighbours.map(near=>
+        '<div class="family-relations-row"><span><b>'+near.name+'</b> · '+
+        near.distance+' squares away</span><strong class="relationship-score '+
+        relationshipTone(near.irritationPerLap)+'">'+
+        signedRelationship(near.irritationPerLap)+'</strong></div>').join('')
+      : '<p class="relationship-note">No other families live within four squares.</p>'
+    : '<p class="relationship-note">This household has moved away.</p>';
+  const relationsList=panel.querySelector<HTMLElement>('.family-relations-list')!;
+  if(relationsList.innerHTML!==content)relationsList.innerHTML=content;
+  relationsPanel.hidden=false;
   const currentActivity = store.activities.forResident(id);
   const activityLine = panel.querySelector<HTMLElement>('.household-active-activity')!;
   activityLine.hidden = !currentActivity;
@@ -559,9 +609,9 @@ function renderTilePeek(): void {
     const preview = store.previewFoundingHome(tile);
     description = store.foundingFamily === null
       ? 'Choose a family from the tray'
-      : preview.allowed
-        ? 'READY FOR A HOME · ' +
-          (preview.neighbours.length?preview.neighbours[0].name+' nearby':'A fresh beginning')
+      : preview.allowed && preview.relationshipForecast
+        ? 'READY FOR A HOME · '+signedRelationship(
+          preview.relationshipForecast.predictedPerLap)+' irritation / circuit'
         : preview.reason;
   } else if (store.activeModel) {
     const model = store.getModel(store.activeModel);
@@ -684,13 +734,15 @@ function renderTilePanel(): void {
         ? '<div class="founding-neighbour-preview"><strong>Near this plot</strong>' +
           preview.neighbours.map(hint =>
             '<p class="founding-neighbour-hint '+hint.tone+'"><b>'+hint.name+
-            '</b><small>'+hint.distance+' squares away · '+hint.description+'</small></p>'
+            '</b><small>'+hint.distance+' squares away · '+hint.description+
+            ' ('+signedRelationship(hint.irritationPerLap)+' irritation / circuit)</small></p>'
           ).join('') + '</div>' : '';
       const content = tileDetailsHeader('FOUNDING PLOT · ' + (tile.x+1) + '/' + (tile.y+1)) +
         '<h3>' + familyName + '</h3>' +
         '<div class="preview-status ' + (preview.allowed?'valid':'invalid') + '">' +
           (preview.allowed?'AVAILABLE PLOT':'NOT AVAILABLE') + '</div>' +
         '<p>' + preview.reason + '</p>' + neighbours +
+        relationshipForecastMarkup(preview.relationshipForecast) +
         (preview.allowed
           ? '<button class="founding-place-button" data-action="place-founding" data-x="'+
             tile.x+'" data-y="'+tile.y+'">Place '+familyName+' here</button>'
@@ -904,10 +956,14 @@ function renderModal(): void {
     return;
   }
   if (store.phase === 'founding' && store.foundingReviewOpen) {
-    const rows=store.placedHomes.map(home=>
-      '<li><strong>'+home.name+'</strong><span>Plot '+(home.x+1)+' / '+(home.y+1)+
-      '</span><button data-action="move-founding" data-id="'+home.id+'">Move home</button></li>'
-    ).join('');
+    const rows=store.placedHomes.map(home=>{
+      const social=store.neighbourhoodFor(home.id);
+      return '<li><strong>'+home.name+'</strong><span>Plot '+(home.x+1)+' / '+(home.y+1)+
+        '</span><small class="relationship-score '+relationshipTone(social.irritationPerLap)+'">'+
+        signedRelationship(social.irritationPerLap)+
+        ' irritation / circuit</small>'+
+        '<button data-action="move-founding" data-id="'+home.id+'">Move home</button></li>';
+    }).join('');
     const markup =
       '<div class="dialog vintage-dialog founding-review-dialog" role="dialog" aria-modal="true" aria-labelledby="review-title">' +
       vintageFrameCorners() +
@@ -915,7 +971,10 @@ function renderModal(): void {
       '<h2 id="review-title" tabindex="-1">A Town Begins</h2>' +
       '<p>Six families now have somewhere to call home. Walk the street once more, and move any house you would prefer in a different place.</p>' +
       '<ol class="founding-review-list">' + rows + '</ol>' +
-      '<p class="founding-review-note">Nothing has been charged. There has been no traffic or loss of time. Your choices will matter as the years unfold.</p>' +
+      '<p class="founding-review-note">Nothing has been charged. There has been no traffic or loss of time. '+
+      'The figures show each family’s neighbour irritation per completed circuit. Negative is helpful, '+
+      'positive is troublesome, and totals are capped at ±'+
+      MAX_NEIGHBOUR_EFFECT_PER_LAP.toFixed(2)+'.</p>' +
       '<div class="dialog-actions"><button data-action="close-founding-review">Keep arranging</button>' +
       '<button class="dialog-main" data-action="confirm-vintage">Begin the Vintage Years</button></div></div>';
     setModalContent(modal,'founding-review',markup);
