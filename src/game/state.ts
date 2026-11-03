@@ -959,6 +959,12 @@ export class GameStore {
   }
   selectResident(id: number | null): void {
     this.selectedResident = this.selectedResident === id ? null : id;
+    // Inspecting a home must not leave an older tile inspection overlay
+    // covering the household's garden/boundary purchase controls.
+    if(this.selectedResident!==null){
+      this.selected=null;
+      this.hovered=null;
+    }
     this.notify();
   }
   projectedHouseholdEffects(cell: Cell, modelId: ModelId): HouseholdEffect[] {
@@ -978,7 +984,10 @@ export class GameStore {
     if (id && (this.phase !== 'playing' || this.paused || this.workshopOpen)) return;
     this.activeModel = id;
     this.hovered = null;
-    if (id) this.selected = null;
+    if (id) {
+      this.selected = null;
+      this.selectedResident = null;
+    }
     this.notice = id
       ? this.getModel(id).name + ' lifted from its box. Hover over the town to preview, then click to place. Esc cancels.'
       : 'Miniature returned to its box. Choose another model to continue.';
@@ -1006,6 +1015,18 @@ export class GameStore {
       }
       return;
     }
+    const home=!this.activeModel?this.homeAt(cell):null;
+    if(home){
+      // Real home selection belongs to the household inspector rather than
+      // the square inspector. Clicking the same house keeps it open.
+      this.selectedResident=home.id;
+      this.selected=null;
+      this.hovered=null;
+      this.notify();
+      return;
+    }
+    // Other squares may be examined alongside an already-open household
+    // story panel. Only selecting an actual house dismisses a tile overlay.
     this.selected = cell;
     if (this.activeModel) this.place(cell, this.activeModel);
     this.notify();
