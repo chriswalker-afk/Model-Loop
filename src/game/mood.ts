@@ -37,5 +37,5 @@ export function moodLitterChance(baseChance:number,irritation:number):number {
   const base=clamp(baseChance,0,1);
   if(base===0)return 0;
   const mood=clamp(irritation,0,100);
-  return clamp(base*(.65+.0085*mood),0,.75);
+  return clamp(base*(.65+.0085*mood),0,.88);
 }
