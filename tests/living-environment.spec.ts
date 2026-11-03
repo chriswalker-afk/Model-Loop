@@ -54,7 +54,7 @@ test('events stay in valid cells and cannot pile up indefinitely', () => {
 });
 
 test('litter and flowers change local beauty; tyre scuffs change actual safety', () => {
-  const store = new GameStore();
+  const store = new GameStore(true);
   store.newRun(777);
   const baseSafety = store.safety;
   expect(baseSafety).toBe(90);
@@ -85,12 +85,12 @@ test('litter and flowers change local beauty; tyre scuffs change actual safety',
 });
 
 test('the same road tile irritates drivers differently while effects are present', () => {
-  const clean = new GameStore();
+  const clean = new GameStore(true);
   clean.newRun(123);
   clean.passTile(5, corner);
   const pristineIrritation = clean.residents[5].irritation;
 
-  const withRubbish = new GameStore();
+  const withRubbish = new GameStore(true);
   withRubbish.newRun(123);
   expect(withRubbish.debugEnvironmentEvent('litter', 2, corner)).toBe(true);
   withRubbish.passTile(5, corner);
@@ -102,7 +102,7 @@ test('the same road tile irritates drivers differently while effects are present
 });
 
 test('each household makes at most one event attempt per circuit', () => {
-  const store = new GameStore();
+  const store = new GameStore(true);
   store.newRun(91);
   const resident = store.residents[2];
   const startIndex = ROAD_CELLS.findIndex(tile => manhattanDistance(tile, HOMES[2]) === 1);
@@ -127,7 +127,7 @@ test('real browser displays traces with their source and separate road safety', 
   await page.setViewportSize({ width: 1440, height: 900 });
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const trigger = await page.evaluate(() => {
     const debug = (window as typeof window & {
       __modelLoopDebug?: {
@@ -170,7 +170,7 @@ test('real browser displays traces with their source and separate road safety', 
 
 test('dev event spawning remains usable on narrow screens without opening new panels', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.evaluate(() =>
     (window as typeof window & { __modelLoopDebug: {
       trigger: (kind: string, family: number, x: number, y: number) => boolean

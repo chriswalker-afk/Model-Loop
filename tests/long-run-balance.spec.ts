@@ -52,7 +52,7 @@ const plans:Array<{id:ModelId;cell:Cell}>=[
 ];
 
 function trial(seed:number,scenario:Scenario,timeout=440):TrialResult {
-  const store=new GameStore();
+  const store=new GameStore(true);
   store.legacy.upgrades={savings:0,patience:0};
   store.newRun(seed);
   if(scenario!=='bare-town'){
@@ -311,7 +311,7 @@ test('four simulated minutes of heavy litter pressure cannot break bin servicing
   const road:Cell={x:4,y:3}, bin:Cell={x:4,y:4};
   const outcomes:Array<{care:string;fill:number;overflow:boolean;paid:number;captured:number}>=[];
   for(const care of ['full','economy','bare'] as const){
-    const store=new GameStore();
+    const store=new GameStore(true);
     store.legacy.upgrades={savings:0,patience:0};
     store.newRun(753);
     expect(store.place(bin,'bin')).toBe(true);
