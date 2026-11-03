@@ -22,6 +22,10 @@ import { drivingProfile } from './game/driving';
 import { environmentLabel, type EnvironmentKind } from './game/environment';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCareDescription } from './game/bins';
 import { householdActionPair, type HouseholdActionId } from './game/behaviors';
+import {houseSvg,worldSvgDataUri} from './ui/vintageWorldArt';
+import {
+  homeGroundsSvg,homeGateFacing,homeGroundTextureKey
+} from './ui/homeGroundsArt';
 import { moodHelpfulChance } from './game/mood';
 import { activityDefinition, activityOptionsFor, type ActivityKind } from './game/activities';
 
@@ -253,6 +257,56 @@ let chosenHomeImprovement:{
   residentId:number;slot:HomeImprovementSlot;kind:HomeImprovementKind
 }|null = null;
 const homeSlotMarkupCache=new WeakMap<HTMLElement,string>();
+// House portraits are drawn from the same original SVGs as their world
+// sprites. Cache the encoded URI rather than encoding SVG on every car tick.
+const homePortraitUris=new Map<string,string>();
+function homePortraitUri(key:string,svg:()=>string):string {
+  let cached=homePortraitUris.get(key);
+  if(!cached){
+    cached=worldSvgDataUri(svg());
+    homePortraitUris.set(key,cached);
+  }
+  return cached;
+}
+function updateHomePortrait(panel:HTMLElement,id:number):void {
+  const portrait=panel.querySelector<HTMLElement>('.home-grounds-model');
+  if(!portrait)return;
+  const proposed=chosenHomeImprovement?.residentId===id
+    ? chosenHomeImprovement:null;
+  const boundary=proposed?.slot==='boundary'
+    ? proposed.kind:store.getHomeImprovement(id,'boundary')?.kind??null;
+  const garden=proposed?.slot==='garden'
+    ? proposed.kind:store.getHomeImprovement(id,'garden')?.kind??null;
+  const house=portrait.querySelector<HTMLImageElement>('.home-grounds-building')!;
+  const gardenImg=portrait.querySelector<HTMLImageElement>('.home-grounds-garden')!;
+  const boundaryImg=portrait.querySelector<HTMLImageElement>('.home-grounds-boundary')!;
+  const setArt=(img:HTMLImageElement,key:string,make:()=>string):void=>{
+    const uri=homePortraitUri(key,make);
+    if(img.getAttribute('src')!==uri)img.src=uri;
+  };
+  setArt(house,'house:'+id,()=>houseSvg(id));
+  const facing=homeGateFacing(id,store.placedHomes);
+  for(const [kind,img] of [[garden,gardenImg],[boundary,boundaryImg]] as const){
+    img.hidden=!kind;
+    if(!kind)continue;
+    const key=homeGroundTextureKey(id,kind,facing);
+    setArt(img,key,()=>homeGroundsSvg(id,kind,facing));
+  }
+  const boundaryTitle=boundary?homeImprovementDefinition(boundary).name:'No boundary';
+  const gardenTitle=garden?homeImprovementDefinition(garden).name:'No garden';
+  const previewActive=proposed!==null&&
+    store.getHomeImprovement(id,proposed.slot)?.kind!==proposed.kind;
+  const caption=portrait.parentElement!.querySelector<HTMLElement>(
+    '.home-grounds-portrait-caption')!;
+  const text=boundaryTitle+' · '+gardenTitle;
+  const label=previewActive?'Preview of '+text+' — not purchased':text;
+  portrait.setAttribute('aria-label',
+    store.residents[id].name+' property: '+label);
+  caption.textContent=previewActive
+    ? 'Preview · '+text
+    : 'Installed · '+text;
+  portrait.classList.toggle('is-vacant',!store.residents[id].occupied);
+}
 
 /** The disclosure controls themselves are stable DOM nodes. Repaint only
  * changing option/forecast content so a running car cannot close the panels
@@ -272,6 +326,7 @@ function renderHomeImprovements(panel:HTMLElement,id:number):void {
         'has a purchase cost and regular care; it does not occupy a road square.'
       : 'This house is vacant. No care is charged and new improvements are unavailable; '+
         'old features may be removed.';
+  updateHomePortrait(panel,id);
   for(const slot of ['boundary','garden'] as const){
     const disclosure=section.querySelector<HTMLDetailsElement>(
       '.home-improvement-slot[data-home-slot="'+slot+'"]')!;
@@ -359,6 +414,16 @@ function renderHouseholdDetail(): void {
       '<summary><strong>Home &amp; grounds</strong>'+
       '<span class="home-improvements-total"></span></summary>'+
       '<p class="home-improvements-note"></p>'+
+      '<div class="home-grounds-portrait">'+
+      '<div class="home-grounds-model" role="img">'+
+      '<img class="home-grounds-building" alt="" aria-hidden="true">'+
+      '<img class="home-grounds-garden" alt="" aria-hidden="true" hidden>'+
+      '<img class="home-grounds-boundary" alt="" aria-hidden="true" hidden>'+
+      '</div><div class="home-grounds-portrait-copy">'+
+      '<span class="eyebrow">THE FAMILY PROPERTY</span>'+
+      '<p class="home-grounds-portrait-caption"></p>'+
+      '<small>Same hand-drawn house as the town. Choose a style to see its appearance.</small>'+
+      '</div></div>'+
       '<details class="home-improvement-slot" data-home-slot="boundary">'+
       '<summary><span>Boundary</span><strong class="home-slot-current"></strong></summary>'+
       '<div class="home-slot-content"></div></details>'+

@@ -14,6 +14,11 @@ import {
 import { store, type FoundingArrival, type HomeSite, type JourneyReaction } from './state';
 import { GARDEN_VARIANTS } from './livingScenery';
 import { gardenSvg, gardenTextureKey, GARDEN_ART_SIZE } from '../ui/gardenArt';
+import {
+  allHomeGroundTextures,homeGateFacing,homeGroundsSvg,homeGroundTextureKey,
+  type GateFacing
+} from '../ui/homeGroundsArt';
+import {type HomeImprovementSlot} from './homeImprovements';
 import { normalizedCare, modelCondition } from './economy';
 import type { RoadsideIncident } from './damage';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
@@ -89,6 +94,10 @@ export class TownScene extends Scene {
   private foundingGhost!: Phaser.GameObjects.Image;
   private lastFoundingArrivalRevision = 0;
   private houseSprites: Phaser.GameObjects.Image[] = [];
+  /** Two precise house-aligned illustration layers, never free-standing
+   * models or additional grid squares. The house remains at its old origin. */
+  private homeGardenSprites: Phaser.GameObjects.Image[] = [];
+  private homeBoundarySprites: Phaser.GameObjects.Image[] = [];
   private scenerySprites: Phaser.GameObjects.Image[] = [];
   private civicSprites=new Map<string,Phaser.GameObjects.Image>();
   private gardenSprites=new Map<string,Phaser.GameObjects.Image>();
@@ -124,6 +133,15 @@ export class TownScene extends Scene {
           width: WORLD_HOUSE_SIZE.width * 2, height: WORLD_HOUSE_SIZE.height * 2
         });
       }
+    }
+    // Only eight kinds plus three gate-facing options per household (60
+    // texture keys). Rasterize these *once* at scene load, not on frame ticks.
+    for(const variant of allHomeGroundTextures()){
+      if(this.textures.exists(variant.key))continue;
+      this.load.svg(variant.key,worldSvgDataUri(homeGroundsSvg(
+        variant.residentId,variant.kind,variant.facing)),{
+          width:WORLD_HOUSE_SIZE.width*2,height:WORLD_HOUSE_SIZE.height*2
+        });
     }
     for (const variant of sceneryVariants) {
       const key = sceneryTextureKey(variant);
@@ -161,6 +179,24 @@ export class TownScene extends Scene {
       return this.add.image(point.x, point.y + 22, houseTextureKey(home.id))
         .setOrigin(.5, 1).setDisplaySize(59, 70).setDepth(2)
         .setVisible(!!site);
+    });
+
+    // Grounds use the *same* bounds and coordinates as the old house texture.
+    // The garden sits over the stone footing, then the boundary wraps the
+    // front/returns in front of it. No independent scenery tile is created.
+    this.homeGardenSprites=HOMES.map(home=>{
+      const point=worldPoint(store.homeFor(home.id)??home);
+      return this.add.image(point.x,point.y+22,
+        homeGroundTextureKey(home.id,'front'))
+        .setOrigin(.5,1).setDisplaySize(59,70).setDepth(2.015)
+        .setVisible(false);
+    });
+    this.homeBoundarySprites=HOMES.map(home=>{
+      const point=worldPoint(store.homeFor(home.id)??home);
+      return this.add.image(point.x,point.y+22,
+        homeGroundTextureKey(home.id,'picket'))
+        .setOrigin(.5,1).setDisplaySize(59,70).setDepth(2.03)
+        .setVisible(false);
     });
 
     // Roadside changes are drawn above the road and below cars and models.
@@ -265,6 +301,8 @@ export class TownScene extends Scene {
       this.civicSprites.clear();
       this.gardenSprites.clear();
       this.houseSprites = [];
+      this.homeGardenSprites = [];
+      this.homeBoundarySprites = [];
       this.eventSprites.clear();
     });
 
@@ -501,6 +539,63 @@ export class TownScene extends Scene {
     }
   }
 
+  /**
+   * Only the owning house can display these additions. Every frame update
+   * reuses the same two 140x148-aligned sprites; changing a purchased style
+   * swaps a cached texture, never paints an unattached between-home token.
+   */
+  private syncHouseGroundsSprites():void {
+    const active=store.phase==='playing';
+    const homes=store.placedHomes;
+    for(const template of HOMES){
+      const id=template.id;
+      const home=store.homeFor(id);
+      const point=worldPoint(home??template);
+      const occupant=store.residents[id];
+      const fadeTo=occupant?.occupied?1:.48;
+      const facing:GateFacing=homeGateFacing(id,homes);
+      for(const slot of ['garden','boundary'] as const){
+        const image=(slot==='garden'?this.homeGardenSprites:
+          this.homeBoundarySprites)[id];
+        if(!image)continue;
+        const installed=store.getHomeImprovement(id,slot);
+        if(!active||!home||!installed){
+          if(image.visible){
+            this.tweens.killTweensOf(image);
+            image.setVisible(false);
+          }
+          continue;
+        }
+        const key=homeGroundTextureKey(id,installed.kind,facing);
+        const newTexture=image.texture.key!==key;
+        const becomingVisible=!image.visible;
+        image.setPosition(point.x,point.y+22)
+          .setDisplaySize(59,70);
+        if(newTexture)image.setTexture(key).setDisplaySize(59,70);
+        if(newTexture||becomingVisible){
+          this.tweens.killTweensOf(image);
+          image.setVisible(true);
+          image.setData('homeGroundTargetAlpha',fadeTo);
+          if(this.reduceMotion())image.setAlpha(fadeTo);
+          else {
+            image.setAlpha(0);
+            this.tweens.add({targets:image,alpha:fadeTo,
+              duration:420,ease:'Sine.Out'});
+          }
+        }else if(image.getData('homeGroundTargetAlpha')!==fadeTo){
+          // A family may move out *during* the installation reveal. Stop
+          // its old alpha=1 tween immediately; no later notification should
+          // be required to fade the abandoned house's boundary and garden.
+          this.tweens.killTweensOf(image);
+          image.setData('homeGroundTargetAlpha',fadeTo);
+          image.setAlpha(fadeTo);
+        }else if(!this.tweens.isTweening(image)){
+          image.setAlpha(fadeTo);
+        }
+      }
+    }
+  }
+
   private animateGardenArrival(residentId:number):void {
     if(this.reduceMotion())return;
     const sprites=[...this.gardenSprites.values()].filter(sprite=>
@@ -713,11 +808,27 @@ export class TownScene extends Scene {
         texture:image.texture.key,x:image.x,y:image.y,
         width:image.displayWidth,height:image.displayHeight
       })),
-      // Pass A is state-only. The next visual pass will compose these into
-      // house art instead of painting a disconnected miniature between homes.
       homeImprovementPlan:store.homeImprovements.map(piece=>({
         residentId:piece.residentId,kind:piece.kind,slot:piece.slot
-      }))
+      })),
+      loadedHomeGrounds:allHomeGroundTextures().map(item=>item.key)
+        .filter(key=>this.textures.exists(key)),
+      homeGrounds:HOMES.map(home=>{
+        const report=(slot:HomeImprovementSlot,image:Phaser.GameObjects.Image)=>{
+          const item=store.getHomeImprovement(home.id,slot);
+          return {
+            installed:item?.kind??null,texture:image.texture.key,
+            visible:image.visible,alpha:image.alpha,
+            x:image.x,y:image.y,width:image.displayWidth,
+            height:image.displayHeight,depth:image.depth
+          };
+        };
+        return {id:home.id,
+          facing:homeGateFacing(home.id,store.placedHomes),
+          garden:report('garden',this.homeGardenSprites[home.id]),
+          boundary:report('boundary',this.homeBoundarySprites[home.id])
+        };
+      })
     };
   }
 
@@ -1023,6 +1134,7 @@ export class TownScene extends Scene {
     this.foundingGhost.setVisible(false);
     this.syncKitSprites();
     this.syncGardenSprites();
+    this.syncHouseGroundsSprites();
 
     store.placements.forEach((placed) => {
       const point = worldPoint(placed);
