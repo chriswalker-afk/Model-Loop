@@ -116,6 +116,21 @@ test('an indefinite obstruction can be cleared after a real non-stop standstill'
   expect(recovery).toBe(0); // Remove the blocking car, not its followers.
 });
 
+
+test('two cars trapped behind passing-lane obstruction recover even with zero desired speed',()=>{
+  const watch=new TrafficGridlockWatch();
+  const blocked:RoadVehicle[]=[
+    {residentId:0,position:400,desiredSpeed:0,lane:'passing'},
+    {residentId:1,position:400-TRAFFIC_MIN_GAP,desiredSpeed:0,lane:'passing'}
+  ];
+  let recovered:number|null=null;
+  for(let i=0;i<GRIDLOCK_RECOVERY_SECONDS*12;i++){
+    recovered=watch.observe(.1,blocked,advanceTraffic(blocked,.1,length),false);
+    if(recovered!==null)break;
+  }
+  expect(recovered).toBe(0);
+});
+
 test('founding houses sharing a road entry wait safely at home and later depart',async({page})=>{
   const errors:string[]=[];
   page.on('pageerror',err=>errors.push(err.message));
