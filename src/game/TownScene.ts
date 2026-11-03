@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { BOARD, EFFECT_RADIUS, HOMES, MODELS, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
+import { ROUNDED_ROAD_NODES, roundedRoadPointAt, roundedRoadTangentAt } from './roadGeometry';
 import { miniatureDataUri, miniatureTextureKey, MODEL_ART_WIDTH, MODEL_ART_HEIGHT } from '../ui/modelArt';
 import {
   eventArtIds, eventDataUri, eventTextureKey, EVENT_ART_SIZE,
@@ -349,46 +350,59 @@ export class TownScene extends Scene {
 
   private drawRoad(): void {
     const g = this.add.graphics().setDepth(-1);
-    const points = ROAD_CELLS.map(worldPoint);
     const trace = () => {
+      // The circuit still occupies precisely the same grid cells. Each turn
+      // gets a tangential quadratic join: soft edges without changing land,
+      // home placement, road length, lap timing or collision distances.
+      const first = ROUNDED_ROAD_NODES[0];
       g.beginPath();
-      g.moveTo(points[0].x, points[0].y);
-      for (let i = 1; i < points.length; i += 1) g.lineTo(points[i].x, points[i].y);
+      g.moveTo(first.exit.x, first.exit.y);
+      for (let step = 1; step <= ROUNDED_ROAD_NODES.length; step += 1) {
+        const node = ROUNDED_ROAD_NODES[step % ROUNDED_ROAD_NODES.length];
+        g.lineTo(node.entry.x, node.entry.y);
+        if (node.radius > 0) {
+          g.quadraticCurveTo(
+            node.vertex.x, node.vertex.y, node.exit.x, node.exit.y
+          );
+        }
+      }
       g.closePath();
       g.strokePath();
     };
-    // Drawn with a pair of period engraved curb rules, fine shadow, a subtle
-    // paved strip and broken chalk centre markings. The original road cells,
-    // actual width used by the lane planner and collision physics are intact.
-    for (const [width,colour,alpha] of [
+    // The original fine engraved curbs, road textures and palette are kept,
+    // but all concentric rules now share the exact same rounded centreline.
+    for (const [width, colour, alpha] of [
       [59,0x566056,.44],[57,0xd7d1bf,.66],[55,0x131815,1],
       [52,0xa8a99a,.58],[50,0x1a221c,1],[46,0x2A3029,1]
     ]) {
-      g.lineStyle(width,colour,alpha);
+      g.lineStyle(width, colour, alpha);
       trace();
     }
-    // Fine interrupted centre paint, not a cartoon solid stroke.
+    // Short chalk centre dashes follow the curves instead of cutting across
+    // a turn like a ruler-straight chord. Dash spacing remains grid-based.
     g.lineStyle(1.18,0xe1d4b9,.68);
-    for (let i = 0; i < points.length; i++) {
-      const from = points[i], to = points[(i + 1) % points.length];
-      for (let part=.13;part<.88;part+=.37) {
-        const last=Math.min(.88,part+.17);
-        g.lineBetween(
-          from.x+(to.x-from.x)*part,from.y+(to.y-from.y)*part,
-          from.x+(to.x-from.x)*last,from.y+(to.y-from.y)*last
-        );
+    for (let i = 0; i < ROAD_CELLS.length; i += 1) {
+      for (const start of [.13,.50]) {
+        const from = (i + start) * BOARD.tile;
+        const span = BOARD.tile * .17;
+        for (let piece = 0; piece < 3; piece += 1) {
+          const a = roundedRoadPointAt(from + span * piece / 3);
+          const b = roundedRoadPointAt(from + span * (piece + 1) / 3);
+          g.lineBetween(a.x, a.y, b.x, b.y);
+        }
       }
     }
-    // Engraved shoulder/paving seams outside the road. Short ticks avoid
-    // ambiguous grid-like obstruction marks in the playable road itself.
+    // Tiny engraved shoulder ticks also use the local smooth tangent.
     g.lineStyle(.9,0xc8c3af,.30);
-    for(let i=0;i<points.length;i+=2) {
-      const a=points[i],b=points[(i+1)%points.length];
-      const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
-      const px=-dy/len,py=dx/len;
-      for(const side of [-1,1]) {
-        const x=a.x+px*side*25,y=a.y+py*side*25;
-        g.lineBetween(x,y,x+px*side*4,y+py*side*4);
+    for (let i = 0; i < ROAD_CELLS.length; i += 2) {
+      const distance = (i + .5) * BOARD.tile;
+      const p = roundedRoadPointAt(distance);
+      const direction = roundedRoadTangentAt(distance);
+      const nx = -direction.y, ny = direction.x;
+      for (const side of [-1,1]) {
+        const x = p.x + nx * side * 25;
+        const y = p.y + ny * side * 25;
+        g.lineBetween(x, y, x + nx * side * 4, y + ny * side * 4);
       }
     }
   }
