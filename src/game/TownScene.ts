@@ -11,7 +11,7 @@ import {
   worldSvgDataUri, WORLD_CAR_SIZE, WORLD_HOUSE_SIZE
 } from '../ui/vintageWorldArt';
 import { store, type FoundingArrival, type HomeSite, type JourneyReaction } from './state';
-import { GARDEN_VARIANTS, type GardenDetail } from './livingScenery';
+import { GARDEN_VARIANTS } from './livingScenery';
 import { gardenSvg, gardenTextureKey, GARDEN_ART_SIZE } from '../ui/gardenArt';
 import { boundaryBetween, type BoundaryKind } from './boundaries';
 import { normalizedCare, modelCondition } from './economy';
