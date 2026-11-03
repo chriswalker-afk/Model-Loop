@@ -395,7 +395,7 @@ export class GameStore {
       Math.max(Math.abs(home.x-cell.x),Math.abs(home.y-cell.y))<2))
       reason = 'Leave at least one clear grid square between house plots.';
     const allowed=this.canPlaceHome(cell,id);
-    return { allowed,reason,neighbours,
+    return { allowed,reason,neighbours:allowed?neighbours:[],
       relationshipForecast:allowed
         ? forecastNeighbourhoodPlacement(id,cell,this.placedHomes) : null };
   }
@@ -1391,7 +1391,7 @@ export class GameStore {
   }
 
   finishLap(id: number): number {
-    if (this.phase !== 'playing') return 0;
+    if (this.phase !== 'playing' || this.paused || this.workshopOpen) return 0;
     const resident = this.residents[id];
     if (!resident?.occupied) return 0;
     // Apply once per REAL completed circuit, never on a paused frame, a
