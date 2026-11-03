@@ -195,7 +195,7 @@ test('the working neighbourhood drawer previews, purchases and renders a boundar
   });
   const drawer=page.locator('#boundary-studio');
   await expect(drawer).toBeVisible();
-  await drawer.locator('summary').click();
+  await page.getByRole('button',{name:'Fences & gardens'}).click();
   await expect(drawer).toHaveAttribute('open','');
   await expect(drawer.locator('[data-boundary-pair="0:5"]')).toBeVisible();
   await drawer.locator('[data-boundary-pair="0:5"]').click();
