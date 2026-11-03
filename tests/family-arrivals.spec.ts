@@ -22,7 +22,7 @@ test('six founding stories, keepsakes and directional neighbour instincts stay d
     {id:1,x:6,y:6},{id:0,x:8,y:4},{id:2,x:11,y:4}
   ]);
   expect(nearby.map(n=>({id:n.id,tone:n.tone}))).toEqual([
-    {id:1,tone:'warm'},{id:0,tone:'wary'}
+    {id:0,tone:'wary'},{id:1,tone:'warm'}
   ]);
 });
 
