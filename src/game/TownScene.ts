@@ -35,6 +35,8 @@ interface Car {
   cycle: CarCycle;
   tileIndex: number;
   speed: number;
+  /** Actual solver movement (world pixels / simulated second), not cruise. */
+  actualSpeed: number;
   speedFactor: number;
   driver: DrivingProfile;
   lane: RoadLane;
@@ -487,6 +489,7 @@ export class TownScene extends Scene {
       cycle: newCarCycle(),
       tileIndex: -1,
       speed: driver.cruiseSpeed,
+      actualSpeed: 0,
       speedFactor: 1,
       driver,
       lane: 'left',
@@ -1170,6 +1173,9 @@ export class TownScene extends Scene {
         speed: car.speed * car.speedFactor * bendSpeedMultiplier(
           car.startIndex * BOARD.tile + car.cycle.distance, car.driver),
         cruiseSpeed: car.driver.cruiseSpeed,
+        actualSpeed: car.actualSpeed,
+        stalledSeconds: this.gridlockWatch.stalledFor(car.residentId),
+        recoveryCount: this.gridlockWatch.snapshot().recoveries,
         headwaySeconds: car.driver.headwaySeconds,
         travelled: car.cycle.distance,
         lane: car.lane,
@@ -1286,6 +1292,10 @@ export class TownScene extends Scene {
       }
     }
     const byResident = new Map(movements.map(move => [move.residentId, move]));
+    for(const car of this.cars){
+      car.actualSpeed=car.cycle.phase==='driving'
+        ? byResident.get(car.residentId)?.speed??0 : 0;
+    }
     const queued: Array<{ residentId: number; cell: Cell; delaySeconds: number }> = [];
 
     for (const car of this.cars) {
