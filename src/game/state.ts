@@ -1025,15 +1025,15 @@ export class GameStore {
       this.notify();
       return;
     }
+    // Other squares may be examined alongside an already-open household
+    // story panel. Only selecting an actual house dismisses a tile overlay.
     this.selected = cell;
-    this.selectedResident = null;
     if (this.activeModel) this.place(cell, this.activeModel);
     this.notify();
   }
   /** Inspect placement projections without committing a purchase (Shift+click). */
   inspectTile(cell: Cell): void {
     this.selected = cell;
-    this.selectedResident = null;
     this.notify();
   }
   /** Explicitly dismiss the clicked-square inspector without cancelling a model kit. */
