@@ -10,7 +10,7 @@ import {
   scenerySvg, sceneryTextureKey, sceneryVariants, sceneryDimensions,
   worldSvgDataUri, WORLD_CAR_SIZE, WORLD_HOUSE_SIZE
 } from '../ui/vintageWorldArt';
-import { store, type JourneyReaction } from './state';
+import { store, type HomeSite, type JourneyReaction } from './state';
 import { normalizedCare, modelCondition } from './economy';
 import type { RoadsideIncident } from './damage';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
@@ -424,7 +424,7 @@ export class TownScene extends Scene {
     };
   }
 
-  private drawHouse(g: Phaser.GameObjects.Graphics,home:(typeof HOMES)[number] & Cell):void {
+  private drawHouse(g: Phaser.GameObjects.Graphics,home:HomeSite):void {
     const resident=store.residents[home.id];
     const point=worldPoint(home);
     const house=this.houseSprites[home.id];

@@ -28,6 +28,7 @@ import { NeighbourhoodStories } from './neighbours';
 import type { RoadLane } from './traffic';
 
 export type Phase = 'founding' | 'playing' | 'complete' | 'lost';
+export type HomeSite = Cell & Pick<(typeof HOMES)[number], 'id' | 'name' | 'color' | 'temperament'>;
 export interface Resident {
   id: number;
   name: string;
@@ -329,17 +330,17 @@ export class GameStore {
   }
 
   get foundingCount(): number { return this.homeSites.filter(Boolean).length; }
-  get placedHomes(): Array<(typeof HOMES)[number] & Cell> {
+  get placedHomes(): Array<HomeSite> {
     return HOMES.flatMap(home => {
       const site = this.homeSites[home.id];
       return site ? [{ ...home, ...site }] : [];
     });
   }
-  homeFor(id: number): ((typeof HOMES)[number] & Cell) | null {
+  homeFor(id: number): (HomeSite) | null {
     const template = HOMES[id], site = this.homeSites[id];
     return template && site ? { ...template, ...site } : null;
   }
-  homeAt(cell: Cell): ((typeof HOMES)[number] & Cell) | null {
+  homeAt(cell: Cell): (HomeSite) | null {
     return this.placedHomes.find(home => home.x === cell.x && home.y === cell.y) ?? null;
   }
   /** Houses need an actual adjoining road and enough space for their artwork. */
@@ -402,6 +403,11 @@ export class GameStore {
     if (this.phase !== 'founding') return;
     this.homeSites = HOMES.map(home => ({ x: home.x, y: home.y }));
     this.beginVintageYears();
+    // Preserve the original decorative baseline for historical regression tests.
+    if (this.referenceLayoutFixture) {
+      this.scenerySites = SCENERY_CELLS.map(site => ({ ...site }));
+      setActiveScenery(this.scenerySites);
+    }
   }
   get occupiedHomes(): number {
     return this.phase === 'founding'
@@ -1388,4 +1394,9 @@ export class GameStore {
   }
 }
 
-export const store = new GameStore();
+// Historical automated tests may opt into the old six-home benchmark. This
+// switch is unavailable on production GitHub Pages.
+export const store = new GameStore(
+  typeof window !== 'undefined' && import.meta.env.DEV &&
+  new URLSearchParams(window.location.search).has('referenceTown')
+);

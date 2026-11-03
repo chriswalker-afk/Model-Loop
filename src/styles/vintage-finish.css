@@ -373,3 +373,33 @@
   .founding-panel {padding:10px;}
   .founding-card {padding:7px;}
 }
+
+/* Place the family tray in the same slot occupied by the model shop.
+   Do not add another implicit grid row or hide the board below the fold. */
+.main-content > .founding-panel { min-width:0; min-height:0; box-sizing:border-box;
+  overflow-y:auto; overscroll-behavior:contain; }
+.main-content:has(.founding-panel:not([hidden])) > .households-shelf {display:none!important;}
+@media (min-width: 900px) and (min-height:500px) and (max-height:850px) {
+  .main-content > .founding-panel {
+    grid-column:2; grid-row:1 / span 2; height:100%; align-self:stretch;
+  }
+}
+@media (max-width:1100px), (max-height:820px) {
+  .main-content:has(.founding-panel:not([hidden])) {
+    padding-bottom:max(16px,env(safe-area-inset-bottom));
+  }
+  .main-content > .founding-panel {
+    flex:0 0 auto; width:100%; max-height:clamp(220px,40dvh,370px);
+  }
+}
+@media (max-height:560px) and (min-width:900px) {
+  .main-content > .founding-panel h2 {font-size:17px;}
+  .main-content > .founding-panel {padding:8px;}
+  .main-content > .founding-panel .founding-card {padding:6px;}
+}
+@media (min-width:1101px) and (min-height:851px) {
+  .main-content > .founding-panel {width:100%;max-height:280px;margin:0 auto;}
+  .main-content > .founding-panel .founding-family-list {
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}
