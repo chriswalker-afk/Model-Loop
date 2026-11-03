@@ -476,3 +476,18 @@
 @media (prefers-reduced-motion:reduce) {
  .founding-card {transition:none;}
 }
+
+/* 8B final layout guard: on tall screens the tray takes the model dock's
+   grid row, not the vanished household shelf's 47-pixel row. */
+@media (min-width:1101px) and (min-height:851px) {
+  .main-content:has(.founding-panel:not([hidden])) {
+    grid-template-rows:minmax(0,1fr) auto auto;
+  }
+  .main-content > .founding-panel {
+    grid-column:1;grid-row:2;max-height:clamp(190px,27dvh,245px);
+    margin:0 auto;overflow-y:auto;
+  }
+  .main-content:has(.founding-panel:not([hidden])) > .footer {
+    grid-column:1;grid-row:3;
+  }
+}
