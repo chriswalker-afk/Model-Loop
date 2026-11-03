@@ -185,7 +185,7 @@ export class TownScene extends Scene {
       backgroundColor: '#19221b', padding: { x: 5, y: 3 }
     }).setOrigin(0.5).setDepth(22).setVisible(false);
     this.cars = [];
-    this.gridlockWatch.reset();
+    this.gridlockWatch.resetForNewRun();
     if (store.phase === 'playing') this.activateCars();
 
     this.lastPlacementCount = store.placements.length;
@@ -206,7 +206,7 @@ export class TownScene extends Scene {
           car.homeBadge.destroy();
         }
         this.cars = [];
-        this.gridlockWatch.reset();
+        this.gridlockWatch.resetForNewRun();
         this.lastFoundingArrivalRevision = 0;
         this.lastEnvironmentalEventId = 0;
         this.lastRoadsideIncidentId = 0;
