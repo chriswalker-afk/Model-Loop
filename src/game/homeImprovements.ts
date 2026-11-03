@@ -1,5 +1,5 @@
 import {
-  HOMES, ROAD_CELLS, manhattanDistance, type Cell, type ModelId
+  ROAD_CELLS, manhattanDistance, type Cell, type ModelId
 } from './config';
 
 /** A feature now belongs to ONE family's property, never an unordered pair. */
