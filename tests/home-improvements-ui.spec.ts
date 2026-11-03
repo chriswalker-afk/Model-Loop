@@ -174,6 +174,8 @@ test('a live update preserves nested disclosures, the chosen option, focus and s
   await expect(preview).toContainText('Kitchen Garden');
   await expect(preview).toContainText('House care');
   await page.keyboard.press('Tab');
+  await expect(slot(page,'garden').locator('[data-home-option="patio"]')).toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(slot(page,'garden').locator('[data-action="install-home-improvement"]')).toBeFocused();
 });
 
