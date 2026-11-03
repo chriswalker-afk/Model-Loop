@@ -9,7 +9,7 @@ import { MODELS } from '../src/game/config';
 const binCell = { x: 4, y: 4 }, roadCell = { x: 4, y: 3 };
 
 function newStore(): GameStore {
-  const store = new GameStore();
+  const store = new GameStore(true);
   store.newRun(12345);
   return store;
 }
@@ -144,7 +144,7 @@ test('desktop browser shows new title, sixth kit, fill gauge and working Empty N
   await page.setViewportSize({width:1440,height:900});
   const errors:string[]=[];
   page.on('pageerror',err=>errors.push(err.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page).toHaveTitle(/The Generational Cycle/);
   await expect(page.locator('.brand-name')).toHaveText('THE GENERATIONAL CYCLE');
   await expect(page.locator('.model-box')).toHaveCount(6);
@@ -182,7 +182,7 @@ test('desktop browser shows new title, sixth kit, fill gauge and working Empty N
 
 test('rubbish bin remains selectable and serviceable in the short-screen layout', async ({page}) => {
   await page.setViewportSize({width:1266,height:548});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('.model-box')).toHaveCount(6);
   await page.getByRole('button',{name:/Select Cast-Iron Rubbish Bin/}).click();
   const rect=await page.locator('#game-container canvas').boundingBox();

@@ -22,7 +22,7 @@ for(const screen of [
       await page.setViewportSize(screen);
       const errors:string[]=[];
       page.on('pageerror',e=>errors.push(e.message));
-      await page.goto('/');
+      await page.goto('/?referenceTown=1');
       await expect(page.locator('#tile-panel')).toBeHidden();
       await expect(page.locator('#tile-peek')).toBeHidden();
       await expect(page.locator('.brand-sub')).toHaveCount(0);
@@ -55,7 +55,7 @@ for(const screen of [
 
 test('600ms sustained hover displays a small nonblocking hint, never the full inspector',async({page})=>{
   await page.setViewportSize({width:1266,height:548});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const panel=page.locator('#tile-panel');
   const peek=page.locator('#tile-peek');
   const point=await tilePoint(page,4,4);
@@ -87,7 +87,7 @@ test('600ms sustained hover displays a small nonblocking hint, never the full in
 
 test('clicking opens complete square details; X and Escape dismiss them',async({page})=>{
   await page.setViewportSize({width:1266,height:548});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const panel=page.locator('#tile-panel'),peek=page.locator('#tile-peek');
   const point=await tilePoint(page,4,4);
   await page.mouse.click(point.x,point.y);
@@ -108,7 +108,7 @@ test('clicking opens complete square details; X and Escape dismiss them',async({
 
 test('click-to-inspect persists across hover movement until explicitly closed',async({page})=>{
   await page.setViewportSize({width:1440,height:900});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const first = await tilePoint(page,4,4);
   await page.mouse.click(first.x, first.y);
   const panel=page.locator('#tile-panel');
@@ -125,7 +125,7 @@ test('click-to-inspect persists across hover movement until explicitly closed',a
 
 test('hold hover for short model cue; Shift+click shows full forecast without buying',async({page})=>{
   await page.setViewportSize({width:1440,height:900});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.getByRole('button',{name:/Select Speed Sign/}).click();
   const point=await tilePoint(page,4,4);
   const panel=page.locator('#tile-panel'),peek=page.locator('#tile-peek');
@@ -149,7 +149,7 @@ test('hold hover for short model cue; Shift+click shows full forecast without bu
 
 test('phone has no mouse hover tooltip, but a tap still opens full details',async({page})=>{
   await page.setViewportSize({width:390,height:844});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const point=await tilePoint(page,4,4);
   const panel=page.locator('#tile-panel'),peek=page.locator('#tile-peek');
   await page.mouse.move(point.x,point.y);
@@ -165,7 +165,7 @@ test('phone has no mouse hover tooltip, but a tap still opens full details',asyn
 
 test('keyboard can navigate and open square details even with no kit selected',async({page})=>{
   await page.setViewportSize({width:1024,height:768});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.locator('#game-container').focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('#tile-panel')).toBeHidden();

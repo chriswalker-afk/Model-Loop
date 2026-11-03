@@ -4,7 +4,7 @@ import { modelEffects } from '../src/game/economy';
 import { HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, newCarCycle, stepCarCycle } from '../src/game/traffic';
 
 test('net income is a rolling flow of earned lap coins less bills, not the coin balance', () => {
-  const store = new GameStore();
+  const store = new GameStore(true);
   expect(store.money).toBe(145);
   expect(store.cashflow).toMatchObject({ gross: 0, upkeep: 0, net: 0 });
 
@@ -34,7 +34,7 @@ test('net income is a rolling flow of earned lap coins less bills, not the coin 
 });
 
 test('each model has an independent cost/benefit control', () => {
-  const store = new GameStore();
+  const store = new GameStore(true);
   const lamp = { x: 4, y: 4 };
   const tree = { x: 6, y: 3 };
   expect(store.place(lamp, 'lamp')).toBeTruthy();
@@ -61,7 +61,7 @@ test('each model has an independent cost/benefit control', () => {
 });
 
 test('speed signs slow the road in their radius and care alters their strength', () => {
-  const store = new GameStore();
+  const store = new GameStore(true);
   const sign = { x: 4, y: 4 }, near = { x: 3, y: 4 }, far = { x: 19, y: 9 };
   expect(store.speedMultiplierAt(near)).toBe(1);
   expect(store.place(sign, 'limit')).toBeTruthy();
@@ -98,7 +98,7 @@ test('browser exposes care choices and shows positive and negative income flow',
   await page.setViewportSize({ width: 1440, height: 900 });
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('#coins')).toHaveText('145');
   await expect(page.locator('.income-meter')).toContainText('0/60s');
 
@@ -142,7 +142,7 @@ test('browser exposes care choices and shows positive and negative income flow',
 
 test('speed sign care panel shows realistic slowing, not just a stat change', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.getByRole('button',{name: /Select Speed Sign/}).click();
   const rect = await page.locator('#game-container canvas').boundingBox();
   if (!rect) throw new Error('Game canvas did not render');
