@@ -1,5 +1,4 @@
 import {test,expect,type Page} from '@playwright/test';
-import {BOARD,ROAD_CELLS} from '../src/game/config';
 
 type Detail={
   installed:string|null;texture:string;visible:boolean;alpha:number;
@@ -104,6 +103,7 @@ test('a purchased fence and garden join one house at exactly the same origin',as
   await ready(page);
   const original=await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
+    const {ROAD_CELLS}=await import('/src/game/config.ts');
     return {money:store.money,roadCount:ROAD_CELLS.length,
       models:store.placements.length,
       canPlace:store.canPlace({x:4,y:2}),
@@ -137,6 +137,7 @@ test('a purchased fence and garden join one house at exactly the same origin',as
   }).toBe(100);
   const final=await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
+    const {ROAD_CELLS}=await import('/src/game/config.ts');
     return {money:store.money,roadCount:ROAD_CELLS.length,
       models:store.placements.length,
       canPlace:store.canPlace({x:4,y:2}),
