@@ -13,7 +13,7 @@ const views = [
 
 test('Vintage instruments use one coherent engraved icon family and preserve real gauge values',
   async ({page}) => {
-    await page.goto('/');
+    await page.goto('/?referenceTown=1');
     const header=page.locator('.vintage-header');
     await expect(header).toBeVisible();
     // No decorative drawing may overlay the actual title text.
@@ -57,7 +57,7 @@ test('Vintage instruments use one coherent engraved icon family and preserve rea
 
 test('Selected Tile uses the same fine-line iconography and remains accessible',
   async({page})=>{
-    await page.goto('/');
+    await page.goto('/?referenceTown=1');
     await expect(page.locator('#tile-panel')).toBeHidden();
     await page.evaluate(async()=>{
       const {store}=await import('/src/game/state.ts');
@@ -97,7 +97,7 @@ for(const view of views){
   test('Vintage art plate fits ' + view.name + ' and captures an actual UI review image',
     async({page})=>{
       await page.setViewportSize({width:view.width,height:view.height});
-      await page.goto('/');
+      await page.goto('/?referenceTown=1');
       await page.locator('#game-container canvas').waitFor({state:'visible'});
       const header=page.locator('.vintage-header');
       const instruments=page.locator('#meters');
@@ -196,7 +196,7 @@ for(const view of views){
 }
 test('Reduced motion disables decorative gauge animation',async({page})=>{
   await page.emulateMedia({reducedMotion:'reduce'});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const durations=await page.locator('#meters .meter-fill').first()
     .evaluate(el=>getComputedStyle(el).transitionDuration);
   // The global accessibility rule uses 0.01ms !important, which is
