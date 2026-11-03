@@ -592,3 +592,174 @@
   font-size:10px;
   line-height:1.55;
 }
+
+
+/* Pass B — house-owned miniature care is disclosed where the household lives,
+   not in the model shop. Stable <details> nodes preserve focus and scroll during
+   live traffic notifications. Pass C will compose the art into the house. */
+.family-home-improvements {
+  margin:11px 0 12px;
+  padding:0;
+  color:#e6e3d3;
+  border:1px solid #73836d;
+  border-radius:4px;
+  background:linear-gradient(145deg,#233126,#18241c 75%);
+  box-shadow:inset 0 1px 9px rgba(0,0,0,.23);
+}
+.family-home-improvements[hidden]{display:none!important;}
+.family-home-improvements > summary {
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 9px;list-style:none;cursor:pointer;
+  color:#eadab4;font:12px Georgia,serif;
+}
+.family-home-improvements > summary::-webkit-details-marker,
+.home-improvement-slot > summary::-webkit-details-marker{display:none;}
+.family-home-improvements > summary::before,
+.home-improvement-slot > summary::before{
+  content:'▸';font-size:13px;flex:none;line-height:1;
+}
+.family-home-improvements[open]>summary::before,
+.home-improvement-slot[open]>summary::before{content:'▾';}
+.family-home-improvements>summary strong{flex:1;font-weight:600;min-width:0;}
+.family-home-improvements .home-improvements-total{
+  color:#cdddbf;font:10px/1.2 system-ui,sans-serif;white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.family-home-improvements .home-improvements-note{
+  margin:0 9px 8px;font:10px/1.45 system-ui,sans-serif;color:#c5caba;
+}
+.home-improvement-slot {
+  margin:6px 8px 8px;border:1px solid #526553;border-radius:3px;
+  background:rgba(10,18,12,.35);min-width:0;
+}
+.home-improvement-slot > summary {
+  display:flex;align-items:center;gap:7px;list-style:none;
+  padding:9px;cursor:pointer;font:12px Georgia,serif;color:#e6dfcb;
+}
+.home-improvement-slot > summary span{flex:0 0 auto;}
+.home-improvement-slot .home-slot-current{
+  flex:1;min-width:0;text-align:right;font:10px/1.25 system-ui,sans-serif;
+  color:#b9d1b9;overflow-wrap:anywhere;font-weight:600;
+}
+.home-improvement-slot[open]>summary{
+  background:rgba(80,111,75,.2);border-bottom:1px solid #60705c;
+}
+.family-home-improvements summary:hover{background:rgba(155,186,146,.09);}
+.family-home-improvements summary:focus-visible,
+.family-home-improvements button:focus-visible{
+  outline:2px solid #c2dfb9;outline-offset:2px;
+}
+.home-slot-content{padding:9px;min-width:0;}
+.home-improvement-content{min-width:0;}
+.home-improvement-installed{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:7px 0 10px;border-bottom:1px solid #4b5d4d;margin-bottom:8px;
+}
+.home-improvement-installed > div{min-width:0;display:grid;gap:3px;}
+.home-status-label {
+  display:block;color:#c8b58e;font:600 9px/1.25 system-ui,sans-serif;
+  letter-spacing:.075em;
+}
+.home-improvement-installed strong{color:#e8dfca;font:12px Georgia,serif;}
+.home-improvement-installed small{
+  color:#bdd0bb;font:9px/1.25 system-ui,sans-serif;
+}
+.home-improvement-remove{
+  flex:none;min-height:33px;padding:5px 9px;
+  border:1px solid #9d8a75;border-radius:3px;
+  background:#312b27;color:#ead6c3;
+  font:10px system-ui,sans-serif;cursor:pointer;
+}
+.home-improvement-remove:hover:not(:disabled){background:#45352e;}
+.home-slot-content .home-slot-empty{margin:0 0 8px;font-size:10px;color:#a9b9a8;}
+.home-improvement-options{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;}
+.home-improvement-option {
+  width:100%;min-width:0;display:grid;gap:4px;text-align:left;
+  padding:8px;border:1px solid #526957;border-radius:3px;
+  background:linear-gradient(135deg,#25352a,#1b2920);
+  color:#dedfce;cursor:pointer;
+}
+.home-improvement-option:hover{border-color:#d0c18c;background:#304434;}
+.home-improvement-option.is-chosen{
+  border-color:#ddc791;background:#344a37;
+  box-shadow:inset 0 0 0 1px rgba(218,201,151,.35);
+}
+.home-improvement-option.is-fitted{
+  border-left:3px solid #b1cea9;
+}
+.home-option-heading{
+  display:flex;align-items:baseline;justify-content:space-between;
+  gap:8px;min-width:0;
+}
+.home-option-heading strong{color:#eedfbd;font:11px/1.3 Georgia,serif;min-width:0;}
+.home-option-heading b{
+  color:#edcc8c;font:600 10px system-ui,sans-serif;white-space:nowrap;
+}
+.home-option-description{
+  color:#c4cfc1;font:10px/1.4 system-ui,sans-serif;
+}
+.home-option-footer{
+  color:#b3c4ad;font:9px/1.2 system-ui,sans-serif;
+}
+.home-improvement-forecast{
+  margin-top:10px;padding-top:10px;border-top:1px solid #849076;
+  min-width:0;
+}
+.home-improvement-forecast > p{
+  color:#c9cec1;margin:5px 0 8px;font-size:10px;
+}
+.home-forecast-upkeep,.home-forecast-owner,.home-forecast-neighbour{
+  display:flex;justify-content:space-between;align-items:start;
+  gap:8px;padding:6px 0;
+  border-bottom:1px solid rgba(194,201,180,.17);
+  font:10px/1.4 system-ui,sans-serif;
+}
+.home-forecast-upkeep span,.home-forecast-owner span{min-width:0;flex:1;}
+.home-forecast-upkeep strong{
+  color:#dfcfaa;font-variant-numeric:tabular-nums;text-align:right;
+}
+.home-forecast-owner strong,
+.home-forecast-neighbour strong{
+  text-align:right;font-size:10px;white-space:normal;
+}
+.home-forecast-owner em,.home-forecast-neighbour em{
+  font-style:normal;white-space:nowrap;
+}
+.home-forecast-neighbours{margin-top:8px;border-top:1px dashed #607360;}
+.home-forecast-neighbours > span{
+  display:block;padding:8px 0 1px;color:#e2d4b1;
+  font:11px Georgia,serif;
+}
+.home-forecast-neighbour span{flex:1;min-width:0;}
+.home-forecast-local{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0;}
+.home-forecast-local span{
+  padding:4px 6px;background:#26392b;color:#cbd9c7;
+  border:1px solid #506950;border-radius:2px;
+  font:9px system-ui,sans-serif;
+}
+.home-improvement-forecast p.home-forecast-note,
+.home-improvement-forecast p.home-forecast-quiet,
+.home-improvement-forecast p.home-forecast-personal{
+  color:#aebcae;font:10px/1.45 system-ui,sans-serif;
+}
+.home-improvement-forecast p.home-forecast-reason{
+  margin:7px 0;color:#d4c8a9;font:10px/1.45 system-ui,sans-serif;
+}
+.home-improvement-buy{
+  display:block;width:100%;min-height:36px;
+  margin:8px 0 0;padding:8px;
+  border:1px solid #eadba9;border-radius:3px;
+  background:#d4c096;color:#17231a;
+  font:700 11px system-ui,sans-serif;cursor:pointer;
+}
+.home-improvement-buy:hover:not(:disabled){background:#e9d3a4;}
+.family-home-improvements button:disabled{opacity:.58;cursor:not-allowed;}
+@media(max-width:680px), (max-height:630px){
+  .family-home-improvements{margin:9px 0;}
+  .family-home-improvements > summary{padding:8px;}
+  .home-slot-content{padding:7px;}
+  .home-improvement-option{padding:7px;}
+}
+@media(prefers-reduced-motion:reduce){
+  .home-improvement-option,.home-improvement-buy{transition:none!important;}
+}
