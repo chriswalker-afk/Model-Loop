@@ -82,6 +82,42 @@ test('house-ground art has 60 unique valid, bounded engraved SVG variants',async
   });
 });
 
+test('the household portrait uses the same drawings, with an honest pre-purchase preview',async({page})=>{
+  await ready(page);
+  await page.locator('[data-resident="0"]').first().click();
+  const panel=page.locator('#household-detail');
+  const portrait=panel.locator('.home-grounds-model');
+  const building=portrait.locator('.home-grounds-building');
+  const front=portrait.locator('.home-grounds-garden');
+  const fence=portrait.locator('.home-grounds-boundary');
+  await expect(building).toHaveAttribute('src',/^data:image\\/svg\\+xml/);
+  await expect(front).toBeHidden();
+  await expect(fence).toBeHidden();
+  await expect(portrait).toHaveAttribute('aria-label',/No boundary.*No garden/);
+  const slot=panel.locator('.home-improvement-slot[data-home-slot="boundary"]');
+  await slot.locator('summary').first().click();
+  await slot.locator('[data-home-option="picket"]').click();
+  await expect(fence).toBeVisible();
+  await expect(panel.locator('.home-grounds-portrait-caption')).toContainText('Preview');
+  await expect(portrait).toHaveAttribute('aria-label',/not purchased/);
+  const gameState=await page.evaluate(async()=>{
+    const {store}=await import('/src/game/state.ts');
+    return store.homeImprovements.length;
+  });
+  expect(gameState).toBe(0);
+  await slot.locator('[data-action="install-home-improvement"]').click();
+  await expect(panel.locator('.home-grounds-portrait-caption')).toContainText('Installed');
+  await expect(portrait).toHaveAttribute('aria-label',/Low Picket Fence/);
+  await expect(fence).toBeVisible();
+  const artSrc=await fence.getAttribute('src');
+  await slot.locator('[data-action="remove-home-improvement"]').click();
+  await expect(fence).toBeHidden();
+  await expect(panel.locator('.home-grounds-portrait-caption')).toContainText('No boundary');
+  await slot.locator('[data-home-option="stone"]').click();
+  await expect(fence).toBeVisible();
+  expect(await fence.getAttribute('src')).not.toEqual(artSrc);
+});
+
 test('the untouched town starts with no paid grounds visible and original house footprints',async({page})=>{
   await ready(page);
   const snapshot=await getArt(page);
