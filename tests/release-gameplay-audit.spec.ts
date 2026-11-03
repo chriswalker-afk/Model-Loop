@@ -4,6 +4,8 @@ import {
 } from '../src/game/config';
 import {GameStore} from '../src/game/state';
 import {MAX_NEIGHBOUR_EFFECT_PER_LAP} from '../src/game/founding';
+import {advanceTraffic,TrafficGridlockWatch,TRAFFIC_MIN_GAP,type RoadVehicle}
+  from '../src/game/traffic';
 
 type Layout=readonly Cell[];
 interface AuditSnap {
@@ -317,4 +319,26 @@ test('audit: a player can introduce and place all six families using the real UI
   expect(snapshot.completedLaps).toBeGreaterThanOrEqual(0);
   expect(snapshot.traffic.length).toBe(6);
   expect(errors).toEqual([]);
+});
+
+test('audit: marshals reset their recovery history only at a new generation',()=>{
+  const watch=new TrafficGridlockWatch();
+  const roadLength=ROAD_CELLS.length*BOARD.tile;
+  const traffic:RoadVehicle[]=[
+    {residentId:0,position:530,desiredSpeed:0,lane:'left'},
+    {residentId:1,position:530-TRAFFIC_MIN_GAP,
+      desiredSpeed:85,lane:'left'}
+  ];
+  let recovered:number|null=null;
+  for(let frame=0;frame<130;frame++){
+    recovered=watch.observe(.1,traffic,advanceTraffic(traffic,.1,roadLength),false);
+    if(recovered!==null)break;
+  }
+  expect(recovered).toBe(0);
+  expect(watch.snapshot().recoveries).toBe(1);
+  watch.reset();
+  expect(watch.snapshot().recoveries).toBe(1);
+  watch.resetForNewRun();
+  expect(watch.snapshot().recoveries).toBe(0);
+  expect(watch.snapshot().stalledSeconds).toEqual([]);
 });
