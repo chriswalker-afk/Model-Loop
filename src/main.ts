@@ -1,8 +1,10 @@
 import { AUTO, Game, Scale } from 'phaser';
 import { TownScene } from './game/TownScene';
-import { BOARD, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
+import { BOARD, HOMES, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
 import { miniatureSvg } from './ui/modelArt';
 import { chapterMotorcarSvg } from './ui/vintageWorldArt';
+import { foundingKeepsakeSvg } from './ui/foundingArt';
+import { foundingStory } from './game/founding';
 import { eventUiIcon } from './ui/vintageEventArt';
 import { vintageIcon, vintageFrameCorners, type VintageIcon } from './ui/vintageIcons';
 import { store } from './game/state';
@@ -554,9 +556,13 @@ function renderTilePeek(): void {
   if (!info) { peek.hidden = true; return; }
   let description: string;
   if (store.phase === 'founding') {
+    const preview = store.previewFoundingHome(tile);
     description = store.foundingFamily === null
       ? 'Choose a family from the tray'
-      : store.canPlaceHome(tile) ? 'READY FOR A HOME' : 'NOT A VALID HOME PLOT';
+      : preview.allowed
+        ? 'READY FOR A HOME · ' +
+          (preview.neighbours.length?preview.neighbours[0].name+' nearby':'A fresh beginning')
+        : preview.reason;
   } else if (store.activeModel) {
     const model = store.getModel(store.activeModel);
     const preview = store.previewPlacement(tile, model.id);
@@ -669,14 +675,27 @@ function renderTilePanel(): void {
     const tile = store.selected;
     const panel = byId('tile-panel');
     panel.hidden = !tile;
+    panel.classList.toggle('is-active',!!tile);
     if (tile) {
-      const valid = store.foundingFamily !== null && store.canPlaceHome(tile);
-      panel.innerHTML = tileDetailsHeader('FOUNDING PLOT') +
-        '<h3>' + (valid ? 'A place for a home' : 'Roadside plot') + '</h3>' +
-        '<p>' + (store.foundingFamily === null
-          ? 'Select a family from the founding tray.'
-          : valid ? 'Click to settle the selected family here.'
-          : 'This plot is unavailable; choose a roadside square with enough space.') + '</p>';
+      const preview = store.previewFoundingHome(tile);
+      const family = store.foundingFamily;
+      const familyName = family === null ? 'A founding home' : HOMES[family].name;
+      const neighbours = preview.neighbours.length
+        ? '<div class="founding-neighbour-preview"><strong>Near this plot</strong>' +
+          preview.neighbours.map(hint =>
+            '<p class="founding-neighbour-hint '+hint.tone+'"><b>'+hint.name+
+            '</b><small>'+hint.distance+' squares away · '+hint.description+'</small></p>'
+          ).join('') + '</div>' : '';
+      const content = tileDetailsHeader('FOUNDING PLOT · ' + (tile.x+1) + '/' + (tile.y+1)) +
+        '<h3>' + familyName + '</h3>' +
+        '<div class="preview-status ' + (preview.allowed?'valid':'invalid') + '">' +
+          (preview.allowed?'AVAILABLE PLOT':'NOT AVAILABLE') + '</div>' +
+        '<p>' + preview.reason + '</p>' + neighbours +
+        (preview.allowed
+          ? '<button class="founding-place-button" data-action="place-founding" data-x="'+
+            tile.x+'" data-y="'+tile.y+'">Place '+familyName+' here</button>'
+          : '');
+      updateTilePanelMarkup(content,'founding:'+tile.x+','+tile.y+':'+family+':'+store.foundingCount);
     }
     return;
   }
@@ -791,14 +810,15 @@ function renderRunLedger(): string {
 
 // Dialog content can update while time passes: never recreate focused buttons
 // when their markup is unchanged, and return focus when the modal closes.
-let modalKind: 'closed' | 'workshop' | 'chapter' = 'closed';
+let modalKind: 'closed' | 'workshop' | 'chapter' | 'arrival' | 'founding-review' = 'closed';
 let modalReturnFocus: HTMLElement | null = null;
 let lastModalMarkup = '';
 function setBackgroundInert(inert:boolean):void {
   document.querySelectorAll<HTMLElement>('#app > header, #app > main')
     .forEach(el=>{el.inert=inert;});
 }
-function setModalContent(modal:HTMLElement,kind:'workshop'|'chapter',
+function setModalContent(modal:HTMLElement,
+  kind:'workshop'|'chapter'|'arrival'|'founding-review',
   markup:string):void {
   const previous=document.activeElement;
   const wasInside=modal.contains(previous);
@@ -858,6 +878,49 @@ function closeModalContent(modal:HTMLElement):void {
 }
 function renderModal(): void {
   const modal = byId('modal');
+  if (store.phase === 'founding' && store.foundingIntroId !== null) {
+    const id = store.foundingIntroId;
+    const family=HOMES[id],story=foundingStory(id);
+    const markup =
+      '<div class="dialog vintage-dialog founding-arrival-dialog" role="dialog" aria-modal="true" aria-labelledby="arrival-title">' +
+      vintageFrameCorners() +
+      '<span class="eyebrow">FAMILY ARRIVAL · 1908 · ' + (store.foundingCount+1) + ' OF 6</span>' +
+      '<h2 id="arrival-title" tabindex="-1">' + family.name + '</h2>' +
+      '<p class="founding-epithet">' + story.epithet + '</p>' +
+      '<div class="founding-keepsake">' + foundingKeepsakeSvg(id) +
+      '<span>' + story.keepsakeLabel + '</span></div>' +
+      '<p class="founding-arrival-story">' + story.arrival + '</p>' +
+      '<blockquote class="founding-quote">' + story.quote + '</blockquote>' +
+      '<div class="founding-arrival-character"><div><strong>Hoping for</strong><p>' +
+      story.hope + '</p></div><div><strong>Find difficult</strong><p>' +
+      story.worry + '</p></div></div>' +
+      '<div class="founding-arrival-neighbours"><b>Neighbourly instincts</b><p>Would welcome ' +
+      story.closeTo.map(other=>HOMES[other].name).join(' and ') +
+      ' nearby. May find ' + story.uneasyNear.map(other=>HOMES[other].name).join(' and ') +
+      ' a little more difficult.</p></div>' +
+      '<button type="button" class="dialog-main" data-action="acknowledge-arrival">Choose their plot</button>' +
+      '</div>';
+    setModalContent(modal,'arrival',markup);
+    return;
+  }
+  if (store.phase === 'founding' && store.foundingReviewOpen) {
+    const rows=store.placedHomes.map(home=>
+      '<li><strong>'+home.name+'</strong><span>Plot '+(home.x+1)+' / '+(home.y+1)+
+      '</span><button data-action="move-founding" data-id="'+home.id+'">Move home</button></li>'
+    ).join('');
+    const markup =
+      '<div class="dialog vintage-dialog founding-review-dialog" role="dialog" aria-modal="true" aria-labelledby="review-title">' +
+      vintageFrameCorners() +
+      '<span class="eyebrow">1908 · THE TOWN TAKES SHAPE</span>' +
+      '<h2 id="review-title" tabindex="-1">A Town Begins</h2>' +
+      '<p>Six families now have somewhere to call home. Walk the street once more, and move any house you would prefer in a different place.</p>' +
+      '<ol class="founding-review-list">' + rows + '</ol>' +
+      '<p class="founding-review-note">Nothing has been charged. There has been no traffic or loss of time. Your choices will matter as the years unfold.</p>' +
+      '<div class="dialog-actions"><button data-action="close-founding-review">Keep arranging</button>' +
+      '<button class="dialog-main" data-action="confirm-vintage">Begin the Vintage Years</button></div></div>';
+    setModalContent(modal,'founding-review',markup);
+    return;
+  }
   if (store.workshopOpen) {
     const markup =
       '<div class="dialog vintage-dialog workshop-dialog" role="dialog" aria-modal="true" aria-labelledby="workshop-title">' +
