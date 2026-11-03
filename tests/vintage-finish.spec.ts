@@ -16,7 +16,7 @@ async function art(page:Page):Promise<ArtSnapshot>{
   });
 }
 async function ready(page:Page):Promise<void>{
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('#game-container canvas')).toBeVisible();
   await expect.poll(async()=>(await art(page)).loaded.length,{timeout:15000})
     .toBe(22);
@@ -24,7 +24,7 @@ async function ready(page:Page):Promise<void>{
 
 test('every activity, roadside trace, condition and care engraving is valid distinct XML',
   async({page})=>{
-    await page.goto('/');
+    await page.goto('/?referenceTown=1');
     const result=await page.evaluate(async()=>{
       const {eventArtIds,eventSvg,eventDataUri,eventUiIcon,traceKinds,
         activityKinds}=await import('/src/ui/vintageEventArt.ts');

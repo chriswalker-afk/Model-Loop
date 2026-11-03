@@ -13,7 +13,7 @@ for (const size of sizes) {
       await page.setViewportSize(size);
       const errors:string[] = [];
       page.on('pageerror', error => errors.push(error.message));
-      await page.goto('/');
+      await page.goto('/?referenceTown=1');
       const canvas = page.locator('#game-container canvas');
       await expect(canvas).toBeVisible();
       await expect(page.locator('.model-box')).toHaveCount(6);
@@ -75,7 +75,7 @@ for (const size of sizes) {
 
 test('compact landscape model selection and care inspection stay usable', async ({page}) => {
   await page.setViewportSize({width:1266,height:548});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.getByRole('button',{name:/Select Oak Tree/}).click();
   const rect=await page.locator('#game-container canvas').boundingBox();
   if(!rect) throw new Error('Game canvas missing');
@@ -96,7 +96,7 @@ test('compact landscape model selection and care inspection stay usable', async 
 
 test('last collectible kit remains selectable after scrolling the short-window side shelf', async ({page}) => {
   await page.setViewportSize({width:1266,height:548});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const shelf=page.locator('.shop-track');
   await shelf.evaluate(el=>{el.scrollTop=el.scrollHeight;});
   expect(await shelf.evaluate(el=>el.scrollTop)).toBeGreaterThan(160);

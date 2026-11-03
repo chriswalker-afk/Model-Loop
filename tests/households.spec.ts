@@ -13,7 +13,7 @@ test('households respond differently to the exact same model', () => {
   expect(modelReactionPerTile(3, 'bench')).toBeLessThan(0);
   expect(modelReactionPerTile(2, 'bench')).toBeGreaterThan(0);
 
-  const store = new GameStore();
+  const store = new GameStore(true);
   const cell = { x: 4, y: 4 };
   const preview = store.previewPlacement(cell, 'limit');
   expect(preview.canPlace).toBeTruthy();
@@ -38,7 +38,7 @@ test('neighbourhood strip and the optional household panel work without browser 
   await page.setViewportSize({ width: 1440, height: 900 });
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('.household-ticket')).toHaveCount(6);
   await expect(page.locator('#household-list')).toContainText('The Wards');
   await expect(page.locator('#workbench-note')).toContainText('AT THE WORKBENCH');
@@ -77,7 +77,7 @@ test('neighbourhood strip and the optional household panel work without browser 
 
 test('narrow layout keeps household access and the model shop available', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('#household-list')).toBeVisible();
   await expect(page.locator('.household-ticket').first()).toBeInViewport();
   await expect(page.locator('#shop-section')).toBeInViewport();

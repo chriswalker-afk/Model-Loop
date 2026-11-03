@@ -10,7 +10,7 @@ import {
   scenerySvg, sceneryTextureKey, sceneryVariants, sceneryDimensions,
   worldSvgDataUri, WORLD_CAR_SIZE, WORLD_HOUSE_SIZE
 } from '../ui/vintageWorldArt';
-import { store, type JourneyReaction } from './state';
+import { store, type HomeSite, type JourneyReaction } from './state';
 import { normalizedCare, modelCondition } from './economy';
 import type { RoadsideIncident } from './damage';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
@@ -133,12 +133,14 @@ export class TownScene extends Scene {
   create(): void {
     this.cameras.main.setBackgroundColor('#111515');
     this.drawBoard();
-    this.drawScenery();
+    if (store.phase !== 'founding') this.drawScenery();
     this.drawRoad();
     this.houseSprites = HOMES.map(home => {
-      const point = worldPoint(home);
+      const site = store.homeFor(home.id);
+      const point = worldPoint(site ?? home);
       return this.add.image(point.x, point.y + 22, houseTextureKey(home.id))
-        .setOrigin(.5, 1).setDisplaySize(59, 70).setDepth(2);
+        .setOrigin(.5, 1).setDisplaySize(59, 70).setDepth(2)
+        .setVisible(!!site);
     });
 
     // Roadside changes are drawn above the road and below cars and models.
@@ -157,7 +159,8 @@ export class TownScene extends Scene {
       fontFamily: 'Georgia, serif', fontSize: '10px', color: '#eedab4',
       backgroundColor: '#19221b', padding: { x: 5, y: 3 }
     }).setOrigin(0.5).setDepth(22).setVisible(false);
-    this.cars = HOMES.map((home, index) => this.createCar(home.id, index));
+    this.cars = [];
+    if (store.phase === 'playing') this.activateCars();
 
     this.lastPlacementCount = store.placements.length;
     this.observedEnvironment = store.environment;
@@ -170,6 +173,10 @@ export class TownScene extends Scene {
         this.lastEnvironmentalEventId = 0;
         this.lastRoadsideIncidentId = 0;
         this.lastNeighbourNoteId = 0;
+      }
+      if (store.phase === 'playing' && this.cars.length === 0) {
+        this.drawScenery();
+        this.activateCars();
       }
       this.drawDynamic();
       const environmentalEvent = store.lastEnvironmentEvent;
@@ -219,15 +226,16 @@ export class TownScene extends Scene {
       const travelled = Math.hypot(pointer.x - pointer.downX, pointer.y - pointer.downY);
       if (travelled > 13) return;
       const cell = this.pointerCell(pointer);
-      if (cell && store.phase === 'playing' && !store.paused && !store.workshopOpen) {
+      if (cell && (store.phase === 'playing' || store.phase === 'founding') &&
+          !store.paused && !store.workshopOpen) {
         // Shift+click opens the full placement forecast without spending coins.
         // An ordinary click still places the selected model in one action.
         const modifier = pointer.event && 'shiftKey' in pointer.event &&
           pointer.event.shiftKey;
         if (modifier && store.activeModel) store.inspectTile(cell);
         else store.selectTile(cell);
-        const home = HOMES.find(item => item.x === cell.x && item.y === cell.y);
-        if (home && !store.activeModel) store.selectResident(home.id);
+        const home = store.homeAt(cell);
+        if (home && store.phase === 'playing' && !store.activeModel) store.selectResident(home.id);
       }
     });
     // A short hover label must not linger after the pointer leaves the town.
@@ -333,11 +341,13 @@ export class TownScene extends Scene {
   }
 
   private drawScenery(): void {
+    for (const sprite of this.scenerySprites) sprite.destroy();
     this.scenerySprites = [];
     // The ten existing reserved scenery plots remain exactly as before.
     // Plot 0 is now a bandstand in the park; the other nine are finely
     // etched oak variations. No extra land is taken from buildable tiles.
     SCENERY_CELLS.slice(0,10).forEach((cell,i)=>{
+      if (!store.scenerySites.some(s=>s.x===cell.x&&s.y===cell.y)) return;
       const point=worldPoint(cell);
       const style = i===0?'bandstand' :
         (['oak-a','oak-b','oak-c'] as const)[i%3];
@@ -348,21 +358,26 @@ export class TownScene extends Scene {
       this.scenerySprites.push(image);
     });
     const hall=worldPoint({x:11,y:6});
-    this.scenerySprites.push(this.add.image(
+    if (store.scenerySites.some(s=>s.x===11&&s.y===6)) this.scenerySprites.push(this.add.image(
       hall.x,hall.y+43,sceneryTextureKey('clock-hall'))
       .setOrigin(.5,1).setDisplaySize(111,112).setDepth(2));
     const fountain=worldPoint({x:16,y:6});
-    this.scenerySprites.push(this.add.image(
+    if (store.scenerySites.some(s=>s.x===16&&s.y===6)) this.scenerySprites.push(this.add.image(
       fountain.x,fountain.y+22,sceneryTextureKey('garden-fountain'))
       .setOrigin(.5,1).setDisplaySize(59,47).setDepth(2));
     const notice=worldPoint({x:7,y:7});
-    this.scenerySprites.push(this.add.image(
+    if (store.scenerySites.some(s=>s.x===7&&s.y===7)) this.scenerySprites.push(this.add.image(
       notice.x,notice.y+24,sceneryTextureKey('park-notice'))
       .setOrigin(.5,1).setDisplaySize(52,53).setDepth(2));
   }
 
+  private activateCars(): void {
+    this.cars = HOMES.map(home => this.createCar(home.id, home.id));
+  }
+
   private createCar(residentId: number, index: number): Car {
-    const home = HOMES[index];
+    const home = store.homeFor(residentId);
+    if (!home) throw new Error('Cannot start an unplaced household car');
     const driver = drivingProfile(residentId);
     const container = this.add.container(0, 0).setDepth(5);
     const homeCell = worldPoint(home);
@@ -409,11 +424,12 @@ export class TownScene extends Scene {
     };
   }
 
-  private drawHouse(g: Phaser.GameObjects.Graphics,home:typeof HOMES[number]):void {
+  private drawHouse(g: Phaser.GameObjects.Graphics,home:HomeSite):void {
     const resident=store.residents[home.id];
     const point=worldPoint(home);
     const house=this.houseSprites[home.id];
-    if(house)house.setAlpha(resident?.occupied ? 1 : .48);
+    if(house)house.setPosition(point.x,point.y+22)
+      .setVisible(true).setAlpha(resident?.occupied ? 1 : .48);
     // Occupancy, mood and selection remain distinct *live* game indicators,
     // not baked into the static architectural textures.
     const status=!resident?.occupied?palette.danger:
@@ -831,7 +847,8 @@ export class TownScene extends Scene {
       // Economy and bare care now use etched tags from the same mini art
       // library. The gameplay upkeep/repair calculations remain unchanged.
     });
-    HOMES.forEach((home) => this.drawHouse(this.homeLayer, home));
+    this.houseSprites.forEach((house,id) => house.setVisible(!!store.homeFor(id)));
+    store.placedHomes.forEach((home) => this.drawHouse(this.homeLayer, home));
 
     const cell = store.hovered || store.selected;
     if (!cell || !isOnBoard(cell.x, cell.y)) return;
@@ -839,9 +856,17 @@ export class TownScene extends Scene {
     const preview = store.activeModel && store.phase === 'playing'
       ? store.previewPlacement(cell, store.activeModel)
       : null;
-    const color = preview
-      ? preview.allowed ? palette.mint : palette.danger
-      : palette.gold;
+    const foundingPlot = store.phase === 'founding' && store.foundingFamily !== null;
+    const color = foundingPlot
+      ? store.canPlaceHome(cell) ? palette.mint : palette.danger
+      : preview ? preview.allowed ? palette.mint : palette.danger : palette.gold;
+    if (foundingPlot && store.canPlaceHome(cell)) {
+      const point = worldPoint(cell);
+      this.ghostLayer.lineStyle(1.5,palette.mint,.85);
+      this.ghostLayer.strokeRoundedRect(point.x-24,point.y-20,48,48,5);
+      this.ghostLayer.fillStyle(palette.mint,.12);
+      this.ghostLayer.fillRoundedRect(point.x-24,point.y-20,48,48,5);
+    }
 
     if (preview && preview.canPlace) {
       // The same Manhattan-radius footprint drives both the visual overlay
@@ -1083,7 +1108,9 @@ export class TownScene extends Scene {
         continue;
       }
 
-      const homePoint = worldPoint(HOMES[car.residentId]);
+      const home = store.homeFor(car.residentId);
+      if (!home) continue;
+      const homePoint = worldPoint(home);
       const roadPoint = roadPoseAt(car.startIndex * BOARD.tile, car.laneOffset);
       const activeActivity = store.activities.forResident(car.residentId);
       if (activeActivity) {

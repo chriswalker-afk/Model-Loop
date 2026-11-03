@@ -19,7 +19,7 @@ const site=ROAD_CELLS.flatMap(road=>[
   leftVergeContact(road,model))!;
 const road:Cell={x:4,y:3};
 const make=(seed=9331)=>{
-  const store=new GameStore();store.newRun(seed);return store;
+  const store=new GameStore(true);store.newRun(seed);return store;
 };
 const avoidExtraActions=(store:GameStore,id:number)=>{
   store.residents[id].lastEventLap=store.residents[id].laps;
@@ -259,7 +259,7 @@ test('multi-seed risk calibration prefers slower, protected drivers without freq
 });
 
 test('browser offers compact, keyboard-accessible story details on desktop and mobile',async({page})=>{
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const placed=await page.evaluate(async({model})=>{
     const {store}=await import('/src/game/state.ts');
     return store.place(model,'lamp');

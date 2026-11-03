@@ -347,3 +347,59 @@
   .vintage-dialog button { transition: none; }
   .vintage-dialog .story-vehicle { animation: none; }
 }
+
+/* Pass 8A — founding tray, deliberately compact beside the existing board. */
+.founding-panel { color:#ded7c3; padding:14px; border:1px solid #8b7958;
+  border-radius:9px; background:linear-gradient(155deg,#243029,#151b19); }
+.founding-panel[hidden] { display:none !important; }
+.founding-header { display:flex; justify-content:space-between;gap:8px;
+  font-family:Georgia,serif;font-size:11px;letter-spacing:.09em;color:#d8be88; }
+.founding-panel h2 { font:20px Georgia,serif; margin:8px 0 7px; }
+.founding-panel p { font-size:12px;line-height:1.5;margin:0 0 11px; }
+.founding-family-list { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px; }
+.founding-card { display:flex;flex-direction:column;gap:3px;text-align:left;color:#e7deca;
+  border:1px solid #777763;background:#283229;border-radius:5px;padding:9px;min-width:0;cursor:pointer; }
+.founding-card strong { font:15px Georgia,serif; }
+.founding-card small {font-size:10px;line-height:1.4;opacity:.82; }
+.founding-card-number {font-size:10px;color:#cfb77c;}
+.founding-card.is-selected {border-color:#b8d7b9;background:#36483a; }
+.founding-card.is-settled {border-style:dashed;}
+.founding-begin { width:100%;margin-top:12px;padding:12px 10px;border-radius:5px;
+  border:1px solid #d9bd82;background:#aa9160;color:#17211b;font-weight:700;cursor:pointer; }
+.founding-begin:disabled {opacity:.45;cursor:not-allowed;}
+.shop-section.founding-locked { display:none !important; }
+@media (max-width:700px) {
+  .founding-family-list {grid-template-columns:repeat(2,minmax(0,1fr));}
+  .founding-panel {padding:10px;}
+  .founding-card {padding:7px;}
+}
+
+/* Place the family tray in the same slot occupied by the model shop.
+   Do not add another implicit grid row or hide the board below the fold. */
+.main-content > .founding-panel { min-width:0; min-height:0; box-sizing:border-box;
+  overflow-y:auto; overscroll-behavior:contain; }
+.main-content:has(.founding-panel:not([hidden])) > .households-shelf {display:none!important;}
+@media (min-width: 900px) and (min-height:500px) and (max-height:850px) {
+  .main-content > .founding-panel {
+    grid-column:2; grid-row:1 / span 2; height:100%; align-self:stretch;
+  }
+}
+@media (max-width:1100px), (max-height:820px) {
+  .main-content:has(.founding-panel:not([hidden])) {
+    padding-bottom:max(16px,env(safe-area-inset-bottom));
+  }
+  .main-content > .founding-panel {
+    flex:0 0 auto; width:100%; max-height:clamp(220px,40dvh,370px);
+  }
+}
+@media (max-height:560px) and (min-width:900px) {
+  .main-content > .founding-panel h2 {font-size:17px;}
+  .main-content > .founding-panel {padding:8px;}
+  .main-content > .founding-panel .founding-card {padding:6px;}
+}
+@media (min-width:1101px) and (min-height:851px) {
+  .main-content > .founding-panel {width:100%;max-height:280px;margin:0 auto;}
+  .main-content > .founding-panel .founding-family-list {
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+}

@@ -9,7 +9,7 @@ import { HOUSEHOLD_ACTIONS, HOUSEHOLD_ACTIVITY_ACTIONS } from '../src/game/behav
 
 const road: Cell = { x: 4, y: 3 };
 const make = (seed = 625) => {
-  const store = new GameStore();
+  const store = new GameStore(true);
   store.newRun(seed);
   return store;
 };
@@ -193,7 +193,7 @@ test('paused clocks, reset and seeded replays preserve the activity lifecycle',(
 
 test('browser makes staged activities inspectable without adding a permanent HUD',async({page})=>{
   await page.setViewportSize({width:1266,height:548});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const started=await page.evaluate(() => (
     window as typeof window & {__modelLoopDebug:{
       activity:(kind:string,x:number,y:number)=>boolean
@@ -221,7 +221,7 @@ test('browser makes staged activities inspectable without adding a permanent HUD
 
 
 test('a real family car pulls off for its activity instead of blocking the lane',async({page})=>{
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const started=await page.evaluate(async()=>{
     const debug=(window as typeof window & {__modelLoopDebug:{
       trafficSnapshot:()=>Array<{residentId:number;position:number;phase:string}>,

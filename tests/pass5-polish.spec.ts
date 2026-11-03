@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('screen readers receive important events but not a live update for every lap',async({page})=>{
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('#event-announcement')).toHaveAttribute('role','status');
   await expect(page.locator('#event-announcement')).toHaveAttribute('aria-atomic','true');
   await expect(page.locator('#tile-panel')).not.toHaveAttribute('aria-live','polite');
@@ -32,7 +32,7 @@ test('reduced-motion setting keeps incidents readable with no uncaught rendering
   await page.setViewportSize({width:1266,height:548});
   const errors:string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   expect(await page.evaluate(()=>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
   await expect(page.locator('#shop-section')).toBeVisible();
@@ -50,7 +50,7 @@ test('reduced-motion setting keeps incidents readable with no uncaught rendering
 
 test('workbench reveals three distinct grounded notes and audited run totals',async({page})=>{
   await page.setViewportSize({width:1440,height:900});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
     for(let index=0;index<27;index++)store.finishLap(index%6);
@@ -71,7 +71,7 @@ test('workbench reveals three distinct grounded notes and audited run totals',as
 });
 
 test('end-of-chapter story responds to town actions and does not change Blueprint rewards',async({page})=>{
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const result=await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
     const starting=store.legacy.blueprints;
@@ -92,7 +92,7 @@ test('end-of-chapter story responds to town actions and does not change Blueprin
 
 test('workbench and readable incident feedback fit a narrow phone screen',async({page})=>{
   await page.setViewportSize({width:390,height:844});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
     for(let index=0;index<9;index++)store.finishLap(index%6);
@@ -110,7 +110,7 @@ test('workbench and readable incident feedback fit a narrow phone screen',async(
 
 test('opened behaviour forecast survives income refreshes but resets for a new square',async({page})=>{
   await page.setViewportSize({width:1440,height:900});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
     store.selectModel('limit');

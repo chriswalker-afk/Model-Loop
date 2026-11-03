@@ -1,4 +1,4 @@
-import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, type Cell, type ModelId } from './config';
+import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, SCENERY_CELLS, setActiveScenery, type Cell, type ModelId } from './config';
 import { householdProfile, modelReactionPerTile } from './households';
 import { careName, FLOW_WINDOW_SECONDS, modelEffects, modelRepairCost,
   modelCondition, modelConditionFactor, normalizedCare, summarizeFlow,
@@ -27,7 +27,8 @@ import { isBendApproach } from './driving';
 import { NeighbourhoodStories } from './neighbours';
 import type { RoadLane } from './traffic';
 
-export type Phase = 'playing' | 'complete' | 'lost';
+export type Phase = 'founding' | 'playing' | 'complete' | 'lost';
+export type HomeSite = Cell & Pick<(typeof HOMES)[number], 'id' | 'name' | 'color' | 'temperament'>;
 export interface Resident {
   id: number;
   name: string;
@@ -104,7 +105,12 @@ function readLegacy(): Legacy {
 export class GameStore {
   private listeners = new Set<() => void>();
   legacy: Legacy = readLegacy();
-  phase: Phase = 'playing';
+  phase: Phase = 'founding';
+  // Homes belong to this particular run. HOMES holds immutable identities,
+  // artwork and temperaments; its historical coordinates are test fixtures only.
+  homeSites: Array<Cell | null> = Array.from({length: HOMES.length}, () => null);
+  scenerySites: Cell[] = [];
+  foundingFamily: number | null = null;
   money = 0;
   progress = 0;
   gameSpeed: 1 | 2 = 1;
@@ -251,7 +257,9 @@ export class GameStore {
 
   get runSummary() { return summariseRun(this.ledger); }
 
-  constructor() { this.newRun(); }
+  // The opt-in reference layout preserves historical deterministic simulations.
+  // Normal runs always begin with a bare road and an unplaced roster.
+  constructor(private readonly referenceLayoutFixture = false) { this.newRun(); }
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
@@ -280,7 +288,11 @@ export class GameStore {
     this.noticePriority = 0;
     this.lastCongestionNoticeAt = -Infinity;
     this.lastEnvironmentEvent = null;
-    this.phase = 'playing';
+    this.phase = 'founding';
+    this.homeSites = HOMES.map(() => null);
+    this.scenerySites = [];
+    setActiveScenery([]);
+    this.foundingFamily = null;
     this.money = 145 + this.legacy.upgrades.savings * 35;
     this.progress = 0;
     this.gameSpeed = 1;
@@ -312,14 +324,98 @@ export class GameStore {
       nextEventOffset: this.behaviour.opportunityOffset(ROAD_CELLS.length, home.id),
       trafficDelay: 0
     }));
-    this.notice = 'The year is 1908. Keep the neighbourhood happy as the cars circle.';
+    this.notice = '1908 — A road awaits six families. Choose the first household to settle.';
+    if (this.referenceLayoutFixture) this.foundFromReferenceLayout();
     this.notify();
   }
 
-  get occupiedHomes(): number {
-    return this.residents.filter((resident) => resident.occupied).length;
+  get foundingCount(): number { return this.homeSites.filter(Boolean).length; }
+  get placedHomes(): Array<HomeSite> {
+    return HOMES.flatMap(home => {
+      const site = this.homeSites[home.id];
+      return site ? [{ ...home, ...site }] : [];
+    });
   }
-  get closedHomes(): number { return this.residents.length - this.occupiedHomes; }
+  homeFor(id: number): (HomeSite) | null {
+    const template = HOMES[id], site = this.homeSites[id];
+    return template && site ? { ...template, ...site } : null;
+  }
+  homeAt(cell: Cell): (HomeSite) | null {
+    return this.placedHomes.find(home => home.x === cell.x && home.y === cell.y) ?? null;
+  }
+  /** Houses need an actual adjoining road and enough space for their artwork. */
+  canPlaceHome(cell: Cell, id: number | null = this.foundingFamily): boolean {
+    if (this.phase !== 'founding' || id === null || !HOMES[id] ||
+        !Number.isInteger(cell.x) || !Number.isInteger(cell.y) ||
+        !isOnBoard(cell.x, cell.y) || isRoad(cell.x, cell.y) ||
+        !adjacentToRoad(cell.x, cell.y)) return false;
+    return this.placedHomes.every(home => home.id === id ||
+      Math.max(Math.abs(home.x - cell.x), Math.abs(home.y - cell.y)) >= 2);
+  }
+  chooseFoundingFamily(id: number | null): void {
+    if (this.phase !== 'founding' || (id !== null && !HOMES[id])) return;
+    this.foundingFamily = id;
+    this.selected = null;
+    this.hovered = null;
+    this.notice = id === null
+      ? 'Choose a family to settle beside the road.'
+      : 'Find a roadside plot for ' + HOMES[id].name +
+        '. Green plots are available; you can move homes until the chapter begins.';
+    this.notify();
+  }
+  placeFoundingHome(cell: Cell, id: number | null = this.foundingFamily): boolean {
+    if (!this.canPlaceHome(cell, id)) {
+      this.notice = 'Choose an empty roadside square with room around the house.';
+      this.notify();
+      return false;
+    }
+    const family = id as number;
+    const moved = !!this.homeSites[family];
+    this.homeSites[family] = { x: cell.x, y: cell.y };
+    this.foundingFamily = null;
+    this.selected = null;
+    this.hovered = null;
+    this.notice = HOMES[family].name + (moved ? ' have moved to a different plot.' :
+      ' have settled into their new home.') +
+      (this.foundingCount === HOMES.length
+        ? ' All six homes are ready. Begin the Vintage Years when you are happy.'
+        : ' Choose another household.');
+    this.notify();
+    return true;
+  }
+  /** No traffic, wages, purchases, time or incidents can start before this. */
+  beginVintageYears(): boolean {
+    if (this.phase !== 'founding' || this.foundingCount !== HOMES.length) return false;
+    this.scenerySites = SCENERY_CELLS.filter(cell => this.placedHomes.every(home =>
+      Math.max(Math.abs(cell.x - home.x), Math.abs(cell.y - home.y)) >=
+        (cell.x === 11 && cell.y === 6 ? 3 : 2)));
+    setActiveScenery(this.scenerySites);
+    this.phase = 'playing';
+    this.foundingFamily = null;
+    this.selected = null;
+    this.hovered = null;
+    this.notice = 'The town is founded. The first vintage motorcars begin their journeys.';
+    this.notify();
+    return true;
+  }
+  /** Opt-in fixture for existing balance/browser tests, never the default run. */
+  foundFromReferenceLayout(): void {
+    if (this.phase !== 'founding') return;
+    this.homeSites = HOMES.map(home => ({ x: home.x, y: home.y }));
+    this.beginVintageYears();
+    // Preserve the original decorative baseline for historical regression tests.
+    if (this.referenceLayoutFixture) {
+      this.scenerySites = SCENERY_CELLS.map(site => ({ ...site }));
+      setActiveScenery(this.scenerySites);
+    }
+  }
+  get occupiedHomes(): number {
+    return this.phase === 'founding'
+      ? this.foundingCount : this.residents.filter(resident => resident.occupied).length;
+  }
+  get closedHomes(): number {
+    return this.phase === 'founding' ? 0 : this.residents.length - this.occupiedHomes;
+  }
   get averageIrritation(): number {
     const active = this.residents.filter((resident) => resident.occupied);
     if (active.length === 0) return 100;
@@ -621,6 +717,19 @@ export class GameStore {
     this.notify();
   }
   selectTile(cell: Cell): void {
+    if (this.phase === 'founding') {
+      if (this.foundingFamily !== null) {
+        this.placeFoundingHome(cell);
+      } else {
+        const household = this.homeAt(cell);
+        if (household) this.chooseFoundingFamily(household.id);
+        else {
+          this.selected = cell;
+          this.notify();
+        }
+      }
+      return;
+    }
     this.selected = cell;
     if (this.activeModel) this.place(cell, this.activeModel);
     this.notify();
@@ -641,7 +750,7 @@ export class GameStore {
     return isOnBoard(cell.x, cell.y)
       && !isRoad(cell.x, cell.y)
       && adjacentToRoad(cell.x, cell.y)
-      && !HOMES.some((home) => home.x === cell.x && home.y === cell.y)
+      && !this.homeAt(cell)
       && !isScenery(cell.x, cell.y)
       && !this.placements.some((placed) => placed.x === cell.x && placed.y === cell.y)
       && !this.environment.effects.some(effect =>
@@ -675,7 +784,7 @@ export class GameStore {
     const environmental = this.environment.modifiersAt(cell);
     const activity = this.activities.modifiersAt(cell);
     let kind = isRoad(cell.x, cell.y) ? 'Road tile' : 'Grass tile';
-    const home = HOMES.find((item) => item.x === cell.x && item.y === cell.y);
+    const home = this.homeAt(cell);
     if (home) {
       const resident = this.residents.find((item) => item.id === home.id);
       kind = resident?.occupied ? home.name : 'Vacant home';
@@ -782,7 +891,7 @@ export class GameStore {
     change += this.placements.filter(item => item.id === 'bin' && item.overflowed
       && manhattanDistance(item, tile) <= EFFECT_RADIUS).length * 0.12;
     resident.irritation = clamp(resident.irritation + change * resident.temperament, 0, 100);
-    const home = HOMES.find(home => home.id === id)!;
+    const home = this.homeFor(id)!;
     const startIndex = ROAD_CELLS.findIndex(road => manhattanDistance(road, home) === 1);
     const tileIndex = ROAD_CELLS.findIndex(road => road.x === tile.x && road.y === tile.y);
     let actedThisTile=false;
@@ -951,7 +1060,7 @@ export class GameStore {
     if (activityKind && !canParkForActivity) return false;
     if (activityKind) {
       const hurry = naturally && action.id === 'litter' ? .78 : undefined;
-      const blocked = [...this.placements, ...this.environment.effects.map(effect => effect.cell)];
+      const blocked = [...this.placements, ...this.placedHomes, ...this.environment.effects.map(effect => effect.cell)];
       const activity = this.activities.start(activityKind, residentId, road,
         this.clockSeconds, blocked, this.placements, hurry);
       if (!activity) return false;
@@ -976,7 +1085,7 @@ export class GameStore {
         this.neighbours.completeMatching('hale-restore',effectCell,
           this.clockSeconds,message);
       } else {
-      const occupiedVerge = [...this.placements,
+      const occupiedVerge = [...this.placements, ...this.placedHomes,
         ...this.activities.active.map(activity => activity.cell)];
       const event = this.environment.force(kind, residentId, road,
         this.clockSeconds, occupiedVerge, tile => this.interceptLitter(tile));
@@ -1055,7 +1164,7 @@ export class GameStore {
     const definition = activityDefinition(kind);
     const resident = this.residents[definition.residentId];
     if (!resident?.occupied) return false;
-    const blocked = [...this.placements, ...this.environment.effects.map(effect => effect.cell)];
+    const blocked = [...this.placements, ...this.placedHomes, ...this.environment.effects.map(effect => effect.cell)];
     const activity = this.activities.start(kind, resident.id, road,
       this.clockSeconds, blocked, this.placements);
     if (!activity) return false;
@@ -1077,7 +1186,7 @@ export class GameStore {
     const effect = haleRepair ? undefined :
       leavesLitter ? 'litter' : definition.cleanEffect;
     const event = effect ? this.environment.force(effect, activity.residentId,
-      activity.roadCell, this.clockSeconds, this.placements,
+      activity.roadCell, this.clockSeconds, [...this.placements, ...this.placedHomes],
       tile => this.interceptLitter(tile), activity.cell) : null;
     let outcome: ActivityOutcome = leavesLitter ? 'none' : 'clean';
     let message = haleRepair
@@ -1199,7 +1308,7 @@ export class GameStore {
   debugEnvironmentEvent(kind: EnvironmentKind, residentId: number, roadCell: Cell): boolean {
     if (this.phase !== 'playing' || this.paused || this.workshopOpen) return false;
     const event = this.environment.force(kind, residentId, roadCell, this.clockSeconds,
-      this.placements, road => this.interceptLitter(road));
+      [...this.placements, ...this.placedHomes], road => this.interceptLitter(road));
     if (!event) return false;
     this.recordEnvironmentEvent(event);
     return true;
@@ -1251,7 +1360,7 @@ export class GameStore {
   }
 
   upgrade(type: keyof PermanentUpgrades): boolean {
-    if (this.phase === 'playing') return false;
+    if (this.phase === 'playing' || this.phase === 'founding') return false;
     const level = this.legacy.upgrades[type];
     const baseCost = type === 'savings' ? 20 : 30;
     const cost = baseCost * (level + 1);
@@ -1270,10 +1379,12 @@ export class GameStore {
     this.notify();
   }
   toggleSpeed(): void {
+    if (this.phase !== 'playing') return;
     this.gameSpeed = this.gameSpeed === 1 ? 2 : 1;
     this.notify();
   }
   toggleWorkshop(): void {
+    if (this.phase === 'founding') return;
     this.workshopOpen = !this.workshopOpen;
     this.notify();
   }
@@ -1283,4 +1394,9 @@ export class GameStore {
   }
 }
 
-export const store = new GameStore();
+// Historical automated tests may opt into the old six-home benchmark. This
+// switch is unavailable on production GitHub Pages.
+export const store = new GameStore(
+  typeof window !== 'undefined' && import.meta.env.DEV &&
+  new URLSearchParams(window.location.search).has('referenceTown')
+);

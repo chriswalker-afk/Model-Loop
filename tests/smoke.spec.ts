@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('Vintage scene and controls initialize without browser errors', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('#game-container canvas')).toBeVisible();
   await expect(page.locator('.meter')).toHaveCount(4);
   await expect(page.locator('.model-box')).toHaveCount(6);

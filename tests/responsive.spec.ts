@@ -25,7 +25,7 @@ for (const screen of screens) {
     await page.setViewportSize({ width: screen.width, height: screen.height });
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.goto('/');
+    await page.goto('/?referenceTown=1');
     const canvas = page.locator('#game-container canvas');
     await expect(canvas).toBeVisible();
     await expect(page.locator('.model-box')).toHaveCount(6);
@@ -115,7 +115,7 @@ for (const screen of screens) {
 
 test('phone touch swipes do not accidentally purchase a selected miniature', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.getByRole('button', { name: /Select Gas Lamppost/ }).click();
   const pan = page.locator('#town-pan');
   const start = await pointOnTown(page, 5, 5);
@@ -136,7 +136,7 @@ test('switching from phone to laptop refreshes Phaser scale without breaking pla
   await page.setViewportSize({ width: 390, height: 844 });
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const before = await page.locator('#game-container canvas').boundingBox();
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect.poll(async () => {
@@ -157,7 +157,7 @@ test('the far side of the town is tappable after horizontal panning on a phone',
   await page.setViewportSize({ width: 390, height: 844 });
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.getByRole('button', { name: /Select Park Bench/ }).click();
   const pan = page.locator('#town-pan');
   const position = await pan.evaluate(el => {

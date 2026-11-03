@@ -122,7 +122,7 @@ test('every household action has a distinct personal reason and response',()=>{
 });
 
 test('household notebook explains real driving habit without adding a permanent HUD',async({page})=>{
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.locator('[data-resident="0"]').first().click();
   await expect(page.locator('#household-detail')).toContainText('Behind the wheel');
   await expect(page.locator('#household-detail')).toContainText('Prefer a lively pace');

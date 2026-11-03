@@ -103,7 +103,7 @@ test('passing-lane vehicles cannot drive through other passing vehicles', () => 
 });
 
 test('initial driving position is on the left of the eastbound road',async({page})=>{
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const cars = await page.evaluate(()=>(
     window as typeof window & {
       __modelLoopDebug:{trafficSnapshot:()=>Array<{lane:string;laneOffset:number;phase:string}>}

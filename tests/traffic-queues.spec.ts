@@ -114,7 +114,7 @@ test('seeded stops are bounded, do not overlap, and expire only with simulated t
 });
 
 test('queue delays affect irritation and real safety, but not coins without a completed lap',()=>{
-  const store=new GameStore();store.newRun(12);
+  const store=new GameStore(true);store.newRun(12);
   const balance=store.money, baseSafety=store.safety;
   const initial=store.residents[0].irritation;
   store.reportTrafficFlow([{residentId:0,cell:{x:3,y:3},delaySeconds:1.5}]);
@@ -136,7 +136,7 @@ test('real road stop appears on screen, creates a physical queue, then clears',a
   await page.setViewportSize({width:1440,height:900});
   const errors:string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const result=await page.evaluate(()=>{
     const debug=(window as typeof window & {
       __modelLoopDebug:{trafficStop:(id:number,duration?:number)=>boolean;
@@ -186,7 +186,7 @@ test('real road stop appears on screen, creates a physical queue, then clears',a
 
 test('short landscape still shows a readable town and compact queue status',async({page})=>{
   await page.setViewportSize({width:1266,height:548});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page).toHaveTitle(/The Generational Cycle/);
   const triggered=await page.evaluate(()=>(
     window as typeof window & {
