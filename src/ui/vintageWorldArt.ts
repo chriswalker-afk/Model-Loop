@@ -430,6 +430,75 @@ export const sceneryDimensions: Record<SceneryVariant,{width:number;height:numbe
   'oak-c': {width:136,height:128}
 };
 
+/**
+ * Formal side elevation of the same 1908 landaulette coachwork, composed from
+ * this library's ivory/brass engraving palette. Town cars are top-down to
+ * convey road position; the chapter plate needs a proper side-profile model
+ * rather than tipping that top-down texture on its edge.
+ */
+export function chapterMotorcarSvg():string {
+  const tyre=(cx:number):string=>{
+    let spokes='';
+    for(let i=0;i<12;i++){
+      const angle=i*Math.PI/6;
+      const outerX=(cx+16.1*Math.cos(angle)).toFixed(2);
+      const outerY=(103+16.1*Math.sin(angle)).toFixed(2);
+      spokes+=strokePath('M'+cx+' 103L'+outerX+' '+outerY,.76,E.pale,.84);
+    }
+    return '<circle cx="'+cx+'" cy="103" r="21" fill="#0B120D" '+
+      'stroke="'+E.ink+'" stroke-width="2.1"/>'+
+      '<circle cx="'+cx+'" cy="103" r="17.6" stroke="'+E.pale+
+      '" stroke-width=".9"/>'+spokes+
+      '<circle cx="'+cx+'" cy="103" r="3.9" fill="#4A4330" stroke="'+
+      E.brass+'" stroke-width="1"/>';
+  };
+  return wrap(264,142,
+    '<ellipse cx="135" cy="127" rx="119" ry="9" fill="'+E.shadow+
+      '" opacity=".64"/>'+
+    // Exposed frame/side steps and rear luggage basket.
+    filledPath('M10 90 34 85 215 85 247 94 246 105 17 105Z','#232B23',1.6)+
+    filledPath('M20 92h211l-15 5H29Z','#3B4034',1.05)+
+    strokePath('M30 92h177m-180 6h179M44 105h158',.88,E.brass,.85)+
+    filledPath('M9 72h25v27H9Z','#2C372D')+
+    strokePath('M12 74h20m-19 6h19m-19 6h19m-19 6h19',.85,E.pale)+
+    // Carriage body and tall landaulette canopy.
+    filledPath('M35 62h139l23 12v25H35Z','#333B32',1.85)+
+    filledPath('M49 30 66 23h96l16 10v43H49Z','#303B32',1.7)+
+    filledPath('M43 33 64 18h101l19 16-7 5H53Z','#3D4136',1.5)+
+    strokePath('M64 23h99M51 36h126',1.1,E.brass,.85)+
+    // Three divided coach windows with visible brass mullions.
+    filledPath('M60 39h35v30H60Z','#1B3028',1.1)+
+    filledPath('M98 39h32v30H98Z','#1B3028',1.1)+
+    filledPath('M133 39h32v30h-32Z','#1B3028',1.1)+
+    strokePath('M78 39v30M114 39v30M149 39v30M60 53h105',1.2,E.pale,.82)+
+    strokePath('M64 43l9 8m4-9 8 12m17-11 10 11m22-11 10 11',.68,E.muted,.7)+
+    // Door seams, side handles, roof strap and brass door clasps.
+    strokePath('M97 36v60M132 36v60M49 77h128m-98 5h7m26 0h7m29 0h7',
+      1.2,E.ink,.88)+
+    strokePath('M48 29l15-11 97 0 17 10M52 31h125',.9,E.brass,.8)+
+    '<circle cx="84" cy="82" r="1.8" fill="'+E.brass+'"/>'+
+    '<circle cx="118" cy="82" r="1.8" fill="'+E.brass+'"/>'+
+    // Scrolled bonnet, front windscreen, front radiator and lamps.
+    filledPath('M178 66 214 69 241 77v18h-57Z','#3D4338',1.7)+
+    strokePath('M182 70h31m-29 7h49m-49 7h51M183 90h52',.84,E.pale,.86)+
+    filledPath('M239 71h8v28h-8Z','#1C271E',1.35)+
+    strokePath('M241 74v22m3-21v20',.86,E.brass,.9)+
+    strokePath('M179 35l6 37M182 39l-4-4m7 37 5 4',1.5,E.ink)+
+    '<circle cx="237" cy="64" r="4.4" fill="#443D2A" stroke="'+
+      E.brass+'" stroke-width="1.4"/>'+
+    '<circle cx="245" cy="68" r="2.3" fill="'+E.brass+'"/>'+
+    // Side fenders are structural arches over both real spoked wheels.
+    strokePath('M35 100q2-28 27-29q26 0 31 29',2.25,E.ink)+
+    strokePath('M165 100q3-28 28-29q27 0 31 29',2.25,E.ink)+
+    strokePath('M38 99q5-23 24-24q20-1 27 24M169 99q5-23 24-24q20-1 27 24',
+      .75,E.brass,.72)+
+    tyre(64)+tyre(195)+
+    strokePath('M28 106h12m46 0h87m44 0h16',1.65,E.ink,.8)+
+    '<text x="132" y="135" text-anchor="middle" font-family="Georgia,serif" '+
+    'font-size="7.2" letter-spacing="2" fill="'+E.pale+
+    '">MOTOR CARRIAGE · 1908</text>');
+}
+
 export const carTextureKey=(index:number):string=>'vintage-car-'+index;
 export const houseTextureKey=(index:number):string=>'vintage-house-'+index;
 export const sceneryTextureKey=(variant:SceneryVariant):string=>'vintage-scenery-'+variant;

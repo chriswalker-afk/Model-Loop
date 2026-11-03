@@ -204,15 +204,13 @@ button:disabled { opacity: 0.42; cursor: not-allowed; }
 .upgrade button:not(:disabled):hover,.dialog-actions button:hover,.dialog-main:hover { background: #4c604f; }
 .dialog .dialog-footnote { color: #8f9b8f; font-size: 11px; margin: 15px 0 22px; }
 .dialog-main { background: #b9c4aa; color: #132017; border-color: #b9c4aa; }
+/* The obsolete CSS car/moon prototypes were removed in 7E.
+ * The end-of-chapter artwork is now the shared period motorcar SVG. */
 .story-frame {
   height: 110px; border: 1px solid #6e7668; margin: 20px 0 17px;
   position: relative; overflow: hidden;
   background: radial-gradient(circle at 50% 85%,#353a2c,#111816 62%);
 }
-.story-frame::before { content: ''; position: absolute; left: 12%; right: 12%; bottom: 30px; height: 1px; background: #c4c7ae; }
-.story-moon { width: 31px; height: 31px; border: 1px solid #ccc4a6; border-radius: 50%; position: absolute; left: 35%; top: 16px; }
-.story-car { position: absolute; width: 65px; height: 25px; border: 1px solid #e0dbc7; bottom: 31px; left: calc(50% - 32px); border-radius: 20px 20px 3px 3px; }
-.story-car::after { content: ''; position: absolute; width: 11px; height: 11px; border: 2px solid #d8cdb2; background: #111816; border-radius: 50%; bottom: -7px; left: 9px; box-shadow: 37px 0 0 -1px #111816, 37px 0 0 1px #d8cdb2; }
 .story-frame span { position: absolute; bottom: 7px; left: 0; right: 0; font: 9px system-ui,sans-serif; color: #9eaa9a; letter-spacing: .14em; }
 .dialog .story-quote { font-size: 16px; font-style: italic; color: #e1dac4; }
 .result-grid { display: grid; grid-template-columns: repeat(3,1fr); padding: 14px 0; border-top: 1px solid #586257; border-bottom: 1px solid #586257; gap: 10px; }

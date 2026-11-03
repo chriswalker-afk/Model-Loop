@@ -1,0 +1,349 @@
+/*
+ * Pass 7E — final museum-label craftsmanship, state parity and accessibility.
+ * This layer is intentionally scoped to actual Vintage components rather
+ * than adding more generic selectors to the heavily layered legacy styles.
+ * Keep scene paint static, CSS layout native and all ornament aria-hidden.
+ */
+:root {
+  --v-finish-ivory: #e9e2d5;
+  --v-finish-muted: #b8b2a5;
+  --v-finish-brass: #d9b66b;
+  --v-finish-shadow: #101411;
+  --v-finish-green: #9fc99c;
+  --v-finish-warning: #de9990;
+}
+.vintage-inspector .environment-notes {
+  border-top: 1px solid rgba(233,226,213,.28);
+  color: var(--v-finish-ivory);
+}
+.vintage-inspector .environment-note {
+  align-items: flex-start;
+  padding: 7px 0;
+  gap: 8px;
+}
+.vintage-inspector .environment-mark {
+  flex: 0 0 27px;
+  width: 27px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(233,226,213,.34);
+  border-radius: 2px;
+  background: linear-gradient(155deg,#293029,#111812);
+  color: var(--v-finish-ivory);
+  overflow: hidden;
+}
+.vintage-event-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 30px;
+  aspect-ratio: 72 / 62;
+  object-fit: contain;
+  overflow: visible;
+}
+.vintage-inspector .environment-mark .vintage-event-icon {
+  width: 26px;
+  height: 23px;
+}
+.vintage-inspector .environment-note strong {
+  font-family: Georgia,'Times New Roman',serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v-finish-ivory);
+  line-height: 1.3;
+}
+.vintage-inspector .environment-note small,
+.vintage-inspector .environment-note p {
+  font-family: system-ui,sans-serif;
+  color: var(--v-finish-muted);
+  line-height: 1.5;
+}
+.vintage-inspector .environment-note + .environment-note {
+  border-top: 1px solid rgba(233,226,213,.16);
+}
+.vintage-inspector .accident-notes .environment-mark {
+  border-color: rgba(222,153,144,.63);
+}
+.vintage-inspector .activity-notes .environment-mark {
+  border-color: rgba(217,182,107,.60);
+}
+
+/* Antique woodcut/museum label treatment for workshop and conclusion. */
+.modal:has(.vintage-dialog) {
+  background:
+    radial-gradient(ellipse at 51% 30%,rgba(92,95,78,.16),transparent 64%),
+    rgba(5,8,6,.90);
+  backdrop-filter: blur(2px);
+}
+.dialog.vintage-dialog {
+  position: relative;
+  isolation: isolate;
+  width: min(100%,620px);
+  max-height: min(93dvh,840px);
+  margin: auto;
+  padding: clamp(19px,3.4vw,36px);
+  background:
+    repeating-linear-gradient(0deg,transparent 0 28px,rgba(233,226,213,.013) 28px 29px),
+    linear-gradient(145deg,#2A302A,#161C17 68%,#222821);
+  color: var(--v-finish-ivory);
+  border: 1.2px solid rgba(233,226,213,.86);
+  border-radius: 7px;
+  outline: none;
+  box-shadow:
+    inset 0 0 0 4px #141A16,
+    inset 0 0 0 5px rgba(184,178,165,.55),
+    0 18px 65px rgba(0,0,0,.73);
+  scrollbar-color: #838474 #171D18;
+  scrollbar-width: thin;
+}
+.vintage-dialog > .vintage-frame-corners {
+  inset: 3px;
+  z-index: 0;
+  pointer-events: none;
+}
+.vintage-dialog .vintage-frame-corner {
+  width: 29px;
+  height: 29px;
+}
+.vintage-dialog > :not(.vintage-frame-corners) {
+  position: relative;
+  z-index: 1;
+}
+.vintage-dialog > .eyebrow {
+  display: block;
+  margin-top: 2px;
+  color: var(--v-finish-brass);
+  font: 600 10px/1.4 system-ui,sans-serif;
+  letter-spacing: .17em;
+}
+.vintage-dialog h2 {
+  color: var(--v-finish-ivory);
+  font: 500 clamp(27px,3.3vw,39px)/1.12 Georgia,'Times New Roman',serif;
+  letter-spacing: .005em;
+  margin: 7px 0 15px;
+}
+.vintage-dialog h2:focus { outline: none; }
+.vintage-dialog h2:focus-visible {
+  /* The keyboard focus remains visible, but as a fine antique brass
+     registration rule instead of an unrelated modern blue rectangle. */
+  outline: 1.5px solid var(--v-finish-brass);
+  outline-offset: 4px;
+  box-shadow: 0 0 0 2px rgba(233,226,213,.06);
+}
+.vintage-dialog p {
+  color: var(--v-finish-muted);
+  font: 13px/1.55 system-ui,sans-serif;
+}
+.vintage-dialog .workbench-engraving {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 104px;
+  margin: 10px auto 18px;
+  border: 1px solid rgba(233,226,213,.38);
+  border-radius: 3px;
+  background:
+    linear-gradient(0deg,rgba(233,226,213,.065),transparent 55%),
+    #121915;
+  box-shadow: inset 0 0 0 4px rgba(11,16,12,.7);
+}
+.vintage-dialog .workbench-engraving::before {
+  content: '';
+  position: absolute;
+  bottom: 21px;
+  left: 15%;
+  width: 70%;
+  height: 1px;
+  background: rgba(233,226,213,.52);
+}
+.vintage-dialog .workbench-engraving .miniature-svg {
+  position: absolute;
+  top: -11px;
+  height: 101px;
+  width: 132px;
+  max-width: 65%;
+  filter: drop-shadow(0 5px 4px #090d0b);
+}
+.vintage-dialog .workbench-engraving > span {
+  align-self: end;
+  justify-self: center;
+  margin-bottom: 5px;
+  color: var(--v-finish-muted);
+  font: 9px/1.1 Georgia,serif;
+  letter-spacing: .12em;
+}
+.vintage-dialog .blueprint-wallet {
+  border: 1px solid rgba(233,226,213,.55);
+  border-radius: 3px;
+  color: var(--v-finish-ivory);
+  background: rgba(9,13,10,.47);
+  margin: 17px 0 8px;
+}
+.vintage-dialog .blueprint-wallet strong {
+  color: var(--v-finish-brass);
+}
+.vintage-dialog .upgrade {
+  border-top: 1px solid rgba(233,226,213,.24);
+}
+.vintage-dialog .upgrade h3 {
+  color: var(--v-finish-ivory);
+}
+.vintage-dialog button {
+  min-height: 42px;
+  background: linear-gradient(160deg,#323B30,#1B231C);
+  border: 1px solid rgba(233,226,213,.67);
+  border-radius: 3px;
+  color: var(--v-finish-ivory);
+  font: 600 12px/1.2 system-ui,sans-serif;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.vintage-dialog button:not(:disabled):hover {
+  background: #394539;
+  border-color: var(--v-finish-ivory);
+}
+.vintage-dialog button:disabled {
+  opacity: .73;
+  background: #252B24;
+  color: var(--v-finish-muted);
+  border-color: rgba(233,226,213,.36);
+}
+.vintage-dialog button:focus-visible,
+.vintage-dialog summary:focus-visible {
+  outline: 3px solid var(--vintage-community,#A9CAE0);
+  outline-offset: 2px;
+}
+.vintage-dialog .dialog-main {
+  color: #19211A;
+  background: var(--v-finish-ivory);
+  border-color: var(--v-finish-ivory);
+  font-weight: 750;
+}
+.vintage-dialog .dialog-main:not(:disabled):hover {
+  background: #D5D1C3;
+}
+.vintage-dialog .workbench-diary,
+.vintage-dialog .workbench-ledger {
+  background: rgba(11,16,13,.51);
+  border: 1px solid rgba(233,226,213,.34);
+}
+.vintage-dialog .workbench-diary summary,
+.vintage-dialog .workbench-ledger summary {
+  color: var(--v-finish-ivory);
+  font-size: 12px;
+}
+.vintage-dialog .workbench-diary summary:hover,
+.vintage-dialog .workbench-ledger summary:hover {
+  background: rgba(233,226,213,.06);
+}
+.vintage-dialog .workbench-ledger dd,
+.vintage-dialog .result-grid strong {
+  color: var(--v-finish-brass);
+}
+.vintage-dialog .workbench-diary li::marker {
+  color: var(--v-finish-brass);
+}
+.vintage-dialog .story-frame.vintage-story-frame {
+  position: relative;
+  height: 146px;
+  overflow: hidden;
+  margin: 12px 0 18px;
+  border: 1px solid rgba(233,226,213,.55);
+  border-radius: 3px;
+  background:
+    linear-gradient(0deg,rgba(71,87,68,.14),transparent 63%),
+    repeating-linear-gradient(90deg,transparent 0 25px,rgba(184,178,165,.09) 25px 26px),
+    #141916;
+}
+.vintage-dialog .vintage-story-frame::before {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 32px;
+  height: 1px;
+  background: repeating-linear-gradient(90deg,
+    rgba(233,226,213,.55) 0 18px,transparent 18px 28px);
+}
+.vintage-dialog .vintage-story-frame .story-vehicle {
+  position: absolute;
+  left: 50%;
+  bottom: 31px;
+  transform: translateX(-50%);
+  width: clamp(145px,34%,210px);
+  height: 107px;
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 5px 7px rgba(0,0,0,.76));
+  pointer-events: none;
+}
+.vintage-dialog .story-vehicle svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.vintage-dialog .story-frame span {
+  position: absolute;
+  bottom: 7px;
+  left: 0;
+  right: 0;
+  color: var(--v-finish-muted);
+  font: 9px/1.2 Georgia,serif;
+  letter-spacing: .13em;
+}
+.vintage-dialog .story-quote {
+  color: var(--v-finish-ivory);
+  font: italic clamp(14px,2.6vw,17px)/1.5 Georgia,serif;
+}
+.vintage-dialog .story-coda,
+.vintage-dialog .ledger-hint {
+  color: var(--v-finish-muted);
+}
+.vintage-dialog .result-grid {
+  border-top: 1px solid rgba(233,226,213,.47);
+  border-bottom: 1px solid rgba(233,226,213,.47);
+  margin-top: 16px;
+}
+.vintage-dialog .result-grid span {
+  color: var(--v-finish-muted);
+}
+
+/* Small-screen experience must remain readable at 200% zoom, with content
+ * scrolling inside the modal and without controls slipping behind the dock.
+ */
+@media (max-width:700px) {
+  .modal:has(.vintage-dialog) {
+    padding: max(8px,env(safe-area-inset-top))
+      max(8px,env(safe-area-inset-right))
+      max(8px,env(safe-area-inset-bottom))
+      max(8px,env(safe-area-inset-left));
+  }
+  .dialog.vintage-dialog {
+    width: min(100%,620px);
+    max-height: min(95dvh,830px);
+    padding: 19px 17px 20px;
+  }
+  .vintage-dialog h2 { font-size: clamp(25px,5.8vw,33px); }
+  .vintage-dialog .upgrade { gap: 8px; flex-wrap: wrap; }
+  .vintage-dialog .upgrade button {
+    min-height: 44px;
+    white-space: normal;
+  }
+  .vintage-dialog .dialog-actions button,
+  .vintage-dialog .dialog-main {
+    min-height: 44px;
+    white-space: normal;
+  }
+  .vintage-dialog .result-grid {
+    gap: 6px;
+    padding: 10px 0;
+  }
+  .vintage-dialog .result-grid strong { font-size: 21px; }
+  .vintage-dialog .result-grid span { font-size: 10px; }
+  .vintage-dialog .workbench-engraving { height: 92px; }
+  .vintage-dialog .vintage-story-frame.story-frame { height: 119px; }
+  .vintage-dialog .vintage-story-frame .story-vehicle { height: 88px; bottom: 24px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .vintage-dialog button { transition: none; }
+  .vintage-dialog .story-vehicle { animation: none; }
+}

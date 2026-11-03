@@ -4,6 +4,33 @@
 
 A miniature town-building roguelite about generations of fathers and sons making models together. Cars belonging to six households circle an irregular, grid-aligned road, generating coins and getting irritated by their surroundings. When too many houses close, the run ends, but permanent Blueprints persist.
 
+## Final Vintage art coherence — Pass 7E
+
+The entire **1908 visual system now shares fine-engraved artwork**:
+in addition to the kit cartons, HUD, Edwardian cars and houses, the
+**ten roadside traces, eight resident activities, accident seals and
+care-state markers** have matching original miniature vectors in both
+the town and Selected Tile inspector. They are cached once and reused,
+with no new simulation hitboxes or changes to resident behaviour.
+
+The Family Workshop now displays the canonical Gas Lamppost miniature;
+the chapter result displays a **side-profile Edwardian landaulette**
+from the same car-art library as the playable town (whose traffic views
+are correctly top-down). Keyboard-accessible dialogs keep focus during live
+updates and return it to the prior control when closed. A dedicated
+[Vintage finish stylesheet](src/styles/vintage-finish.css) handles the
+final engraving/touch/contrast details, rather than another unrelated
+append to the legacy layout file.
+
+See the [7E implementation and QA record]
+(docs/art-direction/PASS_7E_FINAL_POLISH.md) for screenshot gates,
+remaining intentionally preserved legacy layout CSS, and final checks.
+
+**Next after this pass is merged: a release-readiness playtest of the
+complete Vintage chapter**, covering actual desktop/touch controls,
+shop browsing, left-hand overtaking, incidents, repairs and chapter
+progression. Then fix targeted issues before expanding to new eras.
+
 ## Edwardian miniature town — Pass 7D
 
 The playable town now uses the same fine-engraved 1908 visual language as the

@@ -2,6 +2,10 @@ import { Scene } from 'phaser';
 import { BOARD, EFFECT_RADIUS, HOMES, MODELS, isOnBoard, manhattanDistance, ROAD_CELLS, SCENERY_CELLS, worldPoint, type Cell, type ModelId } from './config';
 import { miniatureDataUri, miniatureTextureKey, MODEL_ART_WIDTH, MODEL_ART_HEIGHT } from '../ui/modelArt';
 import {
+  eventArtIds, eventDataUri, eventTextureKey, EVENT_ART_SIZE,
+  type EventArtId
+} from '../ui/vintageEventArt';
+import {
   carSvg, carTextureKey, carVariants, houseSvg, houseTextureKey,
   scenerySvg, sceneryTextureKey, sceneryVariants, sceneryDimensions,
   worldSvgDataUri, WORLD_CAR_SIZE, WORLD_HOUSE_SIZE
@@ -12,7 +16,6 @@ import type { RoadsideIncident } from './damage';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
 import { type EnvironmentalEvent, type LivingEnvironment } from './environment';
 import { householdActionPair, type BehaviourReport } from './behaviors';
-import { type ActiveActivity } from './activities';
 import type { NeighbourNote } from './neighbours';
 import { bendSpeedMultiplier, drivingProfile, type DrivingProfile } from './driving';
 import {
@@ -78,6 +81,9 @@ export class TownScene extends Scene {
   private kitGhost!: Phaser.GameObjects.Image;
   private houseSprites: Phaser.GameObjects.Image[] = [];
   private scenerySprites: Phaser.GameObjects.Image[] = [];
+  // 22 small engraved props shared with the inspector. One sprite per active
+  // trace/activity/incident or model-care state, reused on every store notify.
+  private eventSprites = new Map<string, Phaser.GameObjects.Image>();
 
   constructor() { super('TownScene'); }
 
@@ -116,6 +122,12 @@ export class TownScene extends Scene {
         width: size.width * 2, height: size.height * 2
       });
     }
+    for (const id of eventArtIds) {
+      const key = eventTextureKey(id);
+      if (!this.textures.exists(key)) this.load.svg(key,eventDataUri(id),{
+        width:EVENT_ART_SIZE.width*2,height:EVENT_ART_SIZE.height*2
+      });
+    }
   }
 
   create(): void {
@@ -137,6 +149,7 @@ export class TownScene extends Scene {
     this.highlightLayer = this.add.graphics().setDepth(7);
     this.ghostLayer = this.add.graphics().setDepth(6).setAlpha(0.68);
     this.kitSprites.clear();
+    this.eventSprites.clear();
     this.kitGhost = this.add.image(0, 0, miniatureTextureKey('lamp'))
       .setDisplaySize(56, 45).setDepth(6).setVisible(false);
     this.trafficLayer = this.add.graphics().setDepth(19);
@@ -194,6 +207,7 @@ export class TownScene extends Scene {
       this.kitSprites.clear(); // Phaser scene shutdown destroys images.
       this.scenerySprites = [];
       this.houseSprites = [];
+      this.eventSprites.clear();
     });
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
@@ -424,6 +438,21 @@ export class TownScene extends Scene {
     }
   }
 
+  /** Real active prop art, not a screenshot-only mock; dev QA diagnostic. */
+  eventArtSnapshot() {
+    return {
+      loaded:eventArtIds.map(eventTextureKey).filter(key=>this.textures.exists(key)),
+      sprites:[...this.eventSprites.entries()].map(([id,image])=>({
+        id,texture:image.texture.key,x:image.x,y:image.y,
+        alpha:image.alpha,depth:image.depth,width:image.displayWidth,
+        height:image.displayHeight
+      })),
+      environmentCount:store.environment.effects.length,
+      activityCount:store.activities.active.length,
+      incidentCount:store.accidents.active.length
+    };
+  }
+
   /** Small read-only visual diagnostics, available to dev browser QA only. */
   worldArtSnapshot() {
     return {
@@ -560,223 +589,93 @@ export class TownScene extends Scene {
     });
   }
 
+  /**
+   * Draw only state overlays and movement connections. Each miniature prop is
+   * a reused cached SVG sprite, NEVER a generic geometric substitute.
+   * No additional gameplay collision area or pointer target is created.
+   */
   private drawEnvironment(): void {
-    const g = this.environmentLayer;
+    const g=this.environmentLayer;
     g.clear();
-    for (const effect of store.environment.effects) {
-      const { x, y } = worldPoint(effect.cell);
-      const variant = effect.id % 3;
-      if (effect.kind === 'litter') {
-        // Tiny scattered envelopes and wrappers, on the grass rather than on cars.
-        g.fillStyle(0xc6c2b0, 0.8);
-        g.fillTriangle(x - 13, y + 3, x - 5, y - 1 - variant, x - 4, y + 7);
-        g.fillStyle(0xb5aa92, 0.8);
-        g.fillRect(x + 4, y - 6, 9, 5);
-        g.lineStyle(1.1, 0xeee4cb, 0.72);
-        g.lineBetween(x + 4, y - 6, x + 13, y - 1);
-        g.lineBetween(x - 1, y + 9, x + 6, y + 11);
-      } else if (effect.kind === 'flowers') {
-        const offset = variant * 2;
-        g.lineStyle(1.5, 0x99bca4, 0.92);
-        g.lineBetween(x - 8, y + 12, x - 8, y - 2 - offset);
-        g.lineBetween(x + 6, y + 11, x + 6, y - 5);
-        g.lineBetween(x - 8, y + 7, x - 13, y + 1);
-        g.lineBetween(x + 6, y + 6, x + 12, y + 2);
-        const petals = [
-          [x - 8, y - 4 - offset], [x + 6, y - 8],
-          [x + 13, y - 1]
-        ];
-        for (const [px, py] of petals) {
-          g.fillStyle(0xd3c8a5, 0.95);
-          g.fillCircle(px - 3, py, 3);
-          g.fillCircle(px + 3, py, 3);
-          g.fillCircle(px, py - 3, 3);
-          g.fillCircle(px, py + 3, 3);
-          g.fillStyle(palette.gold, 1);
-          g.fillCircle(px, py, 1.8);
-        }
-      } else if (effect.kind === 'skid') {
-        // The Finches have left chalk tyre scuffs across the road.
-        g.lineStyle(3, palette.danger, 0.63);
-        g.lineBetween(x - 18, y - 7, x - 8, y - 11);
-        g.lineBetween(x - 8, y - 11, x + 11, y - 6);
-        g.lineBetween(x - 18, y + 2, x - 8, y - 2);
-        g.lineBetween(x - 8, y - 2, x + 11, y + 3);
-        g.lineStyle(1.1, palette.chalk, 0.5);
-        g.strokeCircle(x + 16, y - 14, 4);
-      } else if (effect.kind === 'courtesy') {
-        // The Finches' lightly etched path marks a smooth way through a bend.
-        g.lineStyle(2.1, palette.mint, 0.88);
-        g.lineBetween(x - 11, y - 5, x - 2, y);
-        g.lineBetween(x - 2, y, x - 11, y + 5);
-        g.lineBetween(x + 3, y - 5, x + 12, y);
-        g.lineBetween(x + 12, y, x + 3, y + 5);
-        g.lineStyle(1, palette.chalk, 0.7);
-        g.strokeCircle(x, y, 15);
-      } else if (effect.kind === 'mended') {
-        // An etched rectangular road-repair patch with little stitches.
-        g.fillStyle(0x667367, 0.35);
-        g.fillRoundedRect(x - 15, y - 12, 30, 24, 3);
-        g.lineStyle(1.3, palette.mint, 0.88);
-        g.strokeRoundedRect(x - 15, y - 12, 30, 24, 3);
-        for (let t = -8; t <= 8; t += 8) {
-          g.lineBetween(x + t - 2, y - 11, x + t + 3, y - 7);
-          g.lineBetween(x + t - 2, y + 8, x + t + 3, y + 12);
-        }
-      } else if (effect.kind === 'tidied') {
-        // A little neat sweep and sparkling cleared grass.
-        g.lineStyle(2, palette.mint, 0.9);
-        g.lineBetween(x - 13, y + 6, x + 12, y + 6);
-        g.lineBetween(x - 9, y + 11, x + 8, y + 11);
-        g.lineBetween(x - 11, y + 3, x - 11, y - 5);
-        g.lineBetween(x - 15, y - 1, x - 7, y - 1);
-        g.fillStyle(0xe2dab7, 0.93);
-        g.fillCircle(x + 12, y - 6, 2.5);
-      } else if (effect.kind === 'heritage') {
-        // A small restored iron/plaque miniature beside the street.
-        g.lineStyle(1.5, palette.chalk, 0.85);
-        g.strokeRect(x - 12, y - 14, 24, 22);
-        g.lineBetween(x - 8, y - 8, x + 8, y - 8);
-        g.lineBetween(x - 8, y - 2, x + 4, y - 2);
-        g.lineBetween(x, y + 8, x, y + 15);
-        g.strokeCircle(x, y + 16, 2.5);
-        g.fillStyle(palette.gold, 0.7);
-        g.fillCircle(x + 7, y + 3, 3);
-      } else if (effect.kind === 'display') {
-        // A heritage display/notice board drawing cars toward it.
-        g.fillStyle(0x5b6355, 0.58);
-        g.fillRoundedRect(x - 14, y - 13, 28, 22, 2);
-        g.lineStyle(2, palette.gold, 0.92);
-        g.strokeRoundedRect(x - 14, y - 13, 28, 22, 2);
-        g.lineBetween(x - 9, y - 6, x + 9, y - 6);
-        g.lineBetween(x - 9, y + 1, x + 6, y + 1);
-        g.lineBetween(x - 9, y + 9, x - 9, y + 16);
-        g.lineBetween(x + 9, y + 9, x + 9, y + 16);
-      } else if (effect.kind === 'sketch') {
-        // The Bells have left a small framed, pencil-drawn streetscape.
-        g.fillStyle(0x343c35, 0.85);
-        g.fillRoundedRect(x - 13, y - 14, 26, 25, 2);
-        g.lineStyle(2.1, palette.gold, 0.88);
-        g.strokeRoundedRect(x - 13, y - 14, 26, 25, 2);
-        g.lineStyle(1.2, palette.chalk, 0.9);
-        g.lineBetween(x - 8, y + 4, x - 2, y - 4);
-        g.lineBetween(x - 2, y - 4, x + 5, y + 1);
-        g.lineBetween(x + 5, y + 1, x + 9, y - 6);
-        g.strokeCircle(x - 6, y - 7, 2);
-        g.lineBetween(x, y + 11, x, y + 16);
-      } else if (effect.kind === 'guidance') {
-        // The Wards leave a small, temporary safe-way marker.
-        g.lineStyle(2, palette.mint, 0.94);
-        g.lineBetween(x - 12, y + 2, x + 12, y + 2);
-        g.lineBetween(x + 12, y + 2, x + 5, y - 6);
-        g.lineBetween(x + 12, y + 2, x + 5, y + 10);
-        g.strokeCircle(x - 8, y - 7, 4);
-      }
-    }
-    // Tiny hand-drawn props make the activity physically visible throughout
-    // setup, the main event and packing away; never a second floating HUD.
-    for (const activity of store.activities.active) this.drawActivity(g, activity);
+    this.syncEventSprites();
     for (const incident of store.accidents.active) {
-      const point=worldPoint(incident.road);
+      const road=worldPoint(incident.road);
       const target=worldPoint(incident.model);
-      g.fillStyle(palette.danger,.18);
-      g.fillCircle(point.x,point.y,15);
-      g.lineStyle(1.7,palette.gold,.85);
-      g.strokeTriangle(point.x-11,point.y+9,point.x+11,point.y+9,point.x,point.y-12);
-      g.lineBetween(point.x,point.y-5,point.x,point.y+2);
-      g.fillCircle(point.x,point.y+5,1.5);
-      g.lineStyle(1.3,palette.danger,.7);
-      g.lineBetween(point.x,point.y,target.x,target.y);
-      g.strokeCircle(target.x,target.y,18);
+      g.lineStyle(1.05,palette.danger,.57);
+      g.lineBetween(road.x,road.y,target.x,target.y);
+      g.lineStyle(.85,palette.chalk,.55);
+      g.strokeCircle(target.x,target.y,14);
+    }
+    for (const activity of store.activities.active) {
+      const point=worldPoint(activity.cell);
+      // Three engraved ticks show set-up / underway / packing without
+      // cartoon dots or an extra HUD. The activity scene is still a prop.
+      const count=activity.phase==='setting-up'?1:
+        activity.phase==='underway'?2:3;
+      g.lineStyle(1.1,palette.gold,.84);
+      for(let i=0;i<count;i++)
+        g.lineBetween(point.x-6+i*6,point.y+21,
+          point.x-3+i*6,point.y+21);
     }
     this.syncActivityLabels();
   }
 
-  private drawActivity(g: Phaser.GameObjects.Graphics, activity: ActiveActivity): void {
-    const { x, y } = worldPoint(activity.cell);
-    const preparing = activity.phase === 'setting-up';
-    const packing = activity.phase === 'packing-up';
-    const social = activity.kind === 'picnic' || activity.kind === 'gathering';
-    const meal = social || activity.kind === 'working-lunch';
-    g.fillStyle(0x39483b, .27);
-    g.fillRoundedRect(x - 17, y - 13, 34, 27, 4);
-    g.lineStyle(1, palette.chalk, .42);
-    g.strokeRoundedRect(x - 17, y - 13, 34, 27, 4);
-    if (social) {
-      // Checked picnic blanket with a basket and two small place settings.
-      g.fillStyle(0x829c82, .45);
-      g.fillRoundedRect(x - 14, y - 9, 28, 19, 2);
-      g.lineStyle(1, palette.gold, .7);
-      for (let d = -8; d <= 8; d += 8) {
-        g.lineBetween(x + d, y - 9, x + d, y + 10);
+  private syncEventSprites(): void {
+    const keys=new Set<string>();
+    const show=(key:string,art:EventArtId,x:number,y:number,
+      width:number,height:number,alpha=1,depth=1.4):void=>{
+      keys.add(key);
+      const texture=eventTextureKey(art);
+      let image=this.eventSprites.get(key);
+      if(!image){
+        image=this.add.image(x,y,texture).setDepth(depth)
+          .setDisplaySize(width,height);
+        this.eventSprites.set(key,image);
+      }else if(image.texture.key!==texture){
+        image.setTexture(texture);
       }
-      g.fillStyle(0xb9a47d, .93);
-      g.fillRoundedRect(x - 2, y - 7, 12, 9, 2);
-      g.lineStyle(1.3, palette.chalk, .95);
-      g.strokeCircle(x + 4, y - 6, 4);
-      if (!preparing && !packing) {
-        for (const dx of [-9, 11]) {
-          g.fillStyle(0xd9d9cd, .95);
-          g.fillCircle(x + dx, y + 5, 3.2);
-        }
-      }
-      if (activity.kind === 'gathering') {
-        g.lineStyle(2, palette.gold, .9);
-        g.lineBetween(x - 13, y - 15, x - 8, y - 20);
-        g.lineBetween(x + 13, y - 15, x + 8, y - 20);
-      }
-    } else if (activity.kind === 'delivery') {
-      // Delivery crates are stacked, then carried away one at a time.
-      g.fillStyle(0x947f64, .85);
-      g.fillRect(x - 13, y - 8, 13, 14);
-      if (!packing) g.fillRect(x + 2, y - 3, 12, 11);
-      g.lineStyle(1.3, palette.chalk, .8);
-      g.strokeRect(x - 13, y - 8, 13, 14);
-      if (!packing) g.strokeRect(x + 2, y - 3, 12, 11);
-      g.lineBetween(x - 13, y - 8, x, y + 6);
-    } else if (activity.kind === 'sketch') {
-      // A tiny easel, paper and a pencil.
-      g.lineStyle(1.6, palette.chalk, .95);
-      g.lineBetween(x, y - 9, x - 9, y + 14);
-      g.lineBetween(x, y - 9, x + 9, y + 14);
-      g.strokeRect(x - 10, y - 11, 20, 17);
-      g.lineBetween(x - 6, y + 1, x, y - 6);
-      g.lineBetween(x, y - 6, x + 5, y - 1);
-    } else if (activity.kind === 'heritage-visit') {
-      g.lineStyle(2, palette.gold, .9);
-      g.strokeRect(x - 10, y - 12, 20, 21);
-      g.lineStyle(1, palette.chalk, .85);
-      g.lineBetween(x - 7, y - 5, x + 7, y - 5);
-      g.lineBetween(x - 7, y + 1, x + 4, y + 1);
-      g.lineBetween(x + 11, y + 8, x + 16, y + 14);
-    } else if (activity.kind === 'safety-round') {
-      g.lineStyle(1.6, palette.mint, .93);
-      g.strokeCircle(x, y - 3, 8);
-      g.lineBetween(x - 12, y + 10, x + 12, y + 10);
-      g.lineBetween(x + 12, y + 10, x + 6, y + 4);
-      g.strokeCircle(x, y - 3, 3);
-    } else if (activity.kind === 'explore') {
-      g.lineStyle(1.4, palette.gold, .86);
-      g.strokeRoundedRect(x - 11, y - 11, 22, 23, 2);
-      g.lineBetween(x - 7, y - 6, x - 1, y + 2);
-      g.lineBetween(x - 1, y + 2, x + 8, y - 5);
-      g.strokeCircle(x - 7, y - 6, 2);
-      g.strokeCircle(x + 8, y - 5, 2);
-    } else if (meal) {
-      g.fillStyle(0xbca989, .9);
-      g.fillRoundedRect(x - 11, y - 7, 22, 15, 3);
-      g.lineStyle(1.2, palette.chalk, .93);
-      g.strokeRoundedRect(x - 11, y - 7, 22, 15, 3);
-      g.strokeCircle(x, y, 5);
-      g.lineBetween(x + 9, y - 9, x + 13, y - 12);
+      image.setPosition(x,y).setAlpha(alpha).setDepth(depth)
+        .setDisplaySize(width,height);
+    };
+    for(const effect of store.environment.effects){
+      const point=worldPoint(effect.cell);
+      show('trace:'+effect.id,`trace-${effect.kind}`,
+        point.x,point.y-1,39,34,.92,1.2);
     }
-    // The small dotted phase indicator shows work in progress without
-    // relying on text or colour alone.
-    const dots = activity.phase === 'setting-up' ? 1 :
-      activity.phase === 'underway' ? 2 : 3;
-    for (let i = 0; i < dots; i++) {
-      g.fillStyle(palette.gold, .95);
-      g.fillCircle(x - 5 + i * 5, y + 19, 1.8);
+    for(const activity of store.activities.active){
+      const point=worldPoint(activity.cell);
+      const fade=activity.phase==='underway'?1:
+        activity.phase==='setting-up'?.76:.60;
+      show('activity:'+activity.id,`activity-${activity.kind}`,
+        point.x,point.y-4,44,39,fade,2.5);
+    }
+    for(const incident of store.accidents.active){
+      const point=worldPoint(incident.model);
+      show('impact:'+incident.id,
+        incident.after==='broken'?'incident-break':'incident-damage',
+        point.x+9,point.y-25,31,27,.96,5);
+    }
+    for(const placed of store.placements){
+      const point=worldPoint(placed);
+      const condition=modelCondition(placed.condition);
+      const key='condition:'+placed.x+','+placed.y;
+      if(condition!=='intact'){
+        show(key,condition==='broken'?'incident-break':'incident-damage',
+          point.x+17,point.y-22,25,23,.94,5);
+      }
+      const care=normalizedCare(placed.care);
+      if(care!=='full'){
+        show('care:'+placed.x+','+placed.y,
+          care==='economy'?'care-economy':'care-bare',
+          point.x+18,point.y+13,23,21,.92,5);
+      }
+    }
+    // Includes old sprites from an expired trace, finished activity, repaired
+    // model or restarted scene. Never accumulate invisible game objects.
+    for(const [key,image] of this.eventSprites){
+      if(keys.has(key))continue;
+      image.destroy();
+      this.eventSprites.delete(key);
     }
   }
 
@@ -890,39 +789,36 @@ export class TownScene extends Scene {
     store.placements.forEach((placed) => {
       const point = worldPoint(placed);
       const condition=modelCondition(placed.condition);
-      if (condition!=='intact') {
+      if(condition!=='intact'){
+        // Hairline fractures on the shared physical miniature, rather than a
+        // large opaque error rectangle that hides its original illustration.
+        const ink=condition==='broken'?palette.danger:palette.gold;
+        this.modelLayer.lineStyle(condition==='broken'?1.4:1.05,ink,.82);
+        this.modelLayer.lineBetween(point.x-9,point.y-12,point.x-1,point.y-5);
+        this.modelLayer.lineBetween(point.x-1,point.y-5,point.x-6,point.y+3);
+        this.modelLayer.lineBetween(point.x-6,point.y+3,point.x+8,point.y+11);
         if(condition==='broken'){
-          // Darken the once-functional object and scatter a few actual shards.
-          this.modelLayer.fillStyle(0x101815,.6);
-          this.modelLayer.fillRoundedRect(point.x-19,point.y-29,38,47,2);
-          this.modelLayer.lineStyle(2.1,palette.danger,.92);
-          this.modelLayer.lineBetween(point.x-14,point.y-4,point.x+12,point.y+9);
-          this.modelLayer.lineBetween(point.x-9,point.y+12,point.x+5,point.y-11);
-          this.modelLayer.lineBetween(point.x-16,point.y+17,point.x-8,point.y+11);
-          this.modelLayer.lineBetween(point.x+6,point.y+16,point.x+16,point.y+13);
-        }else{
-          // A distinctive pencil crack, rather than confusing wear with care.
-          this.modelLayer.lineStyle(1.9,palette.gold,.94);
-          this.modelLayer.lineBetween(point.x-10,point.y-16,point.x-1,point.y-7);
-          this.modelLayer.lineBetween(point.x-1,point.y-7,point.x-6,point.y+2);
-          this.modelLayer.lineBetween(point.x-6,point.y+2,point.x+8,point.y+10);
+          this.modelLayer.lineStyle(.9,palette.chalk,.76);
+          this.modelLayer.lineBetween(point.x+8,point.y-8,point.x-2,point.y+7);
+          this.modelLayer.lineBetween(point.x-14,point.y+15,point.x-7,point.y+10);
+          this.modelLayer.lineBetween(point.x+10,point.y+16,point.x+17,point.y+13);
         }
-        this.modelLayer.fillStyle(condition==='broken'?palette.danger:palette.gold,.93);
-        this.modelLayer.fillCircle(point.x+17,point.y-21,6);
-        this.modelLayer.lineStyle(1.1,0x131c16,1);
-        this.modelLayer.lineBetween(point.x+17,point.y-24,point.x+17,point.y-20);
-        this.modelLayer.fillCircle(point.x+17,point.y-18,1);
+        // Distinct engraved status seal is drawn by syncEventSprites().
       }
       if (placed.id === 'bin') {
         const fill = Math.min(BIN_CAPACITY, Math.max(0, placed.fill ?? 0));
         const amount = fill / BIN_CAPACITY;
-        // A tiny visible fill gauge beside each miniature; orange spill when full.
-        this.modelLayer.fillStyle(0x101814, 0.86);
-        this.modelLayer.fillRect(point.x + 13, point.y - 15, 6, 30);
-        this.modelLayer.fillStyle(placed.overflowed ? palette.danger : palette.mint, 0.95);
-        this.modelLayer.fillRect(point.x + 14, point.y + 14 - amount * 28, 4, amount * 28);
-        this.modelLayer.lineStyle(0.8, palette.chalk, 0.72);
-        this.modelLayer.strokeRect(point.x + 13, point.y - 15, 6, 30);
+        // Small engraved instrument rail with a real fill level; red only
+        // denotes actual overflow, not normal bin capacity.
+        this.modelLayer.fillStyle(0x101814,.90);
+        this.modelLayer.fillRect(point.x+14,point.y-15,6,30);
+        this.modelLayer.fillStyle(placed.overflowed?palette.danger:palette.mint,.86);
+        this.modelLayer.fillRect(point.x+15,point.y+14-amount*28,4,amount*28);
+        this.modelLayer.lineStyle(.95,palette.chalk,.83);
+        this.modelLayer.strokeRect(point.x+14,point.y-15,6,30);
+        this.modelLayer.lineStyle(.65,palette.chalk,.55);
+        for(let t=0;t<=3;t++)this.modelLayer.lineBetween(
+          point.x+14,point.y-15+t*10,point.x+20,point.y-15+t*10);
         if (placed.overflowed) {
           this.modelLayer.fillStyle(0xcbb89a, 0.95);
           this.modelLayer.fillTriangle(point.x - 19, point.y + 13,
@@ -932,18 +828,8 @@ export class TownScene extends Scene {
           this.modelLayer.strokeCircle(point.x, point.y - 25, 5);
         }
       }
-      const care = normalizedCare(placed.care);
-      if (care !== 'full') {
-        const wearColor = care === 'economy' ? palette.gold : palette.danger;
-        this.modelLayer.fillStyle(wearColor, 0.88);
-        this.modelLayer.fillCircle(point.x + 15, point.y + 14, 4.5);
-        this.modelLayer.lineStyle(1.2, 0x151a18, 0.9);
-        this.modelLayer.strokeCircle(point.x + 15, point.y + 14, 4.5);
-        if (care === 'bare') {
-          this.modelLayer.lineStyle(1.3, palette.danger, 0.82);
-          this.modelLayer.lineBetween(point.x - 12, point.y + 14, point.x + 10, point.y + 7);
-        }
-      }
+      // Economy and bare care now use etched tags from the same mini art
+      // library. The gameplay upkeep/repair calculations remain unchanged.
     });
     HOMES.forEach((home) => this.drawHouse(this.homeLayer, home));
 

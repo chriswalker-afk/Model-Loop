@@ -2,6 +2,8 @@ import { AUTO, Game, Scale } from 'phaser';
 import { TownScene } from './game/TownScene';
 import { BOARD, isOnBoard, MODELS, type Cell, type ModelId } from './game/config';
 import { miniatureSvg } from './ui/modelArt';
+import { chapterMotorcarSvg } from './ui/vintageWorldArt';
+import { eventUiIcon } from './ui/vintageEventArt';
 import { vintageIcon, vintageFrameCorners, type VintageIcon } from './ui/vintageIcons';
 import { store } from './game/state';
 import { CARE_LEVELS, careName, careDescription, modelEffects,
@@ -387,7 +389,9 @@ function accidentNotes(tile: Cell): string {
   const model = store.getModel(recent.modelId);
   return '<div class="environment-notes accident-notes">' +
     '<span class="eyebrow">ROADSIDE INCIDENT</span>' +
-    '<div class="environment-note"><span class="environment-mark" aria-hidden="true">◇</span>' +
+    '<div class="environment-note"><span class="environment-mark" aria-hidden="true">' +
+    eventUiIcon(recent.after === 'broken' ? 'incident-break' : 'incident-damage') +
+    '</span>' +
     '<span><strong>' + model.name + ' · ' + modelConditionName(recent.after) +
     '</strong><p>One of the cars clipped this model. Roadside traffic is slower ' +
     'until the area is clear. Wards can help with the traffic; the Hales ' +
@@ -406,7 +410,8 @@ function activityNotes(tile: Cell): string {
     activity.phase === 'underway' ? 'Underway' : 'Packing up';
   return '<div class="environment-notes activity-notes"><span class="eyebrow">' +
     'A LITTLE ACTIVITY</span><div class="environment-note"><span class="environment-mark" ' +
-    'aria-hidden="true">◌</span><span><strong>' + details.title + '</strong>' +
+    'aria-hidden="true">' + eventUiIcon(`activity-${activity.kind}`) +
+    '</span><span><strong>' + details.title + '</strong>' +
     '<p>' + details.description + '</p><p>' + phase + ' · About ' +
     Math.ceil(Math.max(0, activity.endsAt - store.elapsedSeconds)) +
     ' game seconds remaining. Cars pull over and rejoin when the road is clear.</p>' +
@@ -420,12 +425,9 @@ function environmentNotes(tile: Cell): string {
     nearby.slice(0, 4).map(effect => {
       const source = store.residents[effect.residentId]?.name ?? 'A neighbour';
       const timeLeft = Math.max(0, Math.ceil(effect.expiresAt - store.elapsedSeconds));
-      const icon = ['flowers','tidied','heritage','sketch'].includes(effect.kind) ? '✿'
-        : ['courtesy','mended','guidance'].includes(effect.kind) ? '➜'
-        : effect.kind === 'skid' ? '◇'
-        : effect.kind === 'display' ? '▤' : '▱';
       return '<div class="environment-note ' + effect.kind + '">' +
-        '<span aria-hidden="true" class="environment-mark">' + icon + '</span>' +
+        '<span aria-hidden="true" class="environment-mark">' +
+          eventUiIcon(`trace-${effect.kind}`) + '</span>' +
         '<span><strong>' + environmentLabel(effect.kind) + '</strong>' +
         '<small>' + source + ' · fades in ' + timeLeft + 's</small></span></div>';
     }).join('') +
@@ -758,14 +760,83 @@ function renderRunLedger(): string {
     'only the last 60 seconds.</p></details>';
 }
 
+// Dialog content can update while time passes: never recreate focused buttons
+// when their markup is unchanged, and return focus when the modal closes.
+let modalKind: 'closed' | 'workshop' | 'chapter' = 'closed';
+let modalReturnFocus: HTMLElement | null = null;
+let lastModalMarkup = '';
+function setBackgroundInert(inert:boolean):void {
+  document.querySelectorAll<HTMLElement>('#app > header, #app > main')
+    .forEach(el=>{el.inert=inert;});
+}
+function setModalContent(modal:HTMLElement,kind:'workshop'|'chapter',
+  markup:string):void {
+  const previous=document.activeElement;
+  const wasInside=modal.contains(previous);
+  const action=wasInside&&previous instanceof HTMLElement?previous.dataset.action:null;
+  const upgrade=wasInside&&previous instanceof HTMLElement?previous.dataset.upgrade:null;
+  const heading=wasInside&&previous instanceof HTMLElement&&
+    previous.tagName==='H2';
+  const summaryClass=wasInside&&previous instanceof HTMLElement&&
+    previous.tagName==='SUMMARY'?
+    previous.parentElement?.className:null;
+  const openDetails=Array.from(modal.querySelectorAll<HTMLDetailsElement>(
+    '.workbench-diary[open],.workbench-ledger[open]'
+  )).map(el=>el.className);
+  if(modalKind==='closed')
+    modalReturnFocus=previous instanceof HTMLElement?previous:null;
+  // Compare source markup instead of serialised innerHTML: browsers normalise
+  // inline SVG attributes, so a DOM round-trip is not a reliable cache key.
+  const changed=lastModalMarkup!==markup;
+  modal.hidden=false;
+  setBackgroundInert(true);
+  if(changed){
+    modal.innerHTML=markup;
+    lastModalMarkup=markup;
+    if(modalKind===kind)for(const selector of openDetails){
+      if(selector==='workbench-diary'||selector==='workbench-ledger')
+        modal.querySelector<HTMLDetailsElement>('details.'+selector)!.open=true;
+    }
+  }
+  if(modalKind!==kind){
+    modalKind=kind;
+    modal.querySelector<HTMLElement>('h2[tabindex="-1"]')
+      ?.focus({preventScroll:true});
+  }else if(changed&&action){
+    modal.querySelector<HTMLElement>('[data-action="'+action+'"]')
+      ?.focus({preventScroll:true});
+  }else if(changed&&upgrade){
+    modal.querySelector<HTMLElement>('[data-upgrade="'+upgrade+'"]')
+      ?.focus({preventScroll:true});
+  }else if(changed&&summaryClass&&
+    (summaryClass==='workbench-diary'||summaryClass==='workbench-ledger')){
+    modal.querySelector<HTMLElement>('.'+summaryClass+' summary')
+      ?.focus({preventScroll:true});
+  }else if(changed&&heading){
+    modal.querySelector<HTMLElement>('h2[tabindex="-1"]')
+      ?.focus({preventScroll:true});
+  }
+}
+function closeModalContent(modal:HTMLElement):void {
+  if(modalKind==='closed')return;
+  modal.hidden=true;
+  modal.innerHTML='';
+  lastModalMarkup='';
+  setBackgroundInert(false);
+  modalKind='closed';
+  if(modalReturnFocus?.isConnected)modalReturnFocus.focus({preventScroll:true});
+  modalReturnFocus=null;
+}
 function renderModal(): void {
   const modal = byId('modal');
   if (store.workshopOpen) {
-    modal.hidden = false;
-    modal.innerHTML =
-      '<div class="dialog" role="dialog" aria-modal="true" aria-label="The family workshop">' +
+    const markup =
+      '<div class="dialog vintage-dialog workshop-dialog" role="dialog" aria-modal="true" aria-labelledby="workshop-title">' +
+      vintageFrameCorners() +
       '<span class="eyebrow">A PLACE BETWEEN GENERATIONS</span>' +
-      '<h2>The Family Workshop</h2>' +
+      '<h2 id="workshop-title" tabindex="-1">The Family Workshop</h2>' +
+      '<div class="workbench-engraving" aria-hidden="true">' +
+      miniatureSvg('lamp') + '<span>THE COLLECTOR\'S DESK · 1908</span></div>' +
       '<p>Every little town leaves something behind. Blueprints survive even when a run ends.</p>' +
       '<div class="blueprint-wallet">Saved blueprints <strong>' + store.legacy.blueprints + '</strong></div>' +
       upgradeRow('savings', 'Family Savings', 'Start future runs with 35 extra coins per level.', 20) +
@@ -774,21 +845,24 @@ function renderModal(): void {
       '<p class="dialog-footnote">Permanent upgrades can be purchased between runs. More workshop shelves and heritage models will arrive in later passes.</p>' +
       '<button class="dialog-main" type="button" data-action="workshop">Back to ' +
       (store.phase === 'playing' ? 'the town' : 'the chapter') + '</button></div>';
+    setModalContent(modal,'workshop',markup);
     return;
   }
   if (store.phase === 'playing') {
-    modal.hidden = true;
-    modal.innerHTML = '';
+    closeModalContent(modal);
     return;
   }
   const won = store.phase === 'complete';
-  modal.hidden = false;
-  modal.innerHTML =
-    '<div class="dialog story-dialog" role="dialog" aria-modal="true" aria-label="Chapter result">' +
+  const markup =
+    '<div class="dialog story-dialog vintage-dialog" role="dialog" aria-modal="true" aria-labelledby="chapter-title">' +
+    vintageFrameCorners() +
     '<span class="eyebrow">' + (won ? 'CHAPTER I COMPLETED' : 'THE TOWN HAS FALLEN QUIET') + '</span>' +
-    '<h2>' + (won ? 'The Vintage Years' : 'A Town Remembered') + '</h2>' +
-    '<div class="story-frame"><div class="story-moon"></div><div class="story-car"></div>' +
-    '<span>THE WORKBENCH &middot; 1908</span></div>' +
+    '<h2 id="chapter-title" tabindex="-1">' +
+      (won ? 'The Vintage Years' : 'A Town Remembered') + '</h2>' +
+    '<div class="story-frame vintage-story-frame">' +
+      '<div class="story-vehicle" aria-hidden="true">' +
+      chapterMotorcarSvg() + '</div>' +
+      '<span>THE WORKBENCH &middot; 1908</span></div>' +
     '<p class="story-quote">' + (won ?
       'Father smiled at the little town. "I think we have made something worth keeping."' :
       '"We can always try a different road," his father said, and put the model back on the shelf.') +
@@ -800,6 +874,7 @@ function renderModal(): void {
     '<p>Next eras and branching family chapters are planned. This first playable slice focuses on Vintage.</p>' +
     '<div class="dialog-actions"><button type="button" data-action="workshop">Visit workshop</button>' +
     '<button type="button" class="dialog-main" data-action="new-run">Build a new town</button></div></div>';
+  setModalContent(modal,'chapter',markup);
 }
 
 let lastAnnouncementRevision = -1;
@@ -899,6 +974,9 @@ if (import.meta.env.DEV) {
     },
     worldArt() {
       return (game.scene.getScene('TownScene') as TownScene).worldArtSnapshot();
+    },
+    eventArt() {
+      return (game.scene.getScene('TownScene') as TownScene).eventArtSnapshot();
     },
     behaviourAction(id:number,action:HouseholdActionId,x:number,y:number):boolean {
       if(!Number.isInteger(id) || id<0 || id>5 ||
@@ -1032,6 +1110,33 @@ document.addEventListener('dragend', () => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if(modalKind!=='closed'){
+    if(event.key==='Escape'){
+      event.preventDefault();
+      if(store.workshopOpen)store.toggleWorkshop();
+      else byId('modal').querySelector<HTMLElement>('.dialog-main')
+        ?.focus({preventScroll:true});
+      return;
+    }
+    if(event.key==='Tab'){
+      const dialog=byId('modal').querySelector<HTMLElement>('.vintage-dialog');
+      if(!dialog)return;
+      const controls=Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), summary, a[href], [tabindex]:not([tabindex="-1"])'
+      )).filter(el=>el.getClientRects().length>0);
+      const first=controls[0],last=controls[controls.length-1];
+      if(!first||!last){event.preventDefault();dialog.focus();return;}
+      if(event.shiftKey&&(document.activeElement===first||
+        document.activeElement===dialog.querySelector('h2')||
+        !dialog.contains(document.activeElement))){
+        event.preventDefault();last.focus({preventScroll:true});
+      }else if(!event.shiftKey&&(document.activeElement===last||
+        !dialog.contains(document.activeElement))){
+        event.preventDefault();first.focus({preventScroll:true});
+      }
+    }
+    return;
+  }
   if (event.key === 'Escape' && !store.activeModel && store.selected) {
     store.dismissTile();
     byId('game-container').focus({ preventScroll: true });
