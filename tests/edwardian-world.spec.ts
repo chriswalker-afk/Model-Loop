@@ -26,7 +26,7 @@ async function world(page:Page):Promise<WorldSnapshot>{
   });
 }
 async function ready(page:Page):Promise<void>{
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('#game-container canvas')).toBeVisible();
   await expect.poll(async()=> (await world(page)).cars.length,{timeout:15000})
     .toBe(6);
@@ -34,7 +34,7 @@ async function ready(page:Page):Promise<void>{
 
 test('1908 motorcars, six homes and seven civic/scenery textures are unique valid SVG originals',
   async({page})=>{
-    await page.goto('/');
+    await page.goto('/?referenceTown=1');
     const result=await page.evaluate(async()=>{
       const art=await import('/src/ui/vintageWorldArt.ts');
       const {HOMES}=await import('/src/game/config.ts');

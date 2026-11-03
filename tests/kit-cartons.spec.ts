@@ -38,7 +38,7 @@ test('all six physical cartons use one accessible model control and three real c
     // Desktop standing cartons display a punched hanging tab; the compact
     // laptop side-shelf deliberately hides the tab to save vertical space.
     await page.setViewportSize({width:1440,height:900});
-    await page.goto('/');
+    await page.goto('/?referenceTown=1');
     const kits=page.locator('.model-box.kit-carton');
     await expect(kits).toHaveCount(6);
     const models=['lamp','tree','bench','limit','police','bin'];
@@ -83,7 +83,7 @@ test('all six physical cartons use one accessible model control and three real c
 
 test('the six showroom SVGs have distinct era-specific detail and are cached as Phaser textures',
   async({page})=>{
-    await page.goto('/');
+    await page.goto('/?referenceTown=1');
     const art=await page.evaluate(async()=>{
       const {miniatureSvg,miniatureDataUri,modelArtIdentifiers}=await import('/src/ui/modelArt.ts');
       return modelArtIdentifiers.map(id=>{
@@ -113,7 +113,7 @@ test('the six showroom SVGs have distinct era-specific detail and are cached as 
 
 test('purchased model and placement ghost are the SAME cached illustration as in the box',
   async({page})=>{
-    await page.goto('/');
+    await page.goto('/?referenceTown=1');
     await expect.poll(async()=> (await snapshot(page)).ghost.texture)
       .toBe('vintage-miniature-lamp');
     const before=await snapshot(page);
@@ -149,7 +149,7 @@ for(const view of viewports){
       const errors:string[]=[];
       page.on('pageerror',e=>errors.push(e.message));
       await page.setViewportSize({width:view.width,height:view.height});
-      await page.goto('/');
+      await page.goto('/?referenceTown=1');
       await page.locator('#game-container canvas').waitFor({state:'visible'});
       const all=page.locator('.model-box.kit-carton');
       await expect(all).toHaveCount(6);
@@ -191,7 +191,7 @@ for(const view of viewports){
 test('kit selection, prices, keyboard focus, reduced motion and drag semantics remain intact',
   async({page})=>{
     await page.emulateMedia({reducedMotion:'reduce'});
-    await page.goto('/');
+    await page.goto('/?referenceTown=1');
     const lamp=page.getByRole('button',{name:/Select Gas Lamppost/});
     await expect(lamp).toContainText('35');
     await lamp.focus();

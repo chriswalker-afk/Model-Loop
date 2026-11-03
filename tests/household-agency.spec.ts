@@ -10,7 +10,7 @@ import { ROAD_CELLS, type Cell } from '../src/game/config';
 
 const road:Cell={x:4,y:3};
 const make=(seed=31)=>{
-  const store=new GameStore();
+  const store=new GameStore(true);
   store.newRun(seed);
   return store;
 };
@@ -211,7 +211,7 @@ test('browser shows the source family, all twelve actions and an optional model 
   await page.setViewportSize({width:1440,height:900});
   const errors:string[]=[];
   page.on('pageerror',e=>errors.push(e.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page).toHaveTitle(/The Generational Cycle/);
   await page.locator('[data-resident="4"]').first().click();
   await expect(page.locator('#household-detail')).toContainText('Restores a familiar detail');
@@ -257,7 +257,7 @@ test('browser shows the source family, all twelve actions and an optional model 
 
 test('compact and phone layouts preserve readable behaviour details and usual shop',async({page})=>{
   await page.setViewportSize({width:1266,height:548});
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await page.locator('[data-resident="3"]').first().click();
   await expect(page.locator('#household-detail')).toContainText('Tidies the verge');
   await expect(page.locator('#household-detail')).toContainText('Lingers for a neighbourly chat');
