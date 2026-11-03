@@ -200,7 +200,7 @@ test('the working neighbourhood drawer previews, purchases and renders a boundar
   await expect(drawer.locator('[data-boundary-pair="0:5"]')).toBeVisible();
   await drawer.locator('[data-boundary-pair="0:5"]').click();
   await expect(drawer.locator('.boundary-forecast')).toContainText('The Wards');
-  await expect(drawer.locator('.boundary-forecast')).toContainText('1.80 → 0.90');
+  await expect(drawer.locator('.boundary-forecast')).toContainText('+1.80 → +0.90');
   await expect(drawer.locator('.boundary-forecast')).toContainText('-0.90');
   await drawer.locator('[data-action="install-boundary"]').click();
   await expect(drawer.locator('[data-boundary-pair="0:5"]')).toContainText('Picket Fence');
@@ -218,7 +218,7 @@ test('the working neighbourhood drawer previews, purchases and renders a boundar
     expect.objectContaining({a:0,b:5,kind:'picket'})
   ]);
   await drawer.locator('[data-boundary-kind="stone"]').click();
-  await expect(drawer.locator('.boundary-forecast')).toContainText('0.90 → 0.54');
+  await expect(drawer.locator('.boundary-forecast')).toContainText('+0.90 → +0.54');
   await drawer.locator('[data-action="install-boundary"]').click();
   await expect(drawer.locator('[data-boundary-pair="0:5"]')).toContainText('Stone Boundary');
   await drawer.locator('[data-action="remove-boundary"]').click();
