@@ -702,3 +702,26 @@
 @media(prefers-reduced-motion:reduce){
   .boundary-studio{scroll-behavior:auto;}
 }
+
+/* Closed studio is launched from the shop heading; do not steal 28 pixels
+   from the original kit cartons or accidentally add a grid row. */
+.shop-section {grid-template-rows:auto minmax(0,1fr);}
+.boundary-studio:not([open]){display:none!important;}
+.boundary-launcher {
+  flex:0 0 auto;
+  min-height:29px;
+  max-width:120px;
+  padding:5px 7px;
+  border:1px solid #a79b75;
+  border-radius:3px;
+  background:#304034;color:#ead7a9;
+  font:10px/1.1 Georgia,serif;
+  text-align:center;
+  cursor:pointer;
+}
+.boundary-launcher:hover{background:#42553e;}
+.boundary-launcher:focus-visible{outline:2px solid #9dc5a4;outline-offset:2px;}
+@media(max-width:700px), (max-height:600px){
+  .boundary-launcher{max-width:80px;padding:4px 5px;font-size:9px;}
+  .shop-topline{gap:5px;}
+}
