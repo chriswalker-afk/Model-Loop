@@ -399,6 +399,14 @@ export class TrafficGridlockWatch {
     this.stationarySeconds.clear();
   }
 
+  /** Only a new generation resets the audit tally. An ordinary recovered
+   * standstill must clear timers without erasing this run's recovery history.
+   */
+  resetForNewRun():void {
+    this.reset();
+    this.recoveryCount=0;
+  }
+
   /** Read-only diagnostics for developer tools and regression tests. */
   stalledFor(residentId:number):number {
     return this.stationarySeconds.get(residentId)??0;
