@@ -92,6 +92,7 @@ test('founding forecast reflects directional effects on family AND already-settl
   const invalid=game.previewFoundingHome({x:8,y:1});
   expect(invalid.allowed).toBe(false);
   expect(invalid.relationshipForecast).toBeNull();
+  expect(invalid.neighbours).toHaveLength(0); // Invalid plots never show numerical hints.
 });
 
 test('live per-lap comfort equals the founding forecast, with no hidden currency or time effects',()=>{
@@ -104,6 +105,11 @@ test('live per-lap comfort equals the founding forecast, with no hidden currency
   const before=store.residents[0].irritation;
   const money=store.money;
   const clock=store.elapsedSeconds;
+  store.togglePause();
+  expect(store.finishLap(0)).toBe(0);
+  expect(store.residents[0].irritation).toBe(before);
+  expect(store.money).toBe(money);
+  store.togglePause();
   expect(store.finishLap(0)).toBe(15);
   expect(store.residents[0].laps).toBe(1);
   expect(store.residents[0].irritation).toBeCloseTo(before-1.5,8);
