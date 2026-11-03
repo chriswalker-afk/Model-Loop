@@ -1496,6 +1496,18 @@ export class GameStore {
     }
   }
 
+  /**
+   * A zero-gap road deadlock has no valid traffic-solver movement. The traffic
+   * marshal can guide a single family back to its driveway to make space.
+   * This does not award a circuit, change coins or bypass ordinary road entry.
+   */
+  reportTrafficRecovery(residentId:number):void {
+    if(this.phase!=='playing'||!this.residents[residentId]?.occupied)return;
+    this.publishNotice('A traffic marshal helped '+this.residents[residentId].name+
+      ' return safely to their driveway. The road can move again.',2);
+    this.notify();
+  }
+
   debugTrafficStop(id: number, cell: Cell, duration?: number): boolean {
     if (this.phase !== 'playing' || this.paused || this.workshopOpen ||
       !this.residents[id]?.occupied || !isRoad(cell.x, cell.y)) return false;

@@ -23,6 +23,7 @@ import {
   HOME_DWELL_SECONDS, HOME_TRAVEL_SECONDS, TRAFFIC_LANE_CHANGE_SECONDS,
   TRAFFIC_LEFT_LANE_OFFSET, TRAFFIC_PASSING_LANE_OFFSET, advanceTraffic,
   canReserveRoad, newCarCycle, passingLaneBlockedAhead, planLaneChanges,
+  planInitialRoadEntries, TrafficGridlockWatch,
   preferredRoadLaneOffset, roadPoseAt, stepCarCycle,
   type CarCycle, type RoadLane, type RoadVehicle
 } from './traffic';
@@ -76,6 +77,7 @@ export class TownScene extends Scene {
   private activityLabels = new Map<number, Phaser.GameObjects.Text>();
   private lastPlacementCount = 0;
   private cars: Car[] = [];
+  private gridlockWatch = new TrafficGridlockWatch();
   // Cached Phaser images from the EXACT same SVG source used in shop cartons.
   // Existing sprites are reused on each state notification (never recreated
   // per frame); a placed kit keeps its physical tile footprint unchanged.
@@ -168,6 +170,7 @@ export class TownScene extends Scene {
       backgroundColor: '#19221b', padding: { x: 5, y: 3 }
     }).setOrigin(0.5).setDepth(22).setVisible(false);
     this.cars = [];
+    this.gridlockWatch.reset();
     if (store.phase === 'playing') this.activateCars();
 
     this.lastPlacementCount = store.placements.length;
@@ -386,7 +389,30 @@ export class TownScene extends Scene {
   }
 
   private activateCars(): void {
-    this.cars = HOMES.map(home => this.createCar(home.id, home.id));
+    const roadLength=ROAD_CELLS.length*BOARD.tile;
+    const entries=HOMES.map(home=>{
+      const site=store.homeFor(home.id);
+      if(!site)throw new Error('House has no founding plot: '+home.name);
+      const index=ROAD_CELLS.findIndex(road=>manhattanDistance(road,site)===1);
+      if(index<0)throw new Error('House is not connected to the road: '+home.name);
+      return {residentId:home.id,position:index*BOARD.tile};
+    });
+    // Two homes can face one road square. Launch only vehicles with safe,
+    // distinct starting space, and hold other families at home until their
+    // standard driveway reservation grants a safe entry.
+    const launched=planInitialRoadEntries(entries,roadLength);
+    this.cars=HOMES.map(home=>{
+      const car=this.createCar(home.id,home.id);
+      if(!launched.has(home.id)){
+        car.cycle.phase='at-home';
+        car.cycle.timer=HOME_DWELL_SECONDS; // Ready whenever the lane clears.
+        const point=worldPoint(store.homeFor(home.id)!);
+        car.container.setPosition(point.x,point.y).setRotation(0);
+        car.homeBadge.setVisible(true);
+      }
+      return car;
+    });
+    this.gridlockWatch.reset();
   }
 
   private animateFoundingArrival(arrival:FoundingArrival):void {
@@ -1242,6 +1268,23 @@ export class TownScene extends Scene {
       if (vehicle) vehicle.changingTo = target;
     }
     const movements = advanceTraffic(vehicles, dt, totalDistance);
+    const stranded=this.gridlockWatch.observe(dt,vehicles,movements,
+      store.traffic.activeStop!==null);
+    if(stranded!==null){
+      const car=this.cars.find(item=>item.residentId===stranded);
+      if(car && car.cycle.phase==='driving'){
+        // A miniature traffic marshal guides one stalled car safely back
+        // into its driveway. Crucially: no synthetic completed lap, income,
+        // Progress or irritation reward. Normal safe merging resumes next.
+        car.cycle={phase:'at-home',distance:0,timer:HOME_DWELL_SECONDS};
+        car.tileIndex=-1;
+        car.lane='left';
+        car.changingTo=null;
+        car.laneChangeElapsed=0;
+        car.laneOffset=TRAFFIC_LEFT_LANE_OFFSET;
+        store.reportTrafficRecovery(stranded);
+      }
+    }
     const byResident = new Map(movements.map(move => [move.residentId, move]));
     const queued: Array<{ residentId: number; cell: Cell; delaySeconds: number }> = [];
 
