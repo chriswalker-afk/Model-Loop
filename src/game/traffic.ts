@@ -442,7 +442,8 @@ export class TrafficGridlockWatch {
     // A long stationary convoy without an active pause means a lead car has
     // become trapped (e.g. a passing-lane obstruction). Remove its blocker,
     // not the innocent follower behind it.
-    if(still.length>=2 && still.some(car=>car.desiredSpeed>1)){
+    if(still.length>=2 ||
+       (driving.length===1 && still.length===1 && still[0].desiredSpeed<.35)){
       const stillIds=new Set(still.map(car=>car.residentId));
       const blocker=still.find(car=>car.desiredSpeed<.35) ??
         still.find(car=>!stillIds.has(movement.get(car.residentId)?.leaderId??-1)) ??
