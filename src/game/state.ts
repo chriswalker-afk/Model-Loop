@@ -286,9 +286,10 @@ export class GameStore {
     if (environmentChanged || trafficCleared || activityTick.changed ||
         accidentChanged || neighbourExpired) this.notify();
     if (billed > 0) {
-      this.publishNotice('Workshop care bill: −' + billed + ' coins. ' +
+      this.publishNotice('Town care bill: −' + billed + ' coins. ' +
         (this.money < 0 ? 'The town is in debt until more cars finish their circuits.' :
-          'Adjust each model’s care to manage expenses.'), this.money < 0 ? 2 : 0);
+          'Workshop models and household grounds both need regular upkeep.'),
+        this.money < 0 ? 2 : 0);
       this.notify();
     }
     this.economyRefreshSeconds += seconds;
