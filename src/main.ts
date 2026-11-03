@@ -252,6 +252,7 @@ let shownHouseholdId: number | null = null;
 let chosenHomeImprovement:{
   residentId:number;slot:HomeImprovementSlot;kind:HomeImprovementKind
 }|null = null;
+const homeSlotMarkupCache=new WeakMap<HTMLElement,string>();
 
 /** The disclosure controls themselves are stable DOM nodes. Repaint only
  * changing option/forecast content so a running car cannot close the panels
@@ -282,13 +283,17 @@ function renderHomeImprovements(panel:HTMLElement,id:number):void {
       chosenHomeImprovement.slot===slot?chosenHomeImprovement.kind:null;
     const markup=homeImprovementSlotMarkup(store,id,slot,chosen);
     const body=disclosure.querySelector<HTMLElement>('.home-slot-content')!;
-    if(body.innerHTML===markup)continue;
+    // Comparing serialised innerHTML is unreliable when the browser
+    // normalises boolean attributes (e.g. disabled becomes disabled="").
+    // Use the authored markup as a stable fingerprint instead.
+    if(homeSlotMarkupCache.get(body)===markup)continue;
     const focused=body.contains(document.activeElement)
       ? document.activeElement as HTMLElement:null;
     const option=focused?.dataset.homeOption;
     const action=focused?.dataset.action;
     const panelScroll=panel.scrollTop;
     body.innerHTML=markup;
+    homeSlotMarkupCache.set(body,markup);
     const focusTarget=option?body.querySelector<HTMLElement>(
       '[data-home-option="'+option+'"]'):
       action?body.querySelector<HTMLElement>(
