@@ -390,68 +390,107 @@ export function planInitialRoadEntries(
 export const GRIDLOCK_RECOVERY_SECONDS=10;
 export class TrafficGridlockWatch {
   private stationarySeconds=new Map<number,number>();
+  private recoveryCount=0;
 
-  reset():void { this.stationarySeconds.clear(); }
+  reset():void {
+    this.stationarySeconds.clear();
+  }
+
+  /** Read-only diagnostics for developer tools and regression tests. */
+  stalledFor(residentId:number):number {
+    return this.stationarySeconds.get(residentId)??0;
+  }
+  snapshot():{stalledSeconds:Array<{residentId:number;seconds:number}>;recoveries:number}{
+    return {
+      stalledSeconds:[...this.stationarySeconds.entries()]
+        .map(([residentId,seconds])=>({residentId,seconds}))
+        .sort((a,b)=>a.residentId-b.residentId),
+      recoveries:this.recoveryCount
+    };
+  }
 
   observe(
     dt:number,vehicles:readonly RoadVehicle[],moves:readonly RoadMovement[],
     familyStopActive:boolean
   ):number|null {
-    if(!Number.isFinite(dt)||dt<=0||familyStopActive||
-       vehicles.some(vehicle=>vehicle.drivewayReservation)){
-      this.reset();
-      return null;
-    }
+    if(!Number.isFinite(dt)||dt<=0)return null;
     const driving=vehicles.filter(vehicle=>!vehicle.drivewayReservation);
-    if(driving.length<2){
+    if(driving.length===0){
       this.reset();
       return null;
     }
     const movement=new Map(moves.map(move=>[move.residentId,move]));
-    for(const car of driving){
-      const speed=movement.get(car.residentId)?.speed??Infinity;
-      if(speed<.35){
-        this.stationarySeconds.set(car.residentId,
-          (this.stationarySeconds.get(car.residentId)??0)+dt);
-      }else this.stationarySeconds.delete(car.residentId);
+    // A family pause and an active driveway reservation are *temporary*
+    // legitimate obstructions. Freeze, rather than CLEAR, persistent-stall
+    // history while one exists. Clearing every time a car leaves home made the
+    // old 10-second gridlock threshold unreachable in a busy six-car town.
+    const temporaryStop=familyStopActive ||
+      vehicles.some(vehicle=>vehicle.drivewayReservation);
+    const active=new Set(driving.map(vehicle=>vehicle.residentId));
+    for(const residentId of [...this.stationarySeconds.keys()]){
+      if(!active.has(residentId))this.stationarySeconds.delete(residentId);
     }
-    for(const id of [...this.stationarySeconds.keys()]){
-      if(!driving.some(car=>car.residentId===id))this.stationarySeconds.delete(id);
+    for(const vehicle of driving){
+      const speed=movement.get(vehicle.residentId)?.speed??Infinity;
+      if(speed>=.35){
+        // Even brief actual movement demonstrates this car can still progress.
+        this.stationarySeconds.delete(vehicle.residentId);
+      }else if(!temporaryStop){
+        this.stationarySeconds.set(vehicle.residentId,
+          (this.stationarySeconds.get(vehicle.residentId)??0)+dt);
+      }
     }
+    if(temporaryStop)return null;
 
-    // Even if another family is still circulating, two vehicles occupying
-    // essentially the same lane position are invalid and cannot self-clear.
-    const overlaps: Array<{a:number;b:number}>=[];
+    const stuck=(id:number)=>
+      (this.stationarySeconds.get(id)??0)>=GRIDLOCK_RECOVERY_SECONDS;
+
+    // An invalid same-lane overlap can never be resolved by the headway
+    // solver; remove the later-numbered car, leaving the other in place.
+    const roadLength=ROAD_CELLS.length*BOARD.tile;
+    const duplicates:Array<{a:number;b:number}>=[];
     for(let i=0;i<driving.length;i++)for(let j=i+1;j<driving.length;j++){
       const a=driving[i],b=driving[j];
       if(!sharesLane(a,b))continue;
-      const gap=forwardGap(a.position,b.position,
-        Math.max(1,ROAD_CELLS.length*BOARD.tile));
-      if(Math.min(gap,ROAD_CELLS.length*BOARD.tile-gap)<2)
-        overlaps.push({a:a.residentId,b:b.residentId});
+      const gap=forwardGap(a.position,b.position,roadLength);
+      if(Math.min(gap,roadLength-gap)<2&&stuck(a.residentId)&&stuck(b.residentId)){
+        duplicates.push({a:a.residentId,b:b.residentId});
+      }
     }
-    const stuck=(id:number)=> (this.stationarySeconds.get(id)??0)>=GRIDLOCK_RECOVERY_SECONDS;
-    const overlapping=overlaps
-      .filter(pair=>stuck(pair.a)&&stuck(pair.b))
-      .sort((a,b)=>Math.max(a.a,a.b)-Math.max(b.a,b.b))[0];
-    if(overlapping){
+    if(duplicates.length){
+      const pair=duplicates.sort((a,b)=>
+        Math.max(a.a,a.b)-Math.max(b.a,b.b))[0];
       this.reset();
-      return Math.max(overlapping.a,overlapping.b);
+      this.recoveryCount++;
+      return Math.max(pair.a,pair.b);
     }
-    const still=driving.filter(car=>stuck(car.residentId));
-    // A long stationary convoy without an active pause means a lead car has
-    // become trapped (e.g. a passing-lane obstruction). Remove its blocker,
-    // not the innocent follower behind it.
-    if(still.length>=2 ||
-       (driving.length===1 && still.length===1 && still[0].desiredSpeed<.35)){
-      const stillIds=new Set(still.map(car=>car.residentId));
-      const blocker=still.find(car=>car.desiredSpeed<.35) ??
-        still.find(car=>!stillIds.has(movement.get(car.residentId)?.leaderId??-1)) ??
-        still[0];
+
+    const stationary=driving.filter(car=>stuck(car.residentId));
+    if(!stationary.length)return null;
+    // A lone passing-lane vehicle can remain blocked by litter or a display
+    // forever. It must be allowed to return home even if the OTHER lane is
+    // still moving and no follower has joined its queue yet.
+    const passingBlocker=stationary.find(car=>
+      car.lane==='passing'&&car.desiredSpeed<.35);
+    if(passingBlocker){
       this.reset();
-      return blocker.residentId;
+      this.recoveryCount++;
+      return passingBlocker.residentId;
     }
-    return null;
+
+    if(stationary.length<2)return null;
+    // Choose the lead blocked car, rather than a follower with no agency.
+    // A leader outside the stationary set is not blocking *this* convoy, so
+    // this vehicle is at the front of the persistent stalled group.
+    const ids=new Set(stationary.map(car=>car.residentId));
+    const blocker=stationary.find(car=>car.desiredSpeed<.35) ??
+      stationary.find(car=>{
+        const leader=movement.get(car.residentId)?.leaderId;
+        return leader===null||leader===undefined||!ids.has(leader);
+      }) ?? stationary[0];
+    this.reset();
+    this.recoveryCount++;
+    return blocker.residentId;
   }
 }
 
