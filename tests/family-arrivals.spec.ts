@@ -110,3 +110,23 @@ test('review lets the player relocate a home and explicitly begin Vintage', asyn
       .__modelLoopDebug?.worldArt().cars.length)).toBe(6);
   expect(errors).toEqual([]);
 });
+
+test('the founding tray remains distinct from the board on tall, compact and phone screens', async ({page}) => {
+  for(const size of [
+    {width:1440,height:900},{width:1266,height:548},{width:390,height:844}
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto('/');
+    const board=page.locator('.world-frame');
+    const tray=page.locator('#founding-panel');
+    await expect(tray).toBeVisible();
+    await expect(tray.locator('.founding-card')).toHaveCount(6);
+    await tray.scrollIntoViewIfNeeded();
+    const a=await board.boundingBox(),b=await tray.boundingBox();
+    if(!a||!b)throw new Error('Board or founding tray missing');
+    const overlapX=Math.max(0,Math.min(a.x+a.width,b.x+b.width)-Math.max(a.x,b.x));
+    const overlapY=Math.max(0,Math.min(a.y+a.height,b.y+b.height)-Math.max(a.y,b.y));
+    expect(overlapX*overlapY).toBeLessThan(150);
+    expect(b.width).toBeGreaterThan(250);
+  }
+});
