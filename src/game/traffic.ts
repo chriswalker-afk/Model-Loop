@@ -388,6 +388,9 @@ export function planInitialRoadEntries(
  * it a lap, a payout or permission to overlap another car.
  */
 export const GRIDLOCK_RECOVERY_SECONDS=10;
+// Below two world pixels per simulated second, a car would need over twenty
+// seconds merely to advance one road square: it is functionally stationary.
+export const GRIDLOCK_MEANINGFUL_SPEED=2;
 export class TrafficGridlockWatch {
   private stationarySeconds=new Map<number,number>();
   private recoveryCount=0;
@@ -432,7 +435,7 @@ export class TrafficGridlockWatch {
     }
     for(const vehicle of driving){
       const speed=movement.get(vehicle.residentId)?.speed??Infinity;
-      if(speed>=.35){
+      if(speed>=GRIDLOCK_MEANINGFUL_SPEED){
         // Even brief actual movement demonstrates this car can still progress.
         this.stationarySeconds.delete(vehicle.residentId);
       }else if(!temporaryStop){
