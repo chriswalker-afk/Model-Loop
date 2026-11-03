@@ -11,6 +11,7 @@ import {
   worldSvgDataUri, WORLD_CAR_SIZE, WORLD_HOUSE_SIZE
 } from '../ui/vintageWorldArt';
 import { store, type FoundingArrival, type HomeSite, type JourneyReaction } from './state';
+import { boundaryBetween, type BoundaryKind } from './boundaries';
 import { normalizedCare, modelCondition } from './economy';
 import type { RoadsideIncident } from './damage';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
@@ -57,6 +58,7 @@ const palette = {
 
 export class TownScene extends Scene {
   private modelLayer!: Phaser.GameObjects.Graphics;
+  private boundaryLayer!: Phaser.GameObjects.Graphics;
   private environmentLayer!: Phaser.GameObjects.Graphics;
   private lastEnvironmentalEventId = 0;
   private lastRoadsideIncidentId = 0;
@@ -148,6 +150,7 @@ export class TownScene extends Scene {
     // Roadside changes are drawn above the road and below cars and models.
     this.environmentLayer = this.add.graphics().setDepth(1);
     this.modelLayer = this.add.graphics().setDepth(3);
+    this.boundaryLayer = this.add.graphics().setDepth(2.6);
     this.homeLayer = this.add.graphics().setDepth(4);
     this.influenceLayer = this.add.graphics().setDepth(1);
     this.highlightLayer = this.add.graphics().setDepth(7);
@@ -547,7 +550,12 @@ export class TownScene extends Scene {
       scenery:this.scenerySprites.map(image=>({
         texture:image.texture.key,x:image.x,y:image.y,
         width:image.displayWidth,height:image.displayHeight
-      }))
+      })),
+      boundaries:store.boundaryImprovements.map(piece=>{
+        const a=store.homeFor(piece.a)!,b=store.homeFor(piece.b)!;
+        const point=worldPoint(boundaryBetween(a,b));
+        return {...piece,x:point.x,y:point.y};
+      })
     };
   }
 
@@ -841,10 +849,71 @@ export class TownScene extends Scene {
     }
   }
 
+  /** Hand-drawn, 35px wooden/stone/green miniatures. A shared boundary is
+   * centred between two real home models and never paints an occupied tile.
+   * Pointer events still belong to the town grid; purchases use native buttons
+   * in the optional neighbourhood kit collection.
+   */
+  private drawBoundaryPiece(
+    a:HomeSite,b:HomeSite,kind:BoundaryKind,preview=false
+  ):void {
+    const layer=preview?this.highlightLayer:this.boundaryLayer;
+    const p=worldPoint(boundaryBetween(a,b));
+    const pa=worldPoint(a),pb=worldPoint(b);
+    const length=Math.hypot(pb.x-pa.x,pb.y-pa.y)||1;
+    const ux=(pb.x-pa.x)/length,uy=(pb.y-pa.y)/length;
+    const vx=-uy,vy=ux;
+    const pt=(along:number,offset=0)=>({
+      x:p.x+ux*along+vx*offset,y:p.y+uy*along+vy*offset
+    });
+    const line=(i:number,j:number,k:number,l:number)=>{
+      const start=pt(i,j),end=pt(k,l);
+      layer.lineBetween(start.x,start.y,end.x,end.y);
+    };
+    const ink=preview?palette.mint:palette.chalk;
+    layer.lineStyle(1.55,ink,preview?.66:.84);
+    if(kind==='picket'){
+      line(-21,-3,21,-3);line(-21,4,21,4);
+      for(let k=-18;k<=18;k+=9){
+        line(k,10,k,-11);
+        line(k-3,-7,k,-11);line(k,-11,k+3,-7);
+      }
+    }else if(kind==='stone'){
+      layer.fillStyle(0x4a534b,preview?.20:.92);
+      for(let k=-18;k<=18;k+=9){
+        const centre=pt(k);
+        layer.fillRoundedRect(centre.x-4.5,centre.y-6,9,13,1);
+        layer.lineStyle(.9,ink,preview?.5:.80);
+        layer.strokeRoundedRect(centre.x-4.5,centre.y-6,9,13,1);
+      }
+    }else if(kind==='gate'){
+      line(-20,11,-20,-12);line(20,11,20,-12);
+      line(-20,-8,-2,4);line(-20,7,-2,4);
+      line(20,-8,2,4);line(20,7,2,4);
+      layer.lineStyle(2,palette.gold,preview?.35:.9);
+      const hinge=pt(0,4);layer.strokeCircle(hinge.x,hinge.y,3);
+    }else{
+      layer.lineStyle(1.3,preview?palette.mint:0x9cbd9c,preview?.55:.88);
+      layer.fillStyle(0x2d4833,preview?.22:.8);
+      for(let k=-19;k<=19;k+=9){
+        const centre=pt(k,-2+(Math.abs(k)%3));
+        layer.fillCircle(centre.x,centre.y,8);
+        layer.strokeCircle(centre.x,centre.y,8);
+      }
+      layer.lineStyle(1,palette.gold,.60);
+      line(-22,9,22,9);
+    }
+    if(preview){
+      layer.lineStyle(1.3,palette.mint,.68);
+      layer.strokeCircle(p.x,p.y,26);
+    }
+  }
+
   private drawDynamic(): void {
     if (!this.modelLayer) return;
     this.drawEnvironment();
     this.modelLayer.clear();
+    this.boundaryLayer.clear();
     this.homeLayer.clear();
     this.influenceLayer.clear();
     this.highlightLayer.clear();
@@ -900,6 +969,17 @@ export class TownScene extends Scene {
     });
     this.houseSprites.forEach((house,id) => house.setVisible(!!store.homeFor(id)));
     store.placedHomes.forEach((home) => this.drawHouse(this.homeLayer, home));
+    if(store.phase!=='founding'){
+      for(const piece of store.boundaryImprovements){
+        const a=store.homeFor(piece.a),b=store.homeFor(piece.b);
+        if(a&&b)this.drawBoundaryPiece(a,b,piece.kind);
+      }
+      const focus=store.boundaryPair;
+      if(focus&&store.boundaryKind){
+        const a=store.homeFor(focus.a),b=store.homeFor(focus.b);
+        if(a&&b)this.drawBoundaryPiece(a,b,store.boundaryKind,true);
+      }
+    }
 
     if (store.phase === 'founding' && store.foundingFamily !== null) {
       // Show possible homes at a glance, rather than requiring the player to

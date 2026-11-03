@@ -4,6 +4,8 @@ import { BOARD, HOMES, isOnBoard, MODELS, type Cell, type ModelId } from './game
 import { miniatureSvg } from './ui/modelArt';
 import { chapterMotorcarSvg } from './ui/vintageWorldArt';
 import { foundingKeepsakeSvg } from './ui/foundingArt';
+import { boundaryMiniatureSvg } from './ui/boundaryArt';
+import { BOUNDARY_MODELS, type BoundaryKind } from './game/boundaries';
 import { foundingStory, MAX_NEIGHBOUR_EFFECT_PER_LAP,
   type NeighbourhoodPlacementForecast } from './game/founding';
 import { eventUiIcon } from './ui/vintageEventArt';
@@ -206,6 +208,96 @@ function renderShop(): void {
   }).join('');
 }
 
+/** Optional miniature workbench rather than a second permanent HUD. Buttons
+ * stay native and accessible; the workshop retains keyboard focus on update.
+ */
+function renderBoundaryStudio():void {
+  const workshop=byId<HTMLDetailsElement>('boundary-studio');
+  workshop.hidden=store.phase!=='playing';
+  if(workshop.hidden) {
+    // Each generation begins with the miniature tray closed.
+    workshop.open=false;
+    return;
+  }
+  if(!workshop.open)return;
+  const panel=byId('boundary-studio-content');
+  const pairs=store.boundaryPairs;
+  const selected=store.boundaryPair
+    ? pairs.find(pair=>pair.a===store.boundaryPair?.a &&
+        pair.b===store.boundaryPair?.b) : null;
+  const chosen=store.boundaryKind;
+  const selectedPreview=selected&&chosen
+    ? store.previewBoundaryInstallation(selected.a,selected.b,chosen) : null;
+  const pairMarkup=pairs.length ? '<div class="boundary-pair-list" role="group" aria-label="Choose two neighbouring families">'+
+    pairs.map(pair=> {
+      const active=selected?.a===pair.a&&selected?.b===pair.b;
+      return '<button type="button" data-boundary-pair="'+pair.a+':'+pair.b+
+        '" aria-pressed="'+active+'" class="boundary-pair-choice '+(active?'is-selected':'')+'">'+
+        '<span>'+pair.name+'</span><small>'+
+        (pair.existing?BOUNDARY_MODELS.find(item=>item.kind===pair.existing!.kind)!.name:'An open boundary')+
+        '</small></button>';
+    }).join('')+'</div>' :
+    '<p class="boundary-empty">No neighbouring gardens share a safe boundary. '+
+    'These pieces only fit between homes no more than four squares apart, '+
+    'without crossing the road.</p>';
+  const catalog=selected
+    ? '<div class="boundary-options" role="group" aria-label="Choose a boundary miniature">'+
+      BOUNDARY_MODELS.map(item=>
+        '<button type="button" data-boundary-kind="'+item.kind+'" aria-pressed="'+
+        (chosen===item.kind)+'" class="boundary-option '+(chosen===item.kind?'is-selected':'')+'">'+
+        '<span class="boundary-art-box" aria-hidden="true">'+boundaryMiniatureSvg(item.kind)+'</span>'+
+        '<span class="boundary-option-copy"><strong>'+item.name+'</strong>'+
+        '<small>'+item.description+'</small></span><b>'+item.cost+' coins</b></button>'
+      ).join('')+'</div>' : '';
+  const projection=selectedPreview?
+    '<div class="boundary-forecast" aria-label="Predicted irritation change per completed circuit">'+
+      '<h3>Before → After</h3>'+
+      selectedPreview.affected.map(effect=>
+        '<div class="boundary-forecast-row"><span>'+effect.name+'</span>'+
+        '<strong>'+signedRelationship(effect.previousPerLap)+' → '+
+        signedRelationship(effect.predictedPerLap)+'</strong>'+
+        '<em class="relationship-score '+relationshipTone(effect.changePerLap)+'">'+
+        signedRelationship(effect.changePerLap)+'</em></div>'
+      ).join('')+
+      '<p class="boundary-small-note">Negative changes soothe irritation; positive changes increase it. '+
+      'Totals remain capped at ±'+MAX_NEIGHBOUR_EFFECT_PER_LAP.toFixed(2)+
+      ' per circuit. An item can help one family but not the other.</p>'+
+      '<p class="boundary-purchase-reason" role="status">'+selectedPreview.reason+'</p>'+
+      '<div class="boundary-actions">'+
+      '<button type="button" data-action="install-boundary" class="boundary-install" '+
+      (selectedPreview.allowed?'':'disabled')+'>'+
+      (selectedPreview.existing?'Replace boundary':'Install miniature')+
+      ' · '+selectedPreview.cost+' coins</button>'+
+      (selectedPreview.existing?
+        '<button type="button" data-action="remove-boundary" class="boundary-remove" '+
+        (store.paused||store.workshopOpen?'disabled':'')+
+        '>Remove · no refund</button>':'')+'</div></div>'
+    :'';
+  const markup='<div class="boundary-help"><p>Place a handmade miniature <strong>between two homes</strong>. '+
+    'These pieces cost coins once and use no road or buildable square.</p>'+
+    '<p>Select a pair, then a kit. Confirm only after seeing how both families will feel. '+
+    'Existing benches, oak trees and speed signs can also change their relationships.</p></div>'+
+    pairMarkup+catalog+projection;
+  if(panel.innerHTML===markup)return;
+  const focused=panel.contains(document.activeElement) &&
+    document.activeElement instanceof HTMLButtonElement
+      ? document.activeElement : null;
+  const attribute=focused?.dataset.boundaryPair?'boundary-pair'
+    :focused?.dataset.boundaryKind?'boundary-kind'
+    :focused?.dataset.action?'action':null;
+  const value=attribute=== 'boundary-pair' ? focused?.dataset.boundaryPair :
+    attribute==='boundary-kind'?focused?.dataset.boundaryKind:focused?.dataset.action;
+  const scroll=panel.scrollTop;
+  panel.innerHTML=markup;
+  panel.scrollTop=scroll;
+  if(attribute&&value) {
+    const matching=Array.from(panel.querySelectorAll<HTMLButtonElement>('button'))
+      .find(button=>button.getAttribute('data-'+attribute)===value);
+    matching?.focus({preventScroll:true});
+  }
+}
+byId<HTMLDetailsElement>('boundary-studio').addEventListener('toggle',renderBoundaryStudio);
+
 function renderPlacementStatus(): void {
   const status = byId('placement-status');
   if (store.phase === 'founding') {
@@ -313,7 +405,9 @@ function renderHouseholdDetail(): void {
       '<p class="family-relations-explanation">Neighbour comfort affects irritation once per completed circuit. '+
       'The combined effect is capped at ±'+MAX_NEIGHBOUR_EFFECT_PER_LAP.toFixed(2)+
       '; other street and driving conditions still matter.</p>'+
-      '<div class="family-relations-list"></div></details>' +
+      '<div class="family-relations-list"></div>'+
+      '<button type="button" class="open-boundary-studio" data-action="open-boundary-studio">'+
+      'Explore fences, gates & gardens</button></details>' +
        '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
       '<span class="household-last-action"></span></div>' +
       '<details class="family-neighbourhood"><summary>Shared moments</summary>' +
@@ -342,7 +436,10 @@ function renderHouseholdDetail(): void {
     ? relations.neighbours.length
       ? relations.neighbours.map(near=>
         '<div class="family-relations-row"><span><b>'+near.name+'</b> · '+
-        near.distance+' squares away</span><strong class="relationship-score '+
+        near.distance+' squares away'+
+        (near.reasons?.length?'<small class="relationship-context">'+
+          near.reasons.join(' · ')+'</small>':'')+
+        '</span><strong class="relationship-score '+
         relationshipTone(near.irritationPerLap)+'">'+
         signedRelationship(near.irritationPerLap)+'</strong></div>').join('')
       : '<p class="relationship-note">No other families live within four squares.</p>'
@@ -781,7 +878,16 @@ function renderTilePanel(): void {
         '<span>Estimated irritation change per lap: <strong>' +
         signed(preview.irritationChangePerLap) + '</strong> on average across occupied homes.</span></div>' +
         renderHouseholdReactions(preview.householdEffects) +
-        renderBehaviourForecast(preview.behaviourEffects) : '') +
+        renderBehaviourForecast(preview.behaviourEffects) +
+        (preview.neighbourEffects.length
+          ? '<section class="model-neighbour-impact"><strong>Extra neighbour comfort per circuit</strong>'+
+            preview.neighbourEffects.map(effect=>
+              '<div class="boundary-forecast-row"><span>'+effect.name+'</span><b>'+
+              signedRelationship(effect.previousPerLap)+' → '+
+              signedRelationship(effect.predictedPerLap)+'</b>'+
+              '<em class="relationship-score '+relationshipTone(effect.changePerLap)+'">'+
+              signedRelationship(effect.changePerLap)+'</em></div>').join('')+
+            '</section>' : '') : '') +
       (model.id === 'bin' ? '<p class="bin-hint">Catches up to ' +
          BIN_CAPACITY + ' items within ' + BIN_CATCH_RADIUS +
          ' squares. Collection bills are additional to upkeep; existing litter needs separate cleaning.</p>' : '') +
@@ -1112,6 +1218,7 @@ function render(): void {
   renderShop();
   renderPlacementStatus();
   renderFounding();
+  renderBoundaryStudio();
   renderTilePanel();
   renderTilePeek();
   renderHouseholds();
@@ -1206,6 +1313,22 @@ if (import.meta.env.DEV) {
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
+  const pairButton=target.closest<HTMLElement>('[data-boundary-pair]');
+  if(pairButton) {
+    const raw=pairButton.dataset.boundaryPair??'';
+    if(/^\d+:\d+$/.test(raw)) {
+      const [a,b]=raw.split(':').map(Number);
+      store.chooseBoundaryPair(a,b);
+    }
+    return;
+  }
+  const kindButton=target.closest<HTMLElement>('[data-boundary-kind]');
+  if(kindButton) {
+    const kind=kindButton.dataset.boundaryKind;
+    if(BOUNDARY_MODELS.some(item=>item.kind===kind))
+      store.chooseBoundaryKind(kind as BoundaryKind);
+    return;
+  }
   const careButton = target.closest<HTMLElement>('[data-care]');
   if (careButton && store.selected) {
     const value = careButton.dataset.care;
@@ -1247,6 +1370,25 @@ document.addEventListener('click', (event) => {
   const actionButton = target.closest<HTMLElement>('[data-action]');
   if (!actionButton) return;
   const action = actionButton.dataset.action;
+  if(action==='open-boundary-studio') {
+    const workshop=byId<HTMLDetailsElement>('boundary-studio');
+    workshop.open=true;
+    const family=store.selectedResident;
+    const pair=store.boundaryPairs.find(item=>
+      item.a===family||item.b===family);
+    if(pair)store.chooseBoundaryPair(pair.a,pair.b);
+    workshop.scrollIntoView({block:'nearest',behavior:'auto'});
+    workshop.querySelector('summary')?.focus({preventScroll:true});
+    return;
+  }
+  if(action==='install-boundary'||action==='remove-boundary') {
+    const pair=store.boundaryPair,kind=store.boundaryKind;
+    if(pair){
+      if(action==='install-boundary'&&kind)store.installBoundary(pair.a,pair.b,kind);
+      if(action==='remove-boundary')store.removeBoundary(pair.a,pair.b);
+    }
+    return;
+  }
   if (action === 'close-tile') {
     store.dismissTile();
     byId('game-container').focus({ preventScroll: true });
