@@ -274,3 +274,38 @@ for(const size of [{width:390,height:844},{width:844,height:390},{width:1280,hei
         'test-results/visual-review/gameplay-audit-'+size.width+'x'+size.height+'.png'});
     });
 }
+
+test('audit: a player can introduce and place all six families using the real UI',async({page})=>{
+  test.setTimeout(60000);
+  await page.setViewportSize({width:1440,height:900});
+  const errors:string[]=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('/');
+  await expect(page.locator('#game-container canvas')).toBeVisible();
+  const layout=clustered;
+  const order=[1,4,2,5,0,3];
+  for(const [i,id] of order.entries()){
+    const name=HOMES[id].name;
+    await page.getByRole('button',{name:new RegExp(name+', awaiting a plot')}).click();
+    const dialog=page.getByRole('dialog',{name});
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button',{name:'Choose their plot'}).click();
+    const rect=await page.locator('#game-container canvas').boundingBox();
+    if(!rect)throw Error('Road canvas not visible');
+    const cell=layout[id];
+    const x=rect.x+(BOARD.left+(cell.x+.5)*BOARD.tile)/BOARD.width*rect.width;
+    const y=rect.y+(BOARD.top+(cell.y+.5)*BOARD.tile)/BOARD.height*rect.height;
+    await page.mouse.click(x,y);
+    await expect(page.locator('#founding-progress')).toHaveText((i+1)+' OF 6 HOMES');
+  }
+  await page.getByRole('button',{name:'Review the founding town'}).click();
+  const review=page.getByRole('dialog',{name:'A Town Begins'});
+  await expect(review.locator('.founding-review-list li')).toHaveCount(6);
+  await review.getByRole('button',{name:'Begin the Vintage Years'}).click();
+  await expect(page.locator('#founding-panel')).toBeHidden();
+  await expect(page.locator('#shop-section')).toBeVisible();
+  const snapshot=await step(page,400);
+  expect(snapshot.completedLaps).toBeGreaterThanOrEqual(0);
+  expect(snapshot.traffic.length).toBe(6);
+  expect(errors).toEqual([]);
+});
