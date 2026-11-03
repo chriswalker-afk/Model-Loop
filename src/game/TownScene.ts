@@ -185,7 +185,7 @@ export class TownScene extends Scene {
       backgroundColor: '#19221b', padding: { x: 5, y: 3 }
     }).setOrigin(0.5).setDepth(22).setVisible(false);
     this.cars = [];
-    this.gridlockWatch.reset();
+    this.gridlockWatch.resetForNewRun();
     if (store.phase === 'playing') this.activateCars();
 
     this.lastPlacementCount = store.placements.length;
@@ -195,10 +195,25 @@ export class TownScene extends Scene {
     this.drawDynamic();
     const unsubscribe = store.subscribe(() => {
       if (this.observedEnvironment !== store.environment) {
+        // newRun() replaces the world's engines. Any cars left in the Phaser
+        // scene still carry the OLD founding homes' startIndex and CarCycle.
+        // Clear their actual sprites as well as the solver's stall history
+        // before another family moves into the newly empty town.
         this.observedEnvironment = store.environment;
+        for (const car of this.cars) {
+          this.tweens.killTweensOf(car.container);
+          car.container.destroy();
+          car.homeBadge.destroy();
+        }
+        this.cars = [];
+        this.gridlockWatch.resetForNewRun();
+        this.lastFoundingArrivalRevision = 0;
         this.lastEnvironmentalEventId = 0;
         this.lastRoadsideIncidentId = 0;
         this.lastNeighbourNoteId = 0;
+        this.lastStopId = 0;
+        this.trafficLabel.setVisible(false);
+        this.trafficLayer.clear();
       }
       if (store.phase === 'playing' && this.cars.length === 0) {
         this.drawScenery(true);

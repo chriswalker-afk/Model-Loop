@@ -1281,6 +1281,33 @@ if (import.meta.env.DEV) {
     trafficSnapshot() {
       return (game.scene.getScene('TownScene') as TownScene).trafficSnapshot();
     },
+    /** Test-only deterministic driving audit. Production builds remove this
+     * entire debug object. Simulated frames advance the REAL Phaser scene,
+     * including its traffic solver, events, economy and gridlock marshal.
+     * Keep a hard limit so a mistyped console call cannot lock the browser.
+     */
+    auditAdvance(frames:number,deltaMilliseconds=60) {
+      if(!Number.isInteger(frames)||frames<0||frames>8000 ||
+        !Number.isFinite(deltaMilliseconds)||deltaMilliseconds<16||
+        deltaMilliseconds>60) throw new Error('Invalid audit frame request');
+      const scene=game.scene.getScene('TownScene') as TownScene;
+      for(let frame=0;frame<frames&&store.phase==='playing';frame++){
+        scene.update(0,deltaMilliseconds);
+      }
+      return {
+        elapsed:store.elapsedSeconds,progress:store.progress,
+        phase:store.phase,money:store.money,
+        completedLaps:store.runSummary.completedLaps,
+        residents:store.residents.map(resident=>({
+          id:resident.id,occupied:resident.occupied,laps:resident.laps,
+          irritation:resident.irritation
+        })),
+        traffic:scene.trafficSnapshot(),
+        queued:store.traffic.queuedCars.length,
+        trafficDelay:store.ledger.secondsLostInTraffic,
+        recoveries:scene.trafficSnapshot()[0]?.recoveryCount??0
+      };
+    },
     miniatureArt() {
       return (game.scene.getScene('TownScene') as TownScene).miniatureArtSnapshot();
     },
