@@ -959,6 +959,12 @@ export class GameStore {
   }
   selectResident(id: number | null): void {
     this.selectedResident = this.selectedResident === id ? null : id;
+    // Inspecting a home must not leave an older tile inspection overlay
+    // covering the household's garden/boundary purchase controls.
+    if(this.selectedResident!==null){
+      this.selected=null;
+      this.hovered=null;
+    }
     this.notify();
   }
   projectedHouseholdEffects(cell: Cell, modelId: ModelId): HouseholdEffect[] {
@@ -1004,6 +1010,16 @@ export class GameStore {
           this.notify();
         }
       }
+      return;
+    }
+    const home=!this.activeModel?this.homeAt(cell):null;
+    if(home){
+      // Real home selection belongs to the household inspector rather than
+      // the square inspector. Clicking the same house keeps it open.
+      this.selectedResident=home.id;
+      this.selected=null;
+      this.hovered=null;
+      this.notify();
       return;
     }
     this.selected = cell;
