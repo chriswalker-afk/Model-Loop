@@ -469,6 +469,29 @@ affected area. Slower trips can reduce lap earnings and Progress per
 minute, which creates a real trade-off against residents who value
 quieter, safer streets.
 
+## Improving individual homes
+
+Select a family from the neighbourhood strip or click its house directly on
+the town artwork. The **Home & grounds** section of the household inspector
+lets you add a boundary (fence, wall, hedge or gate) and a garden
+(front garden, flower border, kitchen garden or seating corner).
+
+Each property has **one boundary slot and one garden slot**. You can preview
+their predicted effects on the household and its neighbours without spending
+coins, then confirm the purchase. Replacing a style requires paying the full
+price; removing it does not refund the purchase. The panel shows the family's
+total **care bill every 20 simulated seconds**; this ongoing upkeep is
+included in the existing net Income meter. Improvements cost nothing to
+preview, cannot be purchased while paused, and do not occupy any road
+or workshop model squares.
+
+These house-owned improvements have functional effects now; their
+hand-integrated fence and garden visuals are the next planned artwork pass
+rather than separate miniatures sitting between buildings.
+
+See [Pass A engine](docs/HOME_IMPROVEMENTS_PASS_A.md) and
+[Pass B household UI](docs/HOME_IMPROVEMENTS_PASS_B.md).
+
 ## Publish on GitHub Pages
 
 This repository includes a workflow that runs npm ci and npm run check for pull requests. On a push to main, it additionally builds and deploys to Pages.
