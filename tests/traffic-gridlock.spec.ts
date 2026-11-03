@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { BOARD, HOMES, ROAD_CELLS, manhattanDistance, type Cell } from '../src/game/config';
+import { BOARD, ROAD_CELLS, type Cell } from '../src/game/config';
 import {
   advanceTraffic, canReserveRoad, GRIDLOCK_RECOVERY_SECONDS, planInitialRoadEntries,
   TrafficGridlockWatch, TRAFFIC_MIN_GAP, TRAFFIC_MERGE_GAP, type RoadVehicle
@@ -122,6 +122,7 @@ test('founding houses sharing a road entry wait safely at home and later depart'
   await page.goto('/');
   const initial=await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
+    const {HOMES}=await import('/src/game/config.ts');
     const plots:Cell[]=[
       {x:7,y:1}, // Finches north side of the same road square as Bells
       {x:7,y:3}, // Bells south side of that square
