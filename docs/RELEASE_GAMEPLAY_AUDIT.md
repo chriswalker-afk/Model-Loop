@@ -121,8 +121,9 @@ the build as fully cross-device tested.
 - PR #30 (Pass 8E) was merged after **225 passing tests**.
 - The new audit PR runs the *whole* CI suite again with additional
   multi-layout, true-scene traffic and chapter-restart tests.
-- Audit PR status: **pending latest CI result**. Do not merge it until
-  TypeScript, production build and all browser tests succeed.
+- Audit PR release gate: verify the **latest** branch head's TypeScript,
+  production build and complete browser suite are green in GitHub Actions
+  before merging. Earlier runs do not validate subsequent code changes.
 
 ## Next step
 
