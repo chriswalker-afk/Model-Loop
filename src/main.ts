@@ -19,6 +19,7 @@ import { drivingProfile } from './game/driving';
 import { environmentLabel, type EnvironmentKind } from './game/environment';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS, LITTER_CLEANUP_COST, binCareDescription } from './game/bins';
 import { householdActionPair, type HouseholdActionId } from './game/behaviors';
+import { moodHelpfulChance } from './game/mood';
 import { activityDefinition, activityOptionsFor, type ActivityKind } from './game/activities';
 
 const game = new Game({
@@ -393,6 +394,11 @@ function renderHouseholdDetail(): void {
       '<span class="family-action-positive">✿ ' + householdActionPair(id).helpful.label + '</span>' +
       '<span class="family-action-negative">◇ ' + householdActionPair(id).troublesome.label + '</span>' +
       '</div>' +
+      '<details class="family-mood-influence"><summary>How mood shapes their choices</summary>'+
+      '<p class="family-mood-odds"></p>'+
+      '<p class="household-small-note">A calm family is more inclined to help neighbours and '+
+      'tidy up. Irritation makes disruptive behaviour and forgotten scraps more likely. '+
+      'Nearby miniatures also shape choices, but no outcome is certain.</p></details>' +
       '<details class="family-activities"><summary>Everyday activities</summary>' +
       '<p class="household-small-note">' +
       activityOptionsFor(id).map(activity => activity.title).join(' · ') + '</p></details>' +
@@ -421,6 +427,10 @@ function renderHouseholdDetail(): void {
     Math.round(resident.irritation) + ' / 100 irritation';
   panel.querySelector<HTMLElement>('.household-meter-fill')!.style.width =
     (resident.occupied ? 100 - resident.irritation : 0) + '%';
+  panel.querySelector<HTMLElement>('.family-mood-odds')!.textContent=resident.occupied
+    ? 'At this mood, about '+Math.round(moodHelpfulChance(resident.irritation)*100)+
+      '% of spontaneous actions are helpful, before local kit effects.'
+    : 'This family has moved away; no new household actions occur.';
   const delay = panel.querySelector<HTMLElement>('.household-traffic-delay')!;
   delay.textContent = resident.trafficDelay > 0.1
     ? 'Time lost waiting behind traffic: ' + resident.trafficDelay.toFixed(1) + ' seconds.'
