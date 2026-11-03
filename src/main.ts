@@ -9,6 +9,11 @@ import { foundingStory, MAX_NEIGHBOUR_EFFECT_PER_LAP,
 import { eventUiIcon } from './ui/vintageEventArt';
 import { vintageIcon, vintageFrameCorners, type VintageIcon } from './ui/vintageIcons';
 import { store } from './game/state';
+import {
+  homeImprovementDefinition,isHomeImprovementKind,
+  type HomeImprovementKind,type HomeImprovementSlot
+} from './game/homeImprovements';
+import { homeImprovementSlotMarkup } from './ui/homeImprovementsPanel';
 import { CARE_LEVELS, careName, careDescription, modelEffects,
   modelCondition, modelConditionName, modelRepairCost, normalizedCare,
   UPKEEP_INTERVAL_SECONDS, type CareLevel } from './game/economy';
@@ -244,6 +249,55 @@ function projectedRow(title: TileScoreLabel, before: number, after: number,
 }
 
 let shownHouseholdId: number | null = null;
+let chosenHomeImprovement:{
+  residentId:number;slot:HomeImprovementSlot;kind:HomeImprovementKind
+}|null = null;
+
+/** The disclosure controls themselves are stable DOM nodes. Repaint only
+ * changing option/forecast content so a running car cannot close the panels
+ * or steal keyboard focus while a player is comparing home upgrades.
+ */
+function renderHomeImprovements(panel:HTMLElement,id:number):void {
+  const section=panel.querySelector<HTMLDetailsElement>('.family-home-improvements');
+  if(!section)return;
+  section.hidden=store.phase!=='playing';
+  if(section.hidden)return;
+  const care=store.homeUpkeepFor(id);
+  section.querySelector<HTMLElement>('.home-improvements-total')!.textContent=
+    'Care '+care+' / '+UPKEEP_INTERVAL_SECONDS+'s';
+  section.querySelector<HTMLElement>('.home-improvements-note')!.textContent=
+    store.residents[id].occupied
+      ? 'Choose one boundary and one garden for this home. Every improvement '+
+        'has a purchase cost and regular care; it does not occupy a road square.'
+      : 'This house is vacant. No care is charged and new improvements are unavailable; '+
+        'old features may be removed.';
+  for(const slot of ['boundary','garden'] as const){
+    const disclosure=section.querySelector<HTMLDetailsElement>(
+      '.home-improvement-slot[data-home-slot="'+slot+'"]')!;
+    const existing=store.getHomeImprovement(id,slot);
+    disclosure.querySelector<HTMLElement>('.home-slot-current')!.textContent=
+      existing?homeImprovementDefinition(existing.kind).name:
+      slot==='boundary'?'No boundary':'No garden';
+    const chosen=chosenHomeImprovement?.residentId===id&&
+      chosenHomeImprovement.slot===slot?chosenHomeImprovement.kind:null;
+    const markup=homeImprovementSlotMarkup(store,id,slot,chosen);
+    const body=disclosure.querySelector<HTMLElement>('.home-slot-content')!;
+    if(body.innerHTML===markup)continue;
+    const focused=body.contains(document.activeElement)
+      ? document.activeElement as HTMLElement:null;
+    const option=focused?.dataset.homeOption;
+    const action=focused?.dataset.action;
+    const panelScroll=panel.scrollTop;
+    body.innerHTML=markup;
+    const focusTarget=option?body.querySelector<HTMLElement>(
+      '[data-home-option="'+option+'"]'):
+      action?body.querySelector<HTMLElement>(
+        '[data-action="'+action+'"]'):null;
+    if(focusTarget)focusTarget.focus({preventScroll:true});
+    panel.scrollTop=panelScroll;
+  }
+}
+
 function renderHouseholds(): void {
   const list = byId('household-list');
   if (list.children.length !== store.residents.length) {
@@ -287,6 +341,7 @@ function renderHouseholdDetail(): void {
   const profile = householdProfile(id);
   if (shownHouseholdId !== id) {
     shownHouseholdId = id;
+    chosenHomeImprovement=null;
     panel.innerHTML =
       '<div class="household-detail-header"><span class="eyebrow">A HOUSE ON THE LOOP</span>' +
       '<button class="household-close" data-action="close-household" aria-label="Close household details">×</button></div>' +
@@ -295,6 +350,16 @@ function renderHouseholdDetail(): void {
       '<div class="household-mood-row"><span class="household-mood"></span>' +
       '<strong class="household-irritation"></strong></div>' +
       '<div class="household-meter"><span class="household-meter-fill"></span></div>' +
+      '<details class="family-home-improvements" open>'+
+      '<summary><strong>Home &amp; grounds</strong>'+
+      '<span class="home-improvements-total"></span></summary>'+
+      '<p class="home-improvements-note"></p>'+
+      '<details class="home-improvement-slot" data-home-slot="boundary">'+
+      '<summary><span>Boundary</span><strong class="home-slot-current"></strong></summary>'+
+      '<div class="home-slot-content"></div></details>'+
+      '<details class="home-improvement-slot" data-home-slot="garden">'+
+      '<summary><span>Garden</span><strong class="home-slot-current"></strong></summary>'+
+      '<div class="home-slot-content"></div></details></details>' +
       '<dl><dt>They appreciate</dt><dd>' + profile.feelsAtHomeWith + '</dd>' +
       '<dt>They find difficult</dt><dd>' + profile.findsDifficult + '</dd>' +
       '<dt>Behind the wheel</dt><dd>' + drivingProfile(id).roadHabit + '</dd></dl>' +
@@ -328,6 +393,7 @@ function renderHouseholdDetail(): void {
       '<p class="household-small-note">A little attention to the journey can make all the difference.</p>';
   }
   panel.className = 'household-detail ' + moodClass(resident.irritation, resident.occupied);
+  renderHomeImprovements(panel,id);
   panel.querySelector<HTMLElement>('.household-mood')!.textContent =
     moodName(resident.irritation, resident.occupied);
   panel.querySelector<HTMLElement>('.household-irritation')!.textContent =
@@ -1256,6 +1322,19 @@ if (import.meta.env.DEV) {
 document.addEventListener('click', (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
+  const optionButton=target.closest<HTMLButtonElement>('[data-home-option]');
+  if(optionButton){
+    const kind=optionButton.dataset.homeOption;
+    const residentId=store.selectedResident;
+    const slot=optionButton.closest<HTMLDetailsElement>(
+      '.home-improvement-slot')?.dataset.homeSlot;
+    if(residentId!==null&&isHomeImprovementKind(kind)&&
+      slot===homeImprovementDefinition(kind).slot){
+      chosenHomeImprovement={residentId,slot:slot as HomeImprovementSlot,kind};
+      renderHomeImprovements(byId('household-detail'),residentId);
+    }
+    return;
+  }
   const careButton = target.closest<HTMLElement>('[data-care]');
   if (careButton && store.selected) {
     const value = careButton.dataset.care;
@@ -1297,6 +1376,36 @@ document.addEventListener('click', (event) => {
   const actionButton = target.closest<HTMLElement>('[data-action]');
   if (!actionButton) return;
   const action = actionButton.dataset.action;
+  if(action==='install-home-improvement'){
+    const residentId=store.selectedResident;
+    const kind=actionButton.dataset.homeKind;
+    if(residentId!==null&&isHomeImprovementKind(kind)){
+      const slot=homeImprovementDefinition(kind).slot;
+      const chosen=chosenHomeImprovement;
+      // The rendered forecast is only for the currently selected household
+      // and selected kit. Do not permit a stale or forged UI purchase.
+      if(chosen?.residentId===residentId&&chosen.kind===kind&&
+        chosen.slot===slot&&store.installHomeImprovement(residentId,kind)){
+        byId('household-detail').querySelector<HTMLElement>(
+          '.home-improvement-slot[data-home-slot="'+slot+'"] summary')
+          ?.focus({preventScroll:true});
+      }
+    }
+    return;
+  }
+  if(action==='remove-home-improvement'){
+    const residentId=store.selectedResident;
+    const slot=actionButton.dataset.homeSlot;
+    if(residentId!==null&&(slot==='boundary'||slot==='garden')&&
+      store.removeHomeImprovement(residentId,slot)){
+      chosenHomeImprovement=null;
+      renderHomeImprovements(byId('household-detail'),residentId);
+      byId('household-detail').querySelector<HTMLElement>(
+        '.home-improvement-slot[data-home-slot="'+slot+'"] summary')
+        ?.focus({preventScroll:true});
+    }
+    return;
+  }
   if (action === 'close-tile') {
     store.dismissTile();
     byId('game-container').focus({ preventScroll: true });
