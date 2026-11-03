@@ -30,7 +30,7 @@ for(const road of ROAD_CELLS){
 }
 const site=candidates[0]!;
 const make=(seed=601)=>{
-  const store=new GameStore();
+  const store=new GameStore(true);
   store.newRun(seed);
   return store;
 };
@@ -263,7 +263,7 @@ test('cooldown and bounded site history prevent a flood of collisions',()=>{
 });
 
 test('browser shows real damage, paid repair and updates the miniature',async({page})=>{
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const {road,model}=site;
   const placed=await page.evaluate(async({model})=>{
     const {store}=await import('/src/game/state.ts');

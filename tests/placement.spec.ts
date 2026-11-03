@@ -17,7 +17,7 @@ test('docked model kits and world remain visible on a laptop without scrolling',
   await page.setViewportSize(view);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('#game-container canvas')).toBeVisible();
   await expect(page.locator('.model-box')).toHaveCount(6);
   await expect(page.locator('.box-cost')).toHaveCount(6);
@@ -38,7 +38,7 @@ test('delayed short hover, click-to-inspect and purchases do not charge invalid 
   await page.setViewportSize(view);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const lamp = page.getByRole('button', { name: /Select Gas Lamppost/ });
   await lamp.click();
   await expect(lamp).toHaveAttribute('aria-pressed', 'true');
@@ -76,7 +76,7 @@ test('native drag and drop can place a model taken from its box', async ({ page 
   await page.setViewportSize(view);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   const canvas = page.locator('#game-container canvas');
   const rect = await canvas.boundingBox();
   if (!rect) throw new Error('Canvas missing');
@@ -92,7 +92,7 @@ test('native drag and drop can place a model taken from its box', async ({ page 
 
 test('on narrow screens the model-kit dock stays available while the town remains interactive', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?referenceTown=1');
   await expect(page.locator('#game-container canvas')).toBeVisible();
   await expect(page.locator('#shop-section')).toBeInViewport();
   await expect(page.locator('.model-box').first()).toBeInViewport();
