@@ -2,6 +2,7 @@ import { SeededRandom } from './environment';
 import { VINTAGE_BALANCE } from './balance';
 import type { DrivingProfile } from './driving';
 import { BOARD, ROAD_CELLS, worldPoint, type Cell } from './config';
+import { roundedRoadPointAt, roundedRoadTangentAt } from './roadGeometry';
 
 export type CarPhase = 'driving' | 'returning' | 'at-home' | 'departing';
 export const HOME_TRAVEL_SECONDS = 0.7;
@@ -89,51 +90,27 @@ const normalise = (x: number, length: number): number => ((x % length) + length)
 
 type RoadPoint = { x: number; y: number };
 export interface RoadPose extends RoadPoint { rotation: number; }
-const ROAD_CENTRES = ROAD_CELLS.map(worldPoint);
 
 /**
- * Offsetting each segment independently would make a car jump sideways at a
- * bend. Intersect the incoming and outgoing offset lines at every road vertex
- * instead, then interpolate between the resulting joins. Distance and lap
- * accounting remain measured along the original centreline.
+ * Use the same gently curved centreline as the road graphics. Only on-screen
+ * position and heading change: each vehicle retains its original grid-cell
+ * road index, tile-based travel distance, lane reservations, speed and lap
+ * accounting. Normal offsets keep both miniature lanes inside the road on
+ * corners instead of cutting diagonally across the engraved curb.
  */
 function pointOnRoadLane(distance: number, offset: number): RoadPoint {
-  const count = ROAD_CENTRES.length;
-  const wrapped = normalise(distance, count * BOARD.tile);
-  const index = Math.floor(wrapped / BOARD.tile);
-  const fraction = (wrapped - index * BOARD.tile) / BOARD.tile;
-  const previous = ROAD_CENTRES[(index - 1 + count) % count];
-  const start = ROAD_CENTRES[index];
-  const end = ROAD_CENTRES[(index + 1) % count];
-  const following = ROAD_CENTRES[(index + 2) % count];
-
-  const shiftedVertex = (before: RoadPoint, at: RoadPoint, after: RoadPoint): RoadPoint => {
-    const inX = (at.x - before.x) / BOARD.tile;
-    const inY = (at.y - before.y) / BOARD.tile;
-    const outX = (after.x - at.x) / BOARD.tile;
-    const outY = (after.y - at.y) / BOARD.tile;
-    const denominator = 1 + inX * outX + inY * outY;
-    // The laid-out circuit has no U-turns; the fallback keeps the helper safe
-    // if a future era introduces one.
-    const shift = denominator > 0.01 ? offset / denominator : 0;
-    return {
-      x: at.x + (inY + outY) * shift + (denominator <= 0.01 ? outY * offset : 0),
-      y: at.y - (inX + outX) * shift - (denominator <= 0.01 ? outX * offset : 0)
-    };
-  };
-  const from = shiftedVertex(previous, start, end);
-  const to = shiftedVertex(start, end, following);
+  const centre = roundedRoadPointAt(distance);
+  const tangent = roundedRoadTangentAt(distance);
   return {
-    x: from.x + (to.x - from.x) * fraction,
-    y: from.y + (to.y - from.y) * fraction
+    x: centre.x + tangent.y * offset,
+    y: centre.y - tangent.x * offset
   };
 }
 
-/** Smoothly oriented, continuous left-hand driving along the full road loop. */
+/** Continuous left-hand driving through every rounded turn and loop seam. */
 export function roadPoseAt(distance: number, offset = TRAFFIC_LEFT_LANE_OFFSET): RoadPose {
   const position = pointOnRoadLane(distance, offset);
-  // A short look ahead/behind smoothly turns the car's nose at corners.
-  const look = BOARD.tile * 0.2;
+  const look = BOARD.tile * .17;
   const behind = pointOnRoadLane(distance - look, offset);
   const ahead = pointOnRoadLane(distance + look, offset);
   return {
