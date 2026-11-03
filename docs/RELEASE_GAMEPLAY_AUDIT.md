@@ -60,6 +60,33 @@ possible runtime interleaving. Reproduce any remaining jam using the
 exact layout, game speed, paused/workshop state and an approximate duration;
 the new diagnostics will make it far easier to isolate.
 
+## Observed real-scene traffic measurements
+
+The first complete expanded browser run exercised 156 simulated seconds
+per layout through the **actual Phaser town scene** (not a separately
+invented traffic solver). The summary below describes these three sampled
+conditions, not a guarantee against every random event or layout.
+
+| Founding scenario | Completed circuits | Progress | Homes still occupied | Marshal recoveries |
+| --- | ---: | ---: | ---: | ---: |
+| Reference-like, seed 118 | 24 | 62.9% | 5 of 6 | 0 |
+| Close neighbours, seed 401 | 25 | 64.6% | 5 of 6 | 0 |
+| Opposite houses sharing an entrance, seed 882 | 26 | 67.6% | 6 of 6 | 0 |
+
+All three progressed without a persistent standstill in this window. In
+two unmodified (no purchased miniatures) scenarios, one family moved away
+by 156 simulated seconds. This may be an intentional consequence of
+leaving traffic and neighbour tensions unaddressed, but it is worth
+playing through as a difficulty/balance decision before release. The
+audit does not silently adjust family thresholds to conceal it.
+
+The first audit CI run passed 233 tests and failed one **timing-sensitive
+test assertion** that required a live car to remain exactly on the starting
+pixel even after the game had advanced a few frames. This was corrected to
+check the new driveway-entry *origin* with a small, valid real-time advance,
+not a frozen road position. That was a test expectation, not another
+vehicle movement bug.
+
 ## Economy and neighbourhood review
 
 - Building the family homes itself costs nothing and does not advance
