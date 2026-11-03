@@ -64,6 +64,15 @@ test('a purchase needs selection then confirmation; real upkeep and different sl
   await expect(section(page).locator('.home-improvements-total')).toHaveText('Care 1 / 20s');
   await expect(boundary.locator('[data-action="remove-home-improvement"]')).toBeEnabled();
   await expect(boundary.locator('[data-action="install-home-improvement"]')).toBeDisabled();
+  const stable=await page.evaluate(async()=>{
+    const option=document.querySelector(
+      '.home-improvement-slot[data-home-slot="boundary"] [data-home-option="picket"]');
+    const {store}=await import('/src/game/state.ts');
+    store.notify();
+    return option===document.querySelector(
+      '.home-improvement-slot[data-home-slot="boundary"] [data-home-option="picket"]');
+  });
+  expect(stable,'A routine notification must not remount disabled options').toBe(true);
   await openSlot(page,'garden');
   const garden=slot(page,'garden');
   await garden.locator('[data-home-option="front"]').click();
