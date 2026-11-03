@@ -1,5 +1,6 @@
 import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, manhattanDistance, MODELS, ROAD_CELLS, SCENERY_CELLS, setActiveScenery, type Cell, type ModelId } from './config';
 import { householdProfile, modelReactionPerTile } from './households';
+import { foundingNeighbourHints, type FoundingNeighbourHint } from './founding';
 import { careName, FLOW_WINDOW_SECONDS, modelEffects, modelRepairCost,
   modelCondition, modelConditionFactor, normalizedCare, summarizeFlow,
   UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent,
@@ -29,6 +30,10 @@ import type { RoadLane } from './traffic';
 
 export type Phase = 'founding' | 'playing' | 'complete' | 'lost';
 export type HomeSite = Cell & Pick<(typeof HOMES)[number], 'id' | 'name' | 'color' | 'temperament'>;
+export interface FoundingPlotPreview {
+  allowed:boolean; reason:string; neighbours:FoundingNeighbourHint[];
+}
+export interface FoundingArrival { id:number; cell:Cell; revision:number; moved:boolean; }
 export interface Resident {
   id: number;
   name: string;
@@ -111,6 +116,11 @@ export class GameStore {
   homeSites: Array<Cell | null> = Array.from({length: HOMES.length}, () => null);
   scenerySites: Cell[] = [];
   foundingFamily: number | null = null;
+  foundingIntroId: number | null = null;
+  foundingReviewOpen = false;
+  foundingRecentArrival: FoundingArrival | null = null;
+  private introducedFamilies = new Set<number>();
+  private foundingArrivalRevision = 0;
   money = 0;
   progress = 0;
   gameSpeed: 1 | 2 = 1;
@@ -293,6 +303,11 @@ export class GameStore {
     this.scenerySites = [];
     setActiveScenery([]);
     this.foundingFamily = null;
+    this.foundingIntroId = null;
+    this.foundingReviewOpen = false;
+    this.foundingRecentArrival = null;
+    this.foundingArrivalRevision = 0;
+    this.introducedFamilies.clear();
     this.money = 145 + this.legacy.upgrades.savings * 35;
     this.progress = 0;
     this.gameSpeed = 1;
@@ -352,15 +367,50 @@ export class GameStore {
     return this.placedHomes.every(home => home.id === id ||
       Math.max(Math.abs(home.x - cell.x), Math.abs(home.y - cell.y)) >= 2);
   }
+  previewFoundingHome(cell: Cell, id: number | null = this.foundingFamily): FoundingPlotPreview {
+    if (this.phase !== 'founding' || id === null || !HOMES[id])
+      return { allowed:false, reason:'Choose a family from the tray.', neighbours:[] };
+    const neighbours = isOnBoard(cell.x,cell.y)
+      ? foundingNeighbourHints(id,cell,this.placedHomes) : [];
+    let reason = 'A valid roadside plot. Select to settle this family here.';
+    if (!isOnBoard(cell.x,cell.y)) reason = 'Outside the town boundary.';
+    else if (isRoad(cell.x,cell.y)) reason = 'Homes cannot stand on the road.';
+    else if (!adjacentToRoad(cell.x,cell.y)) reason = 'Every home needs a plot directly beside the road.';
+    else if (this.placedHomes.some(home => home.id !== id &&
+      Math.max(Math.abs(home.x-cell.x),Math.abs(home.y-cell.y))<2))
+      reason = 'Leave at least one clear grid square between house plots.';
+    return { allowed:this.canPlaceHome(cell,id),reason,neighbours };
+  }
   chooseFoundingFamily(id: number | null): void {
-    if (this.phase !== 'founding' || (id !== null && !HOMES[id])) return;
+    if (this.phase !== 'founding' ||
+      (id !== null && (!Number.isInteger(id) || !HOMES[id]))) return;
     this.foundingFamily = id;
+    this.foundingReviewOpen = false;
+    this.foundingIntroId = id !== null && !this.introducedFamilies.has(id) ? id : null;
+    if (id !== null) this.introducedFamilies.add(id);
     this.selected = null;
     this.hovered = null;
     this.notice = id === null
       ? 'Choose a family to settle beside the road.'
       : 'Find a roadside plot for ' + HOMES[id].name +
         '. Green plots are available; you can move homes until the chapter begins.';
+    this.notify();
+  }
+  acknowledgeFoundingIntroduction(): void {
+    if (this.phase !== 'founding' || this.foundingIntroId === null) return;
+    this.foundingIntroId = null;
+    this.notify();
+  }
+  openFoundingReview(): boolean {
+    if (this.phase !== 'founding' || this.foundingCount !== HOMES.length) return false;
+    this.foundingIntroId = null;
+    this.foundingReviewOpen = true;
+    this.notify();
+    return true;
+  }
+  closeFoundingReview(): void {
+    if (!this.foundingReviewOpen) return;
+    this.foundingReviewOpen = false;
     this.notify();
   }
   placeFoundingHome(cell: Cell, id: number | null = this.foundingFamily): boolean {
@@ -372,7 +422,13 @@ export class GameStore {
     const family = id as number;
     const moved = !!this.homeSites[family];
     this.homeSites[family] = { x: cell.x, y: cell.y };
+    this.foundingRecentArrival = {
+      id:family,cell:{ x:cell.x,y:cell.y },
+      moved,revision:++this.foundingArrivalRevision
+    };
     this.foundingFamily = null;
+    this.foundingIntroId = null;
+    this.foundingReviewOpen = false;
     this.selected = null;
     this.hovered = null;
     this.notice = HOMES[family].name + (moved ? ' have moved to a different plot.' :
@@ -392,6 +448,8 @@ export class GameStore {
     setActiveScenery(this.scenerySites);
     this.phase = 'playing';
     this.foundingFamily = null;
+    this.foundingIntroId = null;
+    this.foundingReviewOpen = false;
     this.selected = null;
     this.hovered = null;
     this.notice = 'The town is founded. The first vintage motorcars begin their journeys.';

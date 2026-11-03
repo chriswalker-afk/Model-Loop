@@ -10,7 +10,7 @@ import {
   scenerySvg, sceneryTextureKey, sceneryVariants, sceneryDimensions,
   worldSvgDataUri, WORLD_CAR_SIZE, WORLD_HOUSE_SIZE
 } from '../ui/vintageWorldArt';
-import { store, type HomeSite, type JourneyReaction } from './state';
+import { store, type FoundingArrival, type HomeSite, type JourneyReaction } from './state';
 import { normalizedCare, modelCondition } from './economy';
 import type { RoadsideIncident } from './damage';
 import { BIN_CAPACITY, BIN_CATCH_RADIUS } from './bins';
@@ -79,6 +79,8 @@ export class TownScene extends Scene {
   // per frame); a placed kit keeps its physical tile footprint unchanged.
   private kitSprites = new Map<string, Phaser.GameObjects.Image>();
   private kitGhost!: Phaser.GameObjects.Image;
+  private foundingGhost!: Phaser.GameObjects.Image;
+  private lastFoundingArrivalRevision = 0;
   private houseSprites: Phaser.GameObjects.Image[] = [];
   private scenerySprites: Phaser.GameObjects.Image[] = [];
   // 22 small engraved props shared with the inspector. One sprite per active
@@ -154,6 +156,9 @@ export class TownScene extends Scene {
     this.eventSprites.clear();
     this.kitGhost = this.add.image(0, 0, miniatureTextureKey('lamp'))
       .setDisplaySize(56, 45).setDepth(6).setVisible(false);
+    this.foundingGhost = this.add.image(0,0,houseTextureKey(0))
+      .setOrigin(.5,1).setDisplaySize(59,70).setDepth(6).setVisible(false);
+    this.lastFoundingArrivalRevision = 0;
     this.trafficLayer = this.add.graphics().setDepth(19);
     this.trafficLabel = this.add.text(0, 0, '', {
       fontFamily: 'Georgia, serif', fontSize: '10px', color: '#eedab4',
@@ -179,6 +184,12 @@ export class TownScene extends Scene {
         this.activateCars();
       }
       this.drawDynamic();
+      const arrival = store.foundingRecentArrival;
+      if (store.phase === 'founding' && arrival &&
+        arrival.revision !== this.lastFoundingArrivalRevision) {
+        this.lastFoundingArrivalRevision = arrival.revision;
+        this.animateFoundingArrival(arrival);
+      }
       const environmentalEvent = store.lastEnvironmentEvent;
       if (environmentalEvent && environmentalEvent.effectId !== this.lastEnvironmentalEventId) {
         this.lastEnvironmentalEventId = environmentalEvent.effectId;
@@ -232,7 +243,7 @@ export class TownScene extends Scene {
         // An ordinary click still places the selected model in one action.
         const modifier = pointer.event && 'shiftKey' in pointer.event &&
           pointer.event.shiftKey;
-        if (modifier && store.activeModel) store.inspectTile(cell);
+        if (modifier && (store.activeModel || store.phase === 'founding')) store.inspectTile(cell);
         else store.selectTile(cell);
         const home = store.homeAt(cell);
         if (home && store.phase === 'playing' && !store.activeModel) store.selectResident(home.id);
@@ -375,6 +386,43 @@ export class TownScene extends Scene {
     this.cars = HOMES.map(home => this.createCar(home.id, home.id));
   }
 
+  private animateFoundingArrival(arrival:FoundingArrival):void {
+    const site = worldPoint(arrival.cell);
+    const house = this.houseSprites[arrival.id];
+    if (!house) return;
+    if (this.reduceMotion()) {
+      house.setPosition(site.x,site.y+22).setAlpha(1).setVisible(true);
+      return;
+    }
+    this.tweens.killTweensOf(house);
+    house.setPosition(site.x,site.y+44).setAlpha(.15).setVisible(true);
+    this.tweens.add({
+      targets:house,y:site.y+22,alpha:1,duration:650,ease:'Back.Out'
+    });
+    const label=this.add.text(site.x,site.y-62,
+      arrival.moved?'A NEW PLOT':'WELCOME HOME',{
+        fontFamily:'Georgia, serif',fontSize:'10px',color:'#e9d8ae',
+        backgroundColor:'#1a241e',padding:{x:5,y:3}
+      }).setOrigin(.5).setDepth(24);
+    this.tweens.add({targets:label,alpha:0,y:label.y-11,delay:1150,
+      duration:650,onComplete:()=>label.destroy()});
+    if (arrival.moved) return;
+    // This is a single ceremonial miniature, never a RoadTraffic vehicle.
+    const index=ROAD_CELLS.findIndex(road=>manhattanDistance(road,arrival.cell)===1);
+    if(index<0)return;
+    const from=worldPoint(ROAD_CELLS[(index-2+ROAD_CELLS.length)%ROAD_CELLS.length]);
+    const to=worldPoint(ROAD_CELLS[index]);
+    const car=this.add.image(from.x,from.y,carTextureKey(arrival.id))
+      .setDisplaySize(45,26).setAlpha(.75).setDepth(5);
+    this.tweens.add({
+      targets:car,x:to.x,y:to.y,duration:900,ease:'Sine.InOut',
+      onComplete:()=>this.tweens.add({
+        targets:car,alpha:0,duration:380,delay:400,
+        onComplete:()=>car.destroy()
+      })
+    });
+  }
+
   private createCar(residentId: number, index: number): Car {
     const home = store.homeFor(residentId);
     if (!home) throw new Error('Cannot start an unplaced household car');
@@ -428,7 +476,9 @@ export class TownScene extends Scene {
     const resident=store.residents[home.id];
     const point=worldPoint(home);
     const house=this.houseSprites[home.id];
-    if(house)house.setPosition(point.x,point.y+22)
+    // The store may notify while a little arrival animation is under way.
+    // Never snap the sprite back in the middle of its assembly tween.
+    if(house && !this.tweens.isTweening(house)) house.setPosition(point.x,point.y+22)
       .setVisible(true).setAlpha(resident?.occupied ? 1 : .48);
     // Occupancy, mood and selection remain distinct *live* game indicators,
     // not baked into the static architectural textures.
@@ -491,7 +541,7 @@ export class TownScene extends Scene {
         };
       }),
       houses: this.houseSprites.map((image,i)=>({
-        id:i,texture:image.texture.key,alpha:image.alpha,
+        id:i,texture:image.texture.key,alpha:image.alpha,visible:image.visible,
         x:image.x,y:image.y,width:image.displayWidth,height:image.displayHeight
       })),
       scenery:this.scenerySprites.map(image=>({
@@ -800,6 +850,7 @@ export class TownScene extends Scene {
     this.highlightLayer.clear();
     this.ghostLayer.clear();
     this.kitGhost.setVisible(false);
+    this.foundingGhost.setVisible(false);
     this.syncKitSprites();
 
     store.placements.forEach((placed) => {
@@ -850,6 +901,17 @@ export class TownScene extends Scene {
     this.houseSprites.forEach((house,id) => house.setVisible(!!store.homeFor(id)));
     store.placedHomes.forEach((home) => this.drawHouse(this.homeLayer, home));
 
+    if (store.phase === 'founding' && store.foundingFamily !== null) {
+      // Show possible homes at a glance, rather than requiring the player to
+      // discover each valid roadside square by trial and error.
+      for(let y=0;y<BOARD.rows;y++)for(let x=0;x<BOARD.cols;x++){
+        if(!store.canPlaceHome({x,y}))continue;
+        const sx=BOARD.left+x*BOARD.tile,sy=BOARD.top+y*BOARD.tile;
+        this.influenceLayer.lineStyle(1.05,palette.mint,.35);
+        this.influenceLayer.strokeRoundedRect(sx+8,sy+8,BOARD.tile-16,BOARD.tile-16,4);
+      }
+    }
+
     const cell = store.hovered || store.selected;
     if (!cell || !isOnBoard(cell.x, cell.y)) return;
 
@@ -860,12 +922,16 @@ export class TownScene extends Scene {
     const color = foundingPlot
       ? store.canPlaceHome(cell) ? palette.mint : palette.danger
       : preview ? preview.allowed ? palette.mint : palette.danger : palette.gold;
-    if (foundingPlot && store.canPlaceHome(cell)) {
+    if (foundingPlot) {
       const point = worldPoint(cell);
-      this.ghostLayer.lineStyle(1.5,palette.mint,.85);
-      this.ghostLayer.strokeRoundedRect(point.x-24,point.y-20,48,48,5);
-      this.ghostLayer.fillStyle(palette.mint,.12);
-      this.ghostLayer.fillRoundedRect(point.x-24,point.y-20,48,48,5);
+      const allowed = store.canPlaceHome(cell);
+      this.foundingGhost
+        .setTexture(houseTextureKey(store.foundingFamily!))
+        .setPosition(point.x,point.y+22)
+        .setAlpha(allowed?.62:.22)
+        .setVisible(true);
+      this.ghostLayer.lineStyle(1.5,allowed?palette.mint:palette.danger,.7);
+      this.ghostLayer.strokeRoundedRect(point.x-23,point.y-20,46,46,5);
     }
 
     if (preview && preview.canPlace) {

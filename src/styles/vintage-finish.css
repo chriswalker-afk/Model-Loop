@@ -403,3 +403,91 @@
     grid-template-columns:repeat(3,minmax(0,1fr));
   }
 }
+
+/* Pass 8B — original engraved family calling cards and welcome moments. */
+.founding-panel .founding-opening {color:#d8d0bf; font:12px/1.52 Georgia,serif;
+  border-bottom:1px solid rgba(220,195,145,.32);padding-bottom:10px;}
+.founding-card {display:grid;grid-template-columns:48px minmax(0,1fr);
+  align-items:center;column-gap:7px;transition:border-color .15s ease,background .15s ease;}
+.founding-card-image {width:46px;height:51px;display:grid;place-items:center;overflow:hidden;
+  border:1px solid rgba(211,185,125,.25);background:#1b271f;border-radius:3px;}
+.founding-card .founding-keepsake-art {width:100%;height:100%;display:block;overflow:visible;}
+.founding-card-copy {display:flex;flex-direction:column;gap:3px;min-width:0;}
+.founding-card-number {font-size:9px;line-height:1.3;color:#cdb685;}
+.founding-card strong {font-size:15px;line-height:1.2;}
+.founding-card-status {font-size:9px!important;line-height:1.3;letter-spacing:.07em;}
+.founding-card.is-settled .founding-card-status {color:#add2af;opacity:1;}
+.founding-card:hover {border-color:#dac493;background:#334033;}
+.founding-card:focus-visible, .founding-begin:focus-visible,
+.founding-place-button:focus-visible {outline:2px solid #b9dfc5;outline-offset:2px;}
+.founding-panel #founding-guidance {min-height:34px;color:#b9d2b6;}
+.founding-panel .founding-begin:not(:disabled):hover {background:#d6c18d;}
+.founding-neighbour-preview {margin-top:9px;border-top:1px solid #5c6d5d;padding-top:9px;}
+.founding-neighbour-preview > strong {font:11px Georgia,serif;color:#e9ddc5;}
+.founding-neighbour-hint {margin:7px 0!important;padding-left:8px;
+  border-left:2px solid #8f988b;}
+.founding-neighbour-hint.warm {border-color:#a6cfa5;}
+.founding-neighbour-hint.wary {border-color:#d6aa81;}
+.founding-neighbour-hint b {font-size:10px;}
+.founding-neighbour-hint small {display:block;color:#c0c6b8;font-size:10px;line-height:1.4;}
+.founding-place-button {display:block;width:100%;margin-top:8px;padding:9px;
+  color:#17221a;background:#d3bd88;border:1px solid #d3bd88;border-radius:3px;cursor:pointer;}
+.founding-arrival-dialog, .founding-review-dialog {width:min(100%,590px);}
+.founding-arrival-dialog .founding-epithet {font:11px/1.4 Georgia,serif;
+  letter-spacing:.15em;color:#d3bd88;text-transform:uppercase;margin-top:-8px;}
+.founding-keepsake {height:119px;border:1px solid rgba(212,194,155,.45);
+  background:radial-gradient(ellipse at center,#303b30,#161d18 72%);
+  display:flex;align-items:center;justify-content:center;position:relative;margin:9px 0 14px;}
+.founding-keepsake .founding-keepsake-art {height:103px;width:180px;flex:none;}
+.founding-keepsake > span {position:absolute;bottom:7px;right:10px;
+  font:10px Georgia,serif;color:#d5c49d;}
+.founding-arrival-dialog .founding-arrival-story {font:13px/1.55 Georgia,serif;color:#e0ded2;}
+.founding-arrival-dialog .founding-quote {color:#ead9ac;font:italic 16px/1.4 Georgia,serif;
+  margin:10px 0;padding:8px 14px;border-left:2px solid #c1a36b;background:#1a241c;}
+.founding-arrival-character {display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0;}
+.founding-arrival-character > div {border:1px solid rgba(211,194,153,.29);padding:8px 10px;
+  background:rgba(8,13,9,.22);}
+.founding-arrival-character strong {color:#e9d4a6;font:12px Georgia,serif;}
+.founding-arrival-character p {margin:4px 0 0;font-size:11px;}
+.founding-arrival-neighbours {border-top:1px solid rgba(211,194,153,.32);
+  padding-top:9px;margin:10px 0;}
+.founding-arrival-neighbours b {font:12px Georgia,serif;color:#e8d6af;}
+.founding-arrival-neighbours p {margin:5px 0 12px;font-size:11px;}
+.founding-arrival-dialog .dialog-main {width:100%;margin-top:6px;}
+.founding-review-list {padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,1fr);
+  gap:7px;margin:13px 0;}
+.founding-review-list li {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;
+  align-items:center;padding:9px 10px;border:1px solid rgba(208,194,157,.32);background:#1d281f;}
+.founding-review-list li strong {font:14px Georgia,serif;}
+.founding-review-list li span {color:#bdc1af;font:10px system-ui,sans-serif;}
+.founding-review-dialog .founding-review-list li button {grid-column:2;grid-row:1/span 2;
+  font-size:10px;padding:6px 8px;min-height:34px;}
+.founding-review-dialog .founding-review-note {font:italic 12px/1.4 Georgia,serif;color:#d6c59e;}
+@media (max-width:700px) {
+ .founding-card {grid-template-columns:38px minmax(0,1fr);gap:5px;}
+ .founding-card-image {width:36px;height:43px;}
+ .founding-card-number {font-size:8px;}
+ .founding-card strong {font-size:13px;}
+ .founding-arrival-character {grid-template-columns:1fr;gap:5px;}
+ .founding-keepsake {height:96px;}
+ .founding-keepsake .founding-keepsake-art {height:82px;width:146px;}
+ .founding-review-list {grid-template-columns:1fr;}
+}
+@media (prefers-reduced-motion:reduce) {
+ .founding-card {transition:none;}
+}
+
+/* 8B final layout guard: on tall screens the tray takes the model dock's
+   grid row, not the vanished household shelf's 47-pixel row. */
+@media (min-width:1101px) and (min-height:851px) {
+  .main-content:has(.founding-panel:not([hidden])) {
+    grid-template-rows:minmax(0,1fr) auto auto;
+  }
+  .main-content > .founding-panel {
+    grid-column:1;grid-row:2;max-height:clamp(190px,27dvh,245px);
+    margin:0 auto;overflow-y:auto;
+  }
+  .main-content:has(.founding-panel:not([hidden])) > .footer {
+    grid-column:1;grid-row:3;
+  }
+}
