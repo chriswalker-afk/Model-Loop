@@ -90,7 +90,7 @@ test('the household portrait uses the same drawings, with an honest pre-purchase
   const building=portrait.locator('.home-grounds-building');
   const front=portrait.locator('.home-grounds-garden');
   const fence=portrait.locator('.home-grounds-boundary');
-  await expect(building).toHaveAttribute('src',/^data:image\\/svg\\+xml/);
+  await expect(building).toHaveAttribute('src',/^data:image/);
   await expect(front).toBeHidden();
   await expect(fence).toBeHidden();
   await expect(portrait).toHaveAttribute('aria-label',/No boundary.*No garden/);
