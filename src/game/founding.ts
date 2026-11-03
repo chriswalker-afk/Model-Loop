@@ -1,4 +1,7 @@
 import { HOMES, manhattanDistance, type Cell } from './config';
+import {
+  influencedNeighbourEffect, type BoundaryImprovement, type NeighbourModel
+} from './boundaries';
 
 /** The six first-person arrival notes also seed Pass 8C compatibility.
  * Directional lists are intentional: affection need not be mutual. */
@@ -98,6 +101,8 @@ export interface FoundingNeighbourHint {
   /** Directional, per completed circuit, before the total household cap. */
   irritationPerLap: number;
   description: string;
+  /** Which real neighbourhood improvement(s) altered the natural score. */
+  reasons?: string[];
 }
 export interface NeighbourhoodSummary {
   residentId:number;
@@ -137,7 +142,9 @@ export function directedNeighbourEffect(
 }
 
 export function foundingNeighbourHints(
-  id:number,plot:Cell,placed:readonly (Cell & {id:number})[]
+  id:number,plot:Cell,placed:readonly (Cell & {id:number})[],
+  improvements:readonly BoundaryImprovement[]=[],
+  models:readonly NeighbourModel[]=[]
 ):FoundingNeighbourHint[] {
   const story=foundingStory(id);
   return placed.filter(other=>other.id!==id&&!!HOMES[other.id])
@@ -148,8 +155,12 @@ export function foundingNeighbourHints(
       const name=HOMES[other.id].name;
       const tone:FoundingNeighbourTone=story.closeTo.includes(other.id) ? 'warm'
         : story.uneasyNear.includes(other.id) ? 'wary' : 'ordinary';
+      const base=directedNeighbourEffect(id,other.id,distance);
+      const influenced=influencedNeighbourEffect(id,other.id,
+        {id,x:plot.x,y:plot.y},other,base,improvements,models);
       return {id:other.id,name,distance,tone,
-        irritationPerLap:directedNeighbourEffect(id,other.id,distance),
+        irritationPerLap:influenced.irritationPerLap,
+        reasons:influenced.reasons,
         description:tone==='warm'
           ? name+' may feel like kindred spirits.'
           : tone==='wary'
@@ -160,10 +171,13 @@ export function foundingNeighbourHints(
 
 /** One pure and deterministic model for inspection, previews and live play. */
 export function neighbourhoodSummary(
-  residentId:number,homes:readonly (Cell & {id:number})[]
+  residentId:number,homes:readonly (Cell & {id:number})[],
+  improvements:readonly BoundaryImprovement[]=[],
+  models:readonly NeighbourModel[]=[]
 ):NeighbourhoodSummary {
   const home=homes.find(h=>h.id===residentId);
-  const neighbours=home ? foundingNeighbourHints(residentId,home,homes) : [];
+  const neighbours=home
+    ? foundingNeighbourHints(residentId,home,homes,improvements,models) : [];
   const uncappedPerLap=round2(neighbours.reduce((sum,n)=>sum+n.irritationPerLap,0));
   return {residentId,neighbours,uncappedPerLap,
     irritationPerLap:round2(Math.max(-MAX_NEIGHBOUR_EFFECT_PER_LAP,
@@ -174,16 +188,18 @@ export function neighbourhoodSummary(
  * Forecast deltas compare capped totals before and after a valid move.
  * Non-settled households are intentionally not predicted. */
 export function forecastNeighbourhoodPlacement(
-  residentId:number,plot:Cell,current:readonly (Cell & {id:number})[]
+  residentId:number,plot:Cell,current:readonly (Cell & {id:number})[],
+  improvements:readonly BoundaryImprovement[]=[],
+  models:readonly NeighbourModel[]=[]
 ):NeighbourhoodPlacementForecast {
   const next=[...current.filter(home=>home.id!==residentId),{
     x:plot.x,y:plot.y,id:residentId
   }];
-  const before=neighbourhoodSummary(residentId,current).irritationPerLap;
-  const after=neighbourhoodSummary(residentId,next).irritationPerLap;
+  const before=neighbourhoodSummary(residentId,current,improvements,models).irritationPerLap;
+  const after=neighbourhoodSummary(residentId,next,improvements,models).irritationPerLap;
   const affected:NeighbourhoodForecastLine[]=next.map(home=>{
-    const previousPerLap=neighbourhoodSummary(home.id,current).irritationPerLap;
-    const predictedPerLap=neighbourhoodSummary(home.id,next).irritationPerLap;
+    const previousPerLap=neighbourhoodSummary(home.id,current,improvements,models).irritationPerLap;
+    const predictedPerLap=neighbourhoodSummary(home.id,next,improvements,models).irritationPerLap;
     return {residentId:home.id,name:HOMES[home.id].name,
       previousPerLap,predictedPerLap,
       changePerLap:round2(predictedPerLap-previousPerLap)};
