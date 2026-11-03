@@ -354,6 +354,106 @@ export function canReserveRoad(
   });
 }
 
+
+/**
+ * A road loop can serve several families whose front doors face the SAME
+ * carriageway square. Putting their vehicles on that square simultaneously
+ * creates a zero-gap follower cycle, which the collision-safe solver correctly
+ * refuses to move. Reserve a safe first set; remaining households wait in
+ * their driveways and use the normal merge process.
+ *
+ * This decision is deterministic and does not borrow money, distance or laps.
+ */
+export interface InitialRoadEntry { residentId:number; position:number; }
+export function planInitialRoadEntries(
+  entries:readonly InitialRoadEntry[],roadLength:number
+):Set<number> {
+  const admitted=new Set<number>();
+  const used:RoadVehicle[]=[];
+  for(const entry of entries){
+    if(!Number.isFinite(entry.position)||!Number.isInteger(entry.residentId)||
+       admitted.has(entry.residentId))continue;
+    if(!canReserveRoad(entry.position,used,roadLength))continue;
+    admitted.add(entry.residentId);
+    used.push({residentId:entry.residentId,position:entry.position,
+      desiredSpeed:0,lane:'left',drivewayReservation:true});
+  }
+  return admitted;
+}
+
+/**
+ * Last-resort detector for a genuine circular standstill, rather than a
+ * legitimate six-second family pause. No positions are modified here:
+ * the scene decides which car to guide back to its driveway, without giving
+ * it a lap, a payout or permission to overlap another car.
+ */
+export const GRIDLOCK_RECOVERY_SECONDS=10;
+export class TrafficGridlockWatch {
+  private stationarySeconds=new Map<number,number>();
+
+  reset():void { this.stationarySeconds.clear(); }
+
+  observe(
+    dt:number,vehicles:readonly RoadVehicle[],moves:readonly RoadMovement[],
+    familyStopActive:boolean
+  ):number|null {
+    if(!Number.isFinite(dt)||dt<=0||familyStopActive||
+       vehicles.some(vehicle=>vehicle.drivewayReservation)){
+      this.reset();
+      return null;
+    }
+    const driving=vehicles.filter(vehicle=>!vehicle.drivewayReservation);
+    if(driving.length<2){
+      this.reset();
+      return null;
+    }
+    const movement=new Map(moves.map(move=>[move.residentId,move]));
+    for(const car of driving){
+      const speed=movement.get(car.residentId)?.speed??Infinity;
+      if(speed<.35){
+        this.stationarySeconds.set(car.residentId,
+          (this.stationarySeconds.get(car.residentId)??0)+dt);
+      }else this.stationarySeconds.delete(car.residentId);
+    }
+    for(const id of [...this.stationarySeconds.keys()]){
+      if(!driving.some(car=>car.residentId===id))this.stationarySeconds.delete(id);
+    }
+
+    // Even if another family is still circulating, two vehicles occupying
+    // essentially the same lane position are invalid and cannot self-clear.
+    const overlaps: Array<{a:number;b:number}>=[];
+    for(let i=0;i<driving.length;i++)for(let j=i+1;j<driving.length;j++){
+      const a=driving[i],b=driving[j];
+      if(!sharesLane(a,b))continue;
+      const gap=forwardGap(a.position,b.position,
+        Math.max(1,ROAD_CELLS.length*BOARD.tile));
+      if(Math.min(gap,ROAD_CELLS.length*BOARD.tile-gap)<2)
+        overlaps.push({a:a.residentId,b:b.residentId});
+    }
+    const stuck=(id:number)=> (this.stationarySeconds.get(id)??0)>=GRIDLOCK_RECOVERY_SECONDS;
+    const overlapping=overlaps
+      .filter(pair=>stuck(pair.a)&&stuck(pair.b))
+      .sort((a,b)=>Math.max(a.a,a.b)-Math.max(b.a,b.b))[0];
+    if(overlapping){
+      this.reset();
+      return Math.max(overlapping.a,overlapping.b);
+    }
+    const still=driving.filter(car=>stuck(car.residentId));
+    // A long stationary convoy without an active pause means a lead car has
+    // become trapped (e.g. a passing-lane obstruction). Remove its blocker,
+    // not the innocent follower behind it.
+    if(still.length>=2 && still.some(car=>car.desiredSpeed>1)){
+      const stillIds=new Set(still.map(car=>car.residentId));
+      const blocker=still.find(car=>car.desiredSpeed<.35) ??
+        still.find(car=>!stillIds.has(movement.get(car.residentId)?.leaderId??-1)) ??
+        still[0];
+      this.reset();
+      return blocker.residentId;
+    }
+    return null;
+  }
+}
+
 export type TrafficIncidentKind = 'admiring' | 'hesitating' | 'chatting';
 export interface TrafficStop {
   id: number;
