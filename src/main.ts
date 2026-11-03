@@ -1304,7 +1304,7 @@ if (import.meta.env.DEV) {
         })),
         traffic:scene.trafficSnapshot(),
         queued:store.traffic.queuedCars.length,
-        trafficDelay:store.ledger.trafficDelaySeconds,
+        trafficDelay:store.ledger.secondsLostInTraffic,
         recoveries:scene.trafficSnapshot()[0]?.recoveryCount??0
       };
     },
