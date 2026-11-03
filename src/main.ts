@@ -1311,7 +1311,7 @@ document.addEventListener('click', (event) => {
   const pairButton=target.closest<HTMLElement>('[data-boundary-pair]');
   if(pairButton) {
     const raw=pairButton.dataset.boundaryPair??'';
-    if(/^\\d+:\\d+$/.test(raw)) {
+    if(/^\d+:\d+$/.test(raw)) {
       const [a,b]=raw.split(':').map(Number);
       store.chooseBoundaryPair(a,b);
     }
@@ -1372,7 +1372,7 @@ document.addEventListener('click', (event) => {
     const pair=store.boundaryPairs.find(item=>
       item.a===family||item.b===family);
     if(pair)store.chooseBoundaryPair(pair.a,pair.b);
-    workshop.scrollIntoView({block:'nearest',behavior:'instant'});
+    workshop.scrollIntoView({block:'nearest',behavior:'auto'});
     workshop.querySelector('summary')?.focus({preventScroll:true});
     return;
   }
