@@ -77,34 +77,118 @@ export function foundingStory(id: number): FoundingStory {
   if (!story || story.id !== id) throw new Error('Unknown founding family: ' + id);
   return story;
 }
+/** Residents' directional preferences, shared by founding and live play.
+ * The distance is measured between home plots, not along the vehicle loop.
+ * Ordinary houses have no automatic effect; the first nonzero separation
+ * possible for two valid houses is two Manhattan squares.
+ */
+export const NEIGHBOUR_RADIUS = 4;
+export const MAX_NEIGHBOUR_EFFECT_PER_LAP = 2.5;
+const WELCOME_EFFECT_AT_TWO = -1.5;
+const DIFFICULT_EFFECT_AT_TWO = 1.8;
+const round2 = (value:number):number => Math.abs(value)<.005
+  ? 0 : Math.round(value*100)/100;
+
 export type FoundingNeighbourTone = 'warm' | 'wary' | 'ordinary';
 export interface FoundingNeighbourHint {
   id: number;
   name: string;
   distance: number;
   tone: FoundingNeighbourTone;
+  /** Directional, per completed circuit, before the total household cap. */
+  irritationPerLap: number;
   description: string;
 }
-/** A narrative placement hint, not an irritation calculation (Pass 8C). */
+export interface NeighbourhoodSummary {
+  residentId:number;
+  /** Sum of directional impressions before applying the per-lap cap. */
+  uncappedPerLap:number;
+  /** Exact value applied by finishLap; capped to +/-2.5. */
+  irritationPerLap:number;
+  neighbours:FoundingNeighbourHint[];
+}
+export interface NeighbourhoodForecastLine {
+  residentId:number;
+  name:string;
+  previousPerLap:number;
+  predictedPerLap:number;
+  changePerLap:number;
+}
+export interface NeighbourhoodPlacementForecast {
+  /** The selected family's new total, even when it is being moved. */
+  residentId:number;
+  previousPerLap:number;
+  predictedPerLap:number;
+  changePerLap:number;
+  /** All already-settled families whose projected effect changes. */
+  affected:NeighbourhoodForecastLine[];
+}
+
+export function directedNeighbourEffect(
+  residentId:number,neighbourId:number,distance:number
+):number {
+  if(!Number.isInteger(distance)||distance<2||distance>NEIGHBOUR_RADIUS||
+      !HOMES[residentId]||!HOMES[neighbourId]||residentId===neighbourId)return 0;
+  const story=foundingStory(residentId);
+  const base=story.closeTo.includes(neighbourId) ? WELCOME_EFFECT_AT_TWO
+    : story.uneasyNear.includes(neighbourId) ? DIFFICULT_EFFECT_AT_TWO : 0;
+  const strength=(NEIGHBOUR_RADIUS+1-distance)/(NEIGHBOUR_RADIUS-1);
+  return round2(base*strength);
+}
+
 export function foundingNeighbourHints(
-  id: number, plot: Cell, placed: readonly (Cell & { id:number })[]
-): FoundingNeighbourHint[] {
-  const story = foundingStory(id);
-  return placed.filter(other => other.id !== id)
-    .map(other => ({ other, distance:manhattanDistance(plot,other) }))
-    .filter(result => result.distance <= 4)
-    .sort((a,b) => a.distance-b.distance || a.other.id-b.other.id)
-    .map(({other,distance}) => {
-      const name = HOMES[other.id]?.name ?? 'A household';
-      const tone:FoundingNeighbourTone = story.closeTo.includes(other.id) ? 'warm'
+  id:number,plot:Cell,placed:readonly (Cell & {id:number})[]
+):FoundingNeighbourHint[] {
+  const story=foundingStory(id);
+  return placed.filter(other=>other.id!==id&&!!HOMES[other.id])
+    .map(other=>({other,distance:manhattanDistance(plot,other)}))
+    .filter(result=>result.distance>=2&&result.distance<=NEIGHBOUR_RADIUS)
+    .sort((a,b)=>a.distance-b.distance||a.other.id-b.other.id)
+    .map(({other,distance})=>{
+      const name=HOMES[other.id].name;
+      const tone:FoundingNeighbourTone=story.closeTo.includes(other.id) ? 'warm'
         : story.uneasyNear.includes(other.id) ? 'wary' : 'ordinary';
-      return {
-        id:other.id, name, distance, tone,
+      return {id:other.id,name,distance,tone,
+        irritationPerLap:directedNeighbourEffect(id,other.id,distance),
         description:tone==='warm'
           ? name+' may feel like kindred spirits.'
           : tone==='wary'
             ? name+' may make this a lively relationship.'
-            : name+' would be nearby.'
-      };
+            : name+' would be nearby.'};
     });
+}
+
+/** One pure and deterministic model for inspection, previews and live play. */
+export function neighbourhoodSummary(
+  residentId:number,homes:readonly (Cell & {id:number})[]
+):NeighbourhoodSummary {
+  const home=homes.find(h=>h.id===residentId);
+  const neighbours=home ? foundingNeighbourHints(residentId,home,homes) : [];
+  const uncappedPerLap=round2(neighbours.reduce((sum,n)=>sum+n.irritationPerLap,0));
+  return {residentId,neighbours,uncappedPerLap,
+    irritationPerLap:round2(Math.max(-MAX_NEIGHBOUR_EFFECT_PER_LAP,
+      Math.min(MAX_NEIGHBOUR_EFFECT_PER_LAP,uncappedPerLap)))};
+}
+
+/** Moving a family may also change every existing neighbour's comfort.
+ * Forecast deltas compare capped totals before and after a valid move.
+ * Non-settled households are intentionally not predicted. */
+export function forecastNeighbourhoodPlacement(
+  residentId:number,plot:Cell,current:readonly (Cell & {id:number})[]
+):NeighbourhoodPlacementForecast {
+  const next=[...current.filter(home=>home.id!==residentId),{
+    x:plot.x,y:plot.y,id:residentId
+  }];
+  const before=neighbourhoodSummary(residentId,current).irritationPerLap;
+  const after=neighbourhoodSummary(residentId,next).irritationPerLap;
+  const affected:NeighbourhoodForecastLine[]=next.map(home=>{
+    const previousPerLap=neighbourhoodSummary(home.id,current).irritationPerLap;
+    const predictedPerLap=neighbourhoodSummary(home.id,next).irritationPerLap;
+    return {residentId:home.id,name:HOMES[home.id].name,
+      previousPerLap,predictedPerLap,
+      changePerLap:round2(predictedPerLap-previousPerLap)};
+  }).filter(effect=>effect.residentId===residentId||
+      Math.abs(effect.changePerLap)>=.005);
+  return {residentId,previousPerLap:before,predictedPerLap:after,
+    changePerLap:round2(after-before),affected};
 }
