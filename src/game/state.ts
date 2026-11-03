@@ -984,7 +984,10 @@ export class GameStore {
     if (id && (this.phase !== 'playing' || this.paused || this.workshopOpen)) return;
     this.activeModel = id;
     this.hovered = null;
-    if (id) this.selected = null;
+    if (id) {
+      this.selected = null;
+      this.selectedResident = null;
+    }
     this.notice = id
       ? this.getModel(id).name + ' lifted from its box. Hover over the town to preview, then click to place. Esc cancels.'
       : 'Miniature returned to its box. Choose another model to continue.';
@@ -1023,12 +1026,14 @@ export class GameStore {
       return;
     }
     this.selected = cell;
+    this.selectedResident = null;
     if (this.activeModel) this.place(cell, this.activeModel);
     this.notify();
   }
   /** Inspect placement projections without committing a purchase (Shift+click). */
   inspectTile(cell: Cell): void {
     this.selected = cell;
+    this.selectedResident = null;
     this.notify();
   }
   /** Explicitly dismiss the clicked-square inspector without cancelling a model kit. */
