@@ -66,12 +66,16 @@ export function planGardenDetails(conditions:GardenObstructions):GardenDetail[] 
   ];
   const boundaries=conditions.boundaryPoints??[];
   const all:GardenDetail[]=[];
-  for(const home of homes){
+  // Family order must not affect which possession gets the nicest patch.
+  for(const home of [...homes].sort((a,b)=>a.id-b.id)){
     const candidates=delta.map(offset=>({
       x:home.x+offset.x,y:home.y+offset.y
     })).filter(cell=>
       isOnBoard(cell.x,cell.y)&&!isRoad(cell.x,cell.y)&&
       !forbidden.some(item=>same(item,cell))&&
+      // Two households may be near the same patch; little garden models
+      // cannot occupy one another's visual position.
+      !all.some(detail=>same(detail.cell,cell))&&
       // Boundary miniatures are positioned at half-tile coordinates.
       !boundaries.some(point=>
         Math.abs(point.x-cell.x)<=.65&&Math.abs(point.y-cell.y)<=.65)
