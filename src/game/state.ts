@@ -32,6 +32,7 @@ import { RoadsideAccidentEngine, type RoadsideIncident,
   type ImpactSeverity } from './damage';
 import { isBendApproach } from './driving';
 import { NeighbourhoodStories } from './neighbours';
+import { moodLitterChance } from './mood';
 import {
   planGardenDetails, civicStageAt, eligibleCivicSites,
   type GardenDetail
@@ -1255,7 +1256,8 @@ export class GameStore {
    * They have their own seed, cooldown, maximum requests and expiry.
    */
   private respondToNeighbourhood(residentId:number,road:Cell):boolean {
-    const task=this.neighbours.candidate(residentId,road,this.clockSeconds);
+    const task=this.neighbours.candidate(residentId,road,this.clockSeconds,
+      this.residents[residentId]?.irritation??50);
     if(!task)return false;
     const source=this.residents[task.sourceResidentId];
     let message:string|null=null;
@@ -1336,9 +1338,11 @@ export class GameStore {
     if (activityKind && !canParkForActivity) return false;
     if (activityKind) {
       const hurry = naturally && action.id === 'litter' ? .78 : undefined;
+      const baseLitter=hurry??activityDefinition(activityKind).litterChance;
+      const litterChance=moodLitterChance(baseLitter,resident.irritation);
       const blocked = [...this.placements, ...this.placedHomes, ...this.environment.effects.map(effect => effect.cell)];
       const activity = this.activities.start(activityKind, residentId, road,
-        this.clockSeconds, blocked, this.placements, hurry);
+        this.clockSeconds, blocked, this.placements, litterChance);
       if (!activity) return false;
       message = activityDefinition(activityKind).started;
       effectCell = activity.cell;
@@ -1442,7 +1446,8 @@ export class GameStore {
     if (!resident?.occupied) return false;
     const blocked = [...this.placements, ...this.placedHomes, ...this.environment.effects.map(effect => effect.cell)];
     const activity = this.activities.start(kind, resident.id, road,
-      this.clockSeconds, blocked, this.placements);
+      this.clockSeconds, blocked, this.placements,
+      moodLitterChance(definition.litterChance,resident.irritation));
     if (!activity) return false;
     this.publishNotice(definition.started, 1);
     this.notify();
