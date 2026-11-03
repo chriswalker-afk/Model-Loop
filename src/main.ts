@@ -179,6 +179,13 @@ function renderShop(): void {
 
 function renderPlacementStatus(): void {
   const status = byId('placement-status');
+  if (store.phase === 'founding') {
+    byId<HTMLButtonElement>('cancel-placement').hidden = true;
+    byId('shop-section').classList.remove('has-selected');
+    status.innerHTML = '<strong>Founding the town · ' + store.foundingCount +
+      ' / 6</strong><span>Place all six homes to unlock the model collection.</span>';
+    return;
+  }
   const model = store.activeModel && store.getModel(store.activeModel);
   const cancel = byId<HTMLButtonElement>('cancel-placement');
   cancel.hidden = !model;
@@ -221,7 +228,9 @@ function renderHouseholds(): void {
   for (const resident of store.residents) {
     const ticket = list.querySelector<HTMLButtonElement>('[data-resident="' + resident.id + '"]');
     if (!ticket) continue;
-    const mood = moodName(resident.irritation, resident.occupied);
+    const mood = store.phase === 'founding'
+      ? (store.homeFor(resident.id) ? 'Settled' : 'Awaiting home')
+      : moodName(resident.irritation, resident.occupied);
     ticket.className = 'household-ticket ' + moodClass(resident.irritation, resident.occupied) +
       (store.selectedResident === resident.id ? ' active' : '');
     ticket.setAttribute('aria-pressed', String(store.selectedResident === resident.id));
@@ -518,7 +527,8 @@ function renderTilePeek(): void {
   const allowedHover = window.matchMedia(
     '(min-width: 701px) and (hover: hover) and (pointer: fine)'
   ).matches;
-  const eligible = allowedHover && store.phase === 'playing' &&
+  const eligible = allowedHover && (store.phase === 'playing' ||
+    store.phase === 'founding') &&
     !store.workshopOpen && !store.selected && !!tile;
   const key = eligible ? tile!.x + ',' + tile!.y + ':' + (store.activeModel ?? 'inspect') : null;
   if (key !== hoverKey) {
@@ -543,7 +553,11 @@ function renderTilePeek(): void {
   const info = store.tileInfo(tile);
   if (!info) { peek.hidden = true; return; }
   let description: string;
-  if (store.activeModel) {
+  if (store.phase === 'founding') {
+    description = store.foundingFamily === null
+      ? 'Choose a family from the tray'
+      : store.canPlaceHome(tile) ? 'READY FOR A HOME' : 'NOT A VALID HOME PLOT';
+  } else if (store.activeModel) {
     const model = store.getModel(store.activeModel);
     const preview = store.previewPlacement(tile, model.id);
     description = preview.allowed
@@ -651,6 +665,21 @@ function renderPlacedModelCare(): boolean {
 
 function renderTilePanel(): void {
   const panel = byId('tile-panel');
+  if (store.phase === 'founding') {
+    const tile = store.selected;
+    const panel = byId('tile-panel');
+    panel.hidden = !tile;
+    if (tile) {
+      const valid = store.foundingFamily !== null && store.canPlaceHome(tile);
+      panel.innerHTML = tileDetailsHeader('FOUNDING PLOT') +
+        '<h3>' + (valid ? 'A place for a home' : 'Roadside plot') + '</h3>' +
+        '<p>' + (store.foundingFamily === null
+          ? 'Select a family from the founding tray.'
+          : valid ? 'Click to settle the selected family here.'
+          : 'This plot is unavailable; choose a roadside square with enough space.') + '</p>';
+    }
+    return;
+  }
   const tile = store.selected;
   const details = store.tileInfo(tile);
   panel.hidden = !details;
@@ -848,7 +877,7 @@ function renderModal(): void {
     setModalContent(modal,'workshop',markup);
     return;
   }
-  if (store.phase === 'playing') {
+  if (store.phase === 'playing' || store.phase === 'founding') {
     closeModalContent(modal);
     return;
   }
@@ -877,6 +906,36 @@ function renderModal(): void {
   setModalContent(modal,'chapter',markup);
 }
 
+
+function renderFounding(): void {
+  const founding = store.phase === 'founding';
+  const panel = byId('founding-panel');
+  panel.hidden = !founding;
+  byId('shop-section').classList.toggle('founding-locked', founding);
+  byId('shop').setAttribute('aria-hidden',String(founding));
+  if (!founding) return;
+  byId('founding-progress').textContent = store.foundingCount + ' OF 6 HOMES';
+  byId('founding-family-list').innerHTML = store.residents.map(resident => {
+    const placed = store.homeFor(resident.id);
+    const active = store.foundingFamily === resident.id;
+    return '<button type="button" data-founding-family="' + resident.id +
+      '" class="founding-card ' + (active ? 'is-selected ' : '') +
+      (placed ? 'is-settled' : '') + '" aria-pressed="' + active + '">' +
+      '<span class="founding-card-number">0' + (resident.id + 1) + '</span>' +
+      '<strong>' + resident.name + '</strong><small>' +
+      (placed ? 'Settled · select to move' : householdProfile(resident.id).introduction) +
+      '</small></button>';
+  }).join('');
+  const next = byId<HTMLButtonElement>('begin-vintage');
+  next.disabled = store.foundingCount !== store.residents.length;
+  byId('founding-guidance').textContent = store.foundingFamily !== null
+    ? 'Choose a highlighted roadside square for ' + store.residents[store.foundingFamily].name +
+      '. Click the plot, or use arrow keys and Enter.'
+    : store.foundingCount === 6
+      ? 'All six households have arrived. You may still move any house.'
+      : 'Choose a household, then find its place beside the road.';
+}
+
 let lastAnnouncementRevision = -1;
 function render(): void {
   const progress = store.progress;
@@ -903,10 +962,13 @@ function render(): void {
   trafficTag.textContent = queued
     ? queued + (queued === 1 ? ' CAR DELAYED' : ' CARS QUEUED')
     : 'ROAD PAUSE';
+  byId<HTMLButtonElement>('pause').disabled = store.phase !== 'playing';
+  byId<HTMLButtonElement>('speed').disabled = store.phase !== 'playing';
   byId('pause').textContent = store.paused ? 'Resume' : 'Pause';
   byId('speed').textContent = store.gameSpeed + 'x';
   renderShop();
   renderPlacementStatus();
+  renderFounding();
   renderTilePanel();
   renderTilePeek();
   renderHouseholds();
@@ -1009,6 +1071,12 @@ document.addEventListener('click', (event) => {
     }
     return;
   }
+  const founder = target.closest<HTMLElement>('[data-founding-family]');
+  if (founder) {
+    store.chooseFoundingFamily(Number(founder.dataset.foundingFamily));
+    byId('game-container').focus({preventScroll:true});
+    return;
+  }
   const familyButton = target.closest<HTMLElement>('[data-resident]');
   if (familyButton) {
     const id = Number(familyButton.dataset.resident);
@@ -1046,6 +1114,12 @@ document.addEventListener('click', (event) => {
       if (action === 'empty-bin') store.emptyBin({ x,y });
       else if (action === 'repair-model') store.repairModel({x,y});
       else store.cleanLitter({ x,y });
+    }
+    return;
+  }
+  if (action === 'begin-vintage') {
+    if (store.beginVintageYears()) {
+      byId('game-container').focus({preventScroll:true});
     }
     return;
   }
@@ -1137,6 +1211,11 @@ document.addEventListener('keydown', (event) => {
     }
     return;
   }
+  if (event.key === 'Escape' && store.phase === 'founding' &&
+      store.foundingFamily !== null) {
+    store.chooseFoundingFamily(null);
+    return;
+  }
   if (event.key === 'Escape' && !store.activeModel && store.selected) {
     store.dismissTile();
     byId('game-container').focus({ preventScroll: true });
@@ -1147,7 +1226,7 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   // Arrow/Enter inspection must remain available even without a lifted model.
-  if (store.phase !== 'playing' || store.paused ||
+  if ((store.phase !== 'playing' && store.phase !== 'founding') || store.paused ||
       store.workshopOpen || document.activeElement !== byId('game-container')) return;
   const movement: Record<string, [number,number]> = {
     ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0]
