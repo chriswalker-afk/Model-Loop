@@ -361,9 +361,16 @@ export class TownScene extends Scene {
         const node = ROUNDED_ROAD_NODES[step % ROUNDED_ROAD_NODES.length];
         g.lineTo(node.entry.x, node.entry.y);
         if (node.radius > 0) {
-          g.quadraticCurveTo(
-            node.vertex.x, node.vertex.y, node.exit.x, node.exit.y
-          );
+          // Graphics supports strokePath + lineTo, not native quadraticCurveTo.
+          // A short, deterministic quadratic subdivision works in both its
+          // Canvas and WebGL renderers and matches roadPoseAt exactly.
+          for(let i=1;i<=10;i++){
+            const t=i/10,u=1-t;
+            g.lineTo(
+              u*u*node.entry.x+2*u*t*node.vertex.x+t*t*node.exit.x,
+              u*u*node.entry.y+2*u*t*node.vertex.y+t*t*node.exit.y
+            );
+          }
         }
       }
       g.closePath();
