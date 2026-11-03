@@ -35,6 +35,9 @@ test('family decorations are deterministic, distinctive, noninteractive and not 
   expect(props.length).toBeLessThanOrEqual(24);
   expect(planGardenDetails({homes,civicCells:SCENERY_CELLS})).toEqual(props);
   expect(new Set(props.map(p=>p.key)).size).toBe(props.length);
+  expect(new Set(props.map(p=>p.cell.x+','+p.cell.y)).size).toBe(props.length);
+  expect(planGardenDetails({homes:[...homes].reverse(),
+    civicCells:SCENERY_CELLS})).toEqual(props);
   expect(gardenRespectsRoadAndModels(props,[])).toBe(true);
   for(const home of homes){
     const details=props.filter(prop=>prop.residentId===home.id);
