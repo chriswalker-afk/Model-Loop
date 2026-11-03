@@ -214,15 +214,18 @@ for(const {name,layout,seed} of [
   });
 }
 
-test('audit: boundary previews, purchases, running laps and garden safety agree',async({page})=>{
+test('audit: household grounds forecasts, actual upkeep and garden safety agree',async({page})=>{
   await foundInBrowser(page,clustered,143);
   const result=await page.evaluate(async()=>{
     const {store}=await import('/src/game/state.ts');
-    const a=store.neighbourhoodFor(0).irritationPerLap;
+    const before=store.neighbourhoodFor(0).irritationPerLap;
     const beforeMoney=store.money;
-    const picket=store.previewBoundaryInstallation(0,5,'picket');
-    const installed=store.installBoundary(0,5,'picket');
+    const boundary=store.previewHomeImprovement(0,'picket');
+    const installed=store.installHomeImprovement(0,'picket');
     const after=store.neighbourhoodFor(0).irritationPerLap;
+    const gardenPreview=store.previewHomeImprovement(0,'front');
+    const gardenInstalled=store.installHomeImprovement(0,'front');
+    const gardenComfort=store.neighbourhoodFor(0).selfComfortPerLap;
     const boardOpen=store.canPlace({x:8,y:1});
     const modelPreview=store.previewPlacement({x:8,y:1},'limit');
     const sign=store.place({x:8,y:1},'limit');
@@ -232,47 +235,50 @@ test('audit: boundary previews, purchases, running laps and garden safety agree'
     const lap=store.finishLap(0);
     const expectedAfter=store.residents[0].irritation;
     store.togglePause();
-    const whilePaused=store.installBoundary(0,5,'stone');
+    const whilePaused=store.installHomeImprovement(0,'stone');
     store.togglePause();
-    return {a,beforeMoney,picket,installed,after,boardOpen,modelPreview,
+    return {before,beforeMoney,boundary,installed,after,gardenPreview,
+      gardenInstalled,gardenComfort,boardOpen,modelPreview,
       sign,postSign,garden,lap,expectedBefore,expectedAfter,whilePaused,
       balance:store.money,spent:store.ledger.miniaturePurchases,
-      models:store.placements.length};
+      upkeep:store.cashflow.nextUpkeep,
+      homes:store.homeImprovements.length,models:store.placements.length};
   });
-  expect(result.picket.allowed).toBe(true);
+  expect(result.boundary.allowed).toBe(true);
   expect(result.installed).toBe(true);
-  expect(result.picket.affected[0].predictedPerLap).toBe(result.after);
-  expect(result.after).toBeLessThan(result.a);
+  expect(result.boundary.affected.find(r=>r.residentId===0)?.predictedPerLap).toBe(result.after);
+  expect(result.after).toBeLessThan(result.before);
+  expect(result.gardenPreview.allowed).toBe(true);
+  expect(result.gardenInstalled).toBe(true);
+  expect(result.gardenComfort).toBeLessThan(0);
   expect(result.boardOpen).toBe(true);
   expect(result.modelPreview.allowed).toBe(true);
   expect(result.sign).toBe(true);
   expect(result.models).toBe(1);
+  expect(result.homes).toBe(2);
   expect(result.garden.some(c=>c.x===8&&c.y===1)).toBe(false);
   expect(result.lap).toBe(15);
-  expect(result.expectedAfter).toBeCloseTo(result.expectedBefore+result.after,5);
+  expect(result.expectedAfter).toBeCloseTo(
+    result.expectedBefore+result.after+result.gardenComfort,5);
   expect(result.whilePaused).toBe(false);
-  expect(result.spent).toBe(24+30);
+  expect(result.spent).toBe(24+28+30);
+  expect(result.upkeep).toBeGreaterThanOrEqual(3);
   expect(result.balance).toBe(result.beforeMoney-result.spent+result.lap);
 });
 
 for(const size of [{width:390,height:844},{width:844,height:390},{width:1280,height:720}]){
-  test('audit: founding, optional model shop and panels fit '+size.width+'×'+size.height,
+  test('audit: founding, model shop and household panel fit '+size.width+'×'+size.height,
     async({page})=>{
       await page.setViewportSize(size);
       await foundInBrowser(page,clustered,1181);
-      const studio=page.locator('#boundary-studio');
-      await expect(page.getByRole('button',{name:'Fences & gardens'})).toBeVisible();
-      await expect(studio).toBeHidden();
-      await page.getByRole('button',{name:'Fences & gardens'}).click();
-      await expect(studio).toBeVisible();
-      await expect(studio.locator('[data-boundary-pair="0:5"]')).toBeVisible();
-      await studio.locator('[data-boundary-pair="0:5"]').click();
-      await expect(studio.locator('.boundary-forecast')).toContainText('The Finches');
-      await page.keyboard.press('Escape');
-      // Escape is a convenience, but closing through summary must always work.
-      if(await studio.getAttribute('open')!==null)
-        await studio.locator('summary').click();
-      await expect(studio).toBeHidden();
+      // The legacy pair-drawer was retired. House selection still works and
+      // the normal miniature collection keeps its original footprint.
+      await expect(page.locator('#boundary-studio')).toHaveCount(0);
+      await expect(page.getByRole('button',{name:'Fences & gardens'})).toHaveCount(0);
+      await expect(page.locator('#shop [data-model]')).toHaveCount(6);
+      await page.locator('[data-resident="0"]').first().click();
+      await expect(page.locator('#household-detail')).toBeVisible();
+      await expect(page.locator('.family-relations-total')).not.toHaveText('');
       const dimensions=await page.evaluate(()=>({
         body:document.documentElement.scrollWidth,screen:window.innerWidth,
         board:document.querySelector('#game-container canvas')?.getBoundingClientRect(),

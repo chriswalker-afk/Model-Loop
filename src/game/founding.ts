@@ -1,7 +1,8 @@
 import { HOMES, manhattanDistance, type Cell } from './config';
 import {
-  influencedNeighbourEffect, type BoundaryImprovement, type NeighbourModel
-} from './boundaries';
+  influencedNeighbourEffect, homePersonalComfort,
+  type HomeImprovement, type NeighbourModel
+} from './homeImprovements';
 
 /** The six first-person arrival notes also seed Pass 8C compatibility.
  * Directional lists are intentional: affection need not be mutual. */
@@ -106,7 +107,9 @@ export interface FoundingNeighbourHint {
 }
 export interface NeighbourhoodSummary {
   residentId:number;
-  /** Sum of directional impressions before applying the per-lap cap. */
+  /** The owner's personal garden and enclosed-ground comfort on each lap. */
+  selfComfortPerLap:number;
+  /** Sum of directed impressions AND home comfort before the per-lap cap. */
   uncappedPerLap:number;
   /** Exact value applied by finishLap; capped to +/-2.5. */
   irritationPerLap:number;
@@ -143,7 +146,7 @@ export function directedNeighbourEffect(
 
 export function foundingNeighbourHints(
   id:number,plot:Cell,placed:readonly (Cell & {id:number})[],
-  improvements:readonly BoundaryImprovement[]=[],
+  improvements:readonly HomeImprovement[]=[],
   models:readonly NeighbourModel[]=[]
 ):FoundingNeighbourHint[] {
   const story=foundingStory(id);
@@ -172,14 +175,17 @@ export function foundingNeighbourHints(
 /** One pure and deterministic model for inspection, previews and live play. */
 export function neighbourhoodSummary(
   residentId:number,homes:readonly (Cell & {id:number})[],
-  improvements:readonly BoundaryImprovement[]=[],
+  improvements:readonly HomeImprovement[]=[],
   models:readonly NeighbourModel[]=[]
 ):NeighbourhoodSummary {
   const home=homes.find(h=>h.id===residentId);
   const neighbours=home
     ? foundingNeighbourHints(residentId,home,homes,improvements,models) : [];
-  const uncappedPerLap=round2(neighbours.reduce((sum,n)=>sum+n.irritationPerLap,0));
-  return {residentId,neighbours,uncappedPerLap,
+  const selfComfortPerLap=home
+    ? homePersonalComfort(residentId,homes,improvements) : 0;
+  const uncappedPerLap=round2(selfComfortPerLap+
+    neighbours.reduce((sum,n)=>sum+n.irritationPerLap,0));
+  return {residentId,neighbours,selfComfortPerLap,uncappedPerLap,
     irritationPerLap:round2(Math.max(-MAX_NEIGHBOUR_EFFECT_PER_LAP,
       Math.min(MAX_NEIGHBOUR_EFFECT_PER_LAP,uncappedPerLap)))};
 }
@@ -189,7 +195,7 @@ export function neighbourhoodSummary(
  * Non-settled households are intentionally not predicted. */
 export function forecastNeighbourhoodPlacement(
   residentId:number,plot:Cell,current:readonly (Cell & {id:number})[],
-  improvements:readonly BoundaryImprovement[]=[],
+  improvements:readonly HomeImprovement[]=[],
   models:readonly NeighbourModel[]=[]
 ):NeighbourhoodPlacementForecast {
   const next=[...current.filter(home=>home.id!==residentId),{
