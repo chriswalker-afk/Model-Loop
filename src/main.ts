@@ -977,26 +977,46 @@ function renderFounding(): void {
   byId('shop-section').classList.toggle('founding-locked', founding);
   byId('shop').setAttribute('aria-hidden',String(founding));
   if (!founding) return;
+
   byId('founding-progress').textContent = store.foundingCount + ' OF 6 HOMES';
-  byId('founding-family-list').innerHTML = store.residents.map(resident => {
-    const placed = store.homeFor(resident.id);
-    const active = store.foundingFamily === resident.id;
-    return '<button type="button" data-founding-family="' + resident.id +
-      '" class="founding-card ' + (active ? 'is-selected ' : '') +
-      (placed ? 'is-settled' : '') + '" aria-pressed="' + active + '">' +
-      '<span class="founding-card-number">0' + (resident.id + 1) + '</span>' +
-      '<strong>' + resident.name + '</strong><small>' +
-      (placed ? 'Settled · select to move' : householdProfile(resident.id).introduction) +
-      '</small></button>';
-  }).join('');
-  const next = byId<HTMLButtonElement>('begin-vintage');
-  next.disabled = store.foundingCount !== store.residents.length;
+  const tray=byId('founding-family-list');
+  // Build the actual buttons once. Frequent pointer hover updates must never
+  // replace a focused calling card or interrupt its screen-reader label.
+  if(tray.children.length!==store.residents.length) {
+    tray.innerHTML = store.residents.map(resident => {
+      const story=foundingStory(resident.id);
+      return '<button type="button" data-founding-family="'+resident.id+
+        '" class="founding-card" aria-pressed="false">'+
+        '<span class="founding-card-image" aria-hidden="true">'+foundingKeepsakeSvg(resident.id)+'</span>'+
+        '<span class="founding-card-copy"><span class="founding-card-number">0'+
+        (resident.id+1)+' · '+story.epithet+'</span><strong>'+resident.name+
+        '</strong><small class="founding-card-status"></small></span></button>';
+    }).join('');
+  }
+  for(const resident of store.residents) {
+    const card=tray.querySelector<HTMLButtonElement>(
+      '[data-founding-family="'+resident.id+'"]');
+    if(!card)continue;
+    const selected=store.foundingFamily===resident.id;
+    const settled=!!store.homeFor(resident.id);
+    card.className='founding-card'+(selected?' is-selected':'')+
+      (settled?' is-settled':'');
+    card.setAttribute('aria-pressed',String(selected));
+    card.setAttribute('aria-label',resident.name+
+      (settled?', settled. Select to move the home.':', awaiting a plot. Select to meet the family.'));
+    card.querySelector<HTMLElement>('.founding-card-status')!.textContent=
+      settled?'SETTLED · CHANGE PLOT':'AWAITING A HOME';
+  }
+
+  const ready=store.foundingCount===store.residents.length;
+  const next=byId<HTMLButtonElement>('begin-vintage');
+  next.disabled=!ready;
+  next.textContent=ready?'Review the founding town':'Settle all six homes to continue';
   byId('founding-guidance').textContent = store.foundingFamily !== null
-    ? 'Choose a highlighted roadside square for ' + store.residents[store.foundingFamily].name +
-      '. Click the plot, or use arrow keys and Enter.'
-    : store.foundingCount === 6
-      ? 'All six households have arrived. You may still move any house.'
-      : 'Choose a household, then find its place beside the road.';
+    ? 'Choose a marked roadside plot for ' + store.residents[store.foundingFamily].name +
+      '. Shift+click to inspect; arrow keys and Enter also work.'
+    : ready ? 'Six homes are settled. Review their arrangement before the first cars depart.'
+    : 'Choose a family to hear their story, then find a place beside the road.';
 }
 
 let lastAnnouncementRevision = -1;
@@ -1137,7 +1157,8 @@ document.addEventListener('click', (event) => {
   const founder = target.closest<HTMLElement>('[data-founding-family]');
   if (founder) {
     store.chooseFoundingFamily(Number(founder.dataset.foundingFamily));
-    byId('game-container').focus({preventScroll:true});
+    if(store.foundingIntroId === null)
+      byId('game-container').focus({preventScroll:true});
     return;
   }
   const familyButton = target.closest<HTMLElement>('[data-resident]');
@@ -1180,10 +1201,37 @@ document.addEventListener('click', (event) => {
     }
     return;
   }
+  if (action === 'acknowledge-arrival') {
+    store.acknowledgeFoundingIntroduction();
+    byId('game-container').focus({preventScroll:true});
+    return;
+  }
   if (action === 'begin-vintage') {
-    if (store.beginVintageYears()) {
+    store.openFoundingReview();
+    return;
+  }
+  if (action === 'close-founding-review') {
+    store.closeFoundingReview();
+    return;
+  }
+  if (action === 'move-founding') {
+    const id=Number(actionButton.dataset.id);
+    if(Number.isInteger(id)&&id>=0&&id<HOMES.length) {
+      store.chooseFoundingFamily(id);
       byId('game-container').focus({preventScroll:true});
     }
+    return;
+  }
+  if (action === 'confirm-vintage') {
+    if (store.beginVintageYears())
+      byId('game-container').focus({preventScroll:true});
+    return;
+  }
+  if (action === 'place-founding') {
+    const x=Number(actionButton.dataset.x),y=Number(actionButton.dataset.y);
+    if(Number.isInteger(x)&&Number.isInteger(y)&&isOnBoard(x,y))
+      store.placeFoundingHome({x,y});
+    byId('game-container').focus({preventScroll:true});
     return;
   }
   if (action === 'pause') store.togglePause();
@@ -1250,7 +1298,9 @@ document.addEventListener('keydown', (event) => {
   if(modalKind!=='closed'){
     if(event.key==='Escape'){
       event.preventDefault();
-      if(store.workshopOpen)store.toggleWorkshop();
+      if(modalKind==='arrival')store.acknowledgeFoundingIntroduction();
+      else if(modalKind==='founding-review')store.closeFoundingReview();
+      else if(store.workshopOpen)store.toggleWorkshop();
       else byId('modal').querySelector<HTMLElement>('.dialog-main')
         ?.focus({preventScroll:true});
       return;
