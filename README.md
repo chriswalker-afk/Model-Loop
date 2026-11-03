@@ -485,12 +485,18 @@ included in the existing net Income meter. Improvements cost nothing to
 preview, cannot be purchased while paused, and do not occupy any road
 or workshop model squares.
 
-These house-owned improvements have functional effects now; their
-hand-integrated fence and garden visuals are the next planned artwork pass
-rather than separate miniatures sitting between buildings.
+Purchased fences and gardens are now visibly **part of each miniature
+house**. Picket fences, stone walls, hedges and garden gates wrap their
+property edges; front gardens, flower beds, kitchen gardens and seating
+corners blend into the foundations and entrance path. A compatible
+nearby family determines which side a shared garden gate faces. None of
+these improvements reserves a separate board square or changes traffic
+collision rules. The family inspector has a larger property portrait,
+including a free preview of the selected style before purchase.
 
-See [Pass A engine](docs/HOME_IMPROVEMENTS_PASS_A.md) and
-[Pass B household UI](docs/HOME_IMPROVEMENTS_PASS_B.md).
+See [Pass A engine](docs/HOME_IMPROVEMENTS_PASS_A.md),
+[Pass B household UI](docs/HOME_IMPROVEMENTS_PASS_B.md) and
+[Pass C architectural artwork](docs/HOME_IMPROVEMENTS_PASS_C.md).
 
 ## Publish on GitHub Pages
 
