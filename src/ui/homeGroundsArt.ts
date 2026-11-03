@@ -169,7 +169,7 @@ function stonewall(left:number,right:number,y:number):string{
       'M'+(left+9)+' '+(y+1)+'v5M'+(left+27)+' '+(y+1)+'v5',
       A.pale,.7,.58);
 }
-function hedge(left:number,right:number,y:number,seed:number):string{
+function hedge(left:number,right:number,y:number):string{
   let out=solid('M'+left+' '+(y+2)+'Q'+(left+2)+' '+(y-13)+' '+
     (left+12)+' '+(y-12)+'H'+(right-12)+'Q'+(right-1)+' '+(y-15)+' '+
     right+' '+(y+2)+'L'+right+' '+(y+7)+'H'+left+'Z',
@@ -204,7 +204,7 @@ function boundaryArt(kind:HomeImprovementKind,homeId:number,facing:GateFacing):s
       solid('M123 117l8 21-7 0-7-21Z','#45473D',A.pale,1.2,.85);
     break;
   case 'hedge':
-    detail+=hedge(9,56,135,homeId)+hedge(84,131,135,homeId+1)+
+    detail+=hedge(9,56,135)+hedge(84,131,135)+
       littleLeaves(19,124,homeId)+littleLeaves(119,124,homeId+2);
     break;
   case 'gate': {
