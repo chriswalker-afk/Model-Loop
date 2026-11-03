@@ -107,7 +107,10 @@ test('the founding phase and cosmetic planning do not change any game resources'
   const first=game.gardenDetails;
   for(let i=0;i<25;i++)expect(game.gardenDetails).toEqual(first);
   expect(unchanged(game)).toEqual(gardenBefore);
-  expect(gardenBefore).toEqual(bare);
+  // Founding a home legitimately increases the existing Community meter;
+  // the cosmetic garden getter itself must not change any resources.
+  expect(game.community).toBeGreaterThan(bare.community);
+  expect(gardenBefore).toEqual({...bare,community:game.community});
   game.tickEconomy(200);
   expect(game.elapsedSeconds).toBe(0);
 });
