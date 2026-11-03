@@ -725,3 +725,32 @@
   .boundary-launcher{max-width:80px;padding:4px 5px;font-size:9px;}
   .shop-topline{gap:5px;}
 }
+
+/* Irritation-biased actions are explained only in the selected household.
+   No new always-on meter and no permanent inspector footprint. */
+.family-mood-influence {
+  margin:7px 0;
+  padding:7px 0;
+  border-top:1px solid rgba(208,193,156,.30);
+  border-bottom:1px solid rgba(208,193,156,.20);
+  color:#d9dcca;
+}
+.family-mood-influence summary {
+  cursor:pointer;
+  color:#e8d7ad;
+  font:12px Georgia,serif;
+}
+.family-mood-influence summary:focus-visible {
+  outline:2px solid #b0d1b5;
+  outline-offset:3px;
+}
+.family-mood-odds {
+  margin:8px 0 4px;
+  color:#dbdbcb;
+  font:11px/1.45 system-ui,sans-serif;
+}
+.family-mood-influence .household-small-note {
+  margin:4px 0 2px;
+  font-size:10px;
+  line-height:1.55;
+}
