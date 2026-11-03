@@ -48,9 +48,9 @@ test('mood shifts helpful/troublesome odds but neither outcome is guaranteed',()
   const high=behaviourOdds(0,84,road,[]);
   expect(low.helpfulChance).toBeGreaterThan(mid.helpfulChance);
   expect(mid.helpfulChance).toBeGreaterThan(high.helpfulChance);
-  expect(low.helpfulChance).toBeCloseTo(.7);
-  expect(mid.helpfulChance).toBeCloseTo(.5);
-  expect(high.helpfulChance).toBeCloseTo(.3);
+  expect(low.helpfulChance).toBeCloseTo(.7128,3);
+  expect(mid.helpfulChance).toBeCloseTo(.472,3);
+  expect(high.helpfulChance).toBeCloseTo(.3096,3);
   expect(high.troublesomeChance).toBeLessThan(1);
   expect(low.troublesomeChance).toBeGreaterThan(0);
   expect(low.eventChance).toBeGreaterThan(.3);

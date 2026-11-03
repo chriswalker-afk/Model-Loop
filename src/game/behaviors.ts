@@ -4,6 +4,7 @@ import { carePreferenceScale, modelConditionFactor, normalizedCare,
 import { SeededRandom, type EnvironmentKind } from './environment';
 import { VINTAGE_BALANCE } from './balance';
 import { bendOpportunityOffsets } from './driving';
+import { moodHelpfulChance } from './mood';
 import {
   ACTIVITY_DEFINITIONS, ACTIVITY_SELECTION_CHANCE, type ActivityKind
 } from './activities';
@@ -231,7 +232,9 @@ export function behaviourOdds(
   residentId:number, irritation:number, cell:Cell,
   placements:readonly NearbyMiniature[]
 ): BehaviourOdds {
-  let helpfulChance=irritation>=72?.30:irritation>=45?.50:.70;
+  // Keep local kit modifiers and the one-chance-per-circuit selection, but
+  // make the family's underlying tendency respond continuously to mood.
+  let helpfulChance=moodHelpfulChance(irritation);
   let eventChance: number = BEHAVIOUR_OPPORTUNITY_CHANCE;
   const nearby=placements.filter(item=>manhattanDistance(item,cell)<=EFFECT_RADIUS);
   for(const item of nearby){

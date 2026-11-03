@@ -1,5 +1,6 @@
 import { manhattanDistance, type Cell } from './config';
 import { SeededRandom } from './environment';
+import { moodNeighbourHelpChance } from './mood';
 
 /**
  * Pass 6D: a little shared history, never an extra reward generator.
@@ -98,7 +99,9 @@ export class NeighbourhoodStories {
   /** Return at most one possible response per actual passing road tile.
    * This does not mutate an intent; its physical target is verified by
    * GameStore before completing it. */
-  candidate(residentId:number, roadCell:Cell, now:number):NeighbourRequest|null {
+  candidate(
+    residentId:number,roadCell:Cell,now:number,actorIrritation=50
+  ):NeighbourRequest|null {
     if(now-(this.lastResponseByActor.get(residentId)??-Infinity) <
        NEIGHBOUR_RESPONSE_COOLDOWN)return null;
     const options=this.pending.filter(task=>task.actorId===residentId &&
@@ -108,7 +111,12 @@ export class NeighbourhoodStories {
     if(!options.length)return null;
     options.sort((a,b)=>a.createdAt-b.createdAt||a.id-b.id);
     const target=options[0];
-    return this.rng.next()<NEIGHBOUR_HELP_PROBABILITIES[target.kind] ? target:null;
+    // A calm neighbour is more willing to stop and lend a hand; a
+    // frustrated one may pass by. Neither receives an extra event roll,
+    // and even a very irritated resident still sometimes helps.
+    const chance=moodNeighbourHelpChance(
+      NEIGHBOUR_HELP_PROBABILITIES[target.kind],actorIrritation);
+    return this.rng.next()<chance ? target:null;
   }
 
   complete(task:NeighbourRequest, now:number, message:string):NeighbourNote|null {
