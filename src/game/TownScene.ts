@@ -277,16 +277,22 @@ export class TownScene extends Scene {
       const travelled = Math.hypot(pointer.x - pointer.downX, pointer.y - pointer.downY);
       if (travelled > 13) return;
       const cell = this.pointerCell(pointer);
+      const artworkHome=store.phase==='playing'&&!store.activeModel&&!store.workshopOpen
+        ? this.homeArtworkAtPointer(pointer):null;
       if (cell && (store.phase === 'playing' || store.phase === 'founding') &&
-          !store.paused && !store.workshopOpen) {
-        // Shift+click opens the full placement forecast without spending coins.
-        // An ordinary click still places the selected model in one action.
+          !store.workshopOpen && (!store.paused || !!artworkHome)) {
+        // The visible roof extends above its founding grid cell. Tapping any
+        // actual part of the house should inspect the family, even if the
+        // roof overlaps the previous row. Never intercept placing a model.
+        if(artworkHome){
+          store.selectTile(artworkHome);
+          return;
+        }
+        // Shift+click opens a placement forecast without purchasing.
         const modifier = pointer.event && 'shiftKey' in pointer.event &&
           pointer.event.shiftKey;
         if (modifier && (store.activeModel || store.phase === 'founding')) store.inspectTile(cell);
         else store.selectTile(cell);
-        const home = store.homeAt(cell);
-        if (home && store.phase === 'playing' && !store.activeModel) store.selectResident(home.id);
       }
     });
     // A short hover label must not linger after the pointer leaves the town.
@@ -294,6 +300,30 @@ export class TownScene extends Scene {
     this.input.on('gameout', () => {
       store.setHovered(null);
     });
+  }
+
+  /** Match the actual 59x70 hand-drawn house silhouette rather than only
+   * its underlying grid cell. Coordinates come from live canvas bounds so
+   * horizontally scrolled phones remain accurate; hits never create models.
+   */
+  private homeArtworkAtPointer(pointer: Phaser.Input.Pointer):HomeSite|null {
+    const event=pointer.event as MouseEvent|TouchEvent|undefined;
+    const touch=event&&'changedTouches' in event
+      ? (event.changedTouches[0]||event.touches[0]):undefined;
+    const clientX=touch?.clientX??(event as MouseEvent|undefined)?.clientX;
+    const clientY=touch?.clientY??(event as MouseEvent|undefined)?.clientY;
+    const rect=this.game.canvas.getBoundingClientRect();
+    if(!Number.isFinite(clientX)||!Number.isFinite(clientY)||
+        rect.width<=0||rect.height<=0)return null;
+    const x=((clientX as number)-rect.left)/rect.width*BOARD.width;
+    const y=((clientY as number)-rect.top)/rect.height*BOARD.height;
+    return store.placedHomes.map(home=>({home,point:worldPoint(home)}))
+      .filter(({point})=>Math.abs(x-point.x)<=27&&
+        y>=point.y-45&&y<=point.y+19)
+      .sort((a,b)=>
+        Math.hypot(x-a.point.x,y-(a.point.y-10))-
+        Math.hypot(x-b.point.x,y-(b.point.y-10)))
+      [0]?.home??null;
   }
 
   private pointerCell(pointer: Phaser.Input.Pointer): Cell | null {
