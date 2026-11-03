@@ -310,8 +310,9 @@ function renderHouseholdDetail(): void {
       '<p class="household-traffic-delay"></p>' +
       '<details class="family-relations"><summary>Who lives nearby · '+
       '<strong class="family-relations-total"></strong></summary>'+
-      '<p class="family-relations-explanation">Neighbour comfort affects irritation once per completed circuit; '+
-      'other street and driving conditions still matter.</p>'+
+      '<p class="family-relations-explanation">Neighbour comfort affects irritation once per completed circuit. '+
+      'The combined effect is capped at ±'+MAX_NEIGHBOUR_EFFECT_PER_LAP.toFixed(2)+
+      '; other street and driving conditions still matter.</p>'+
       '<div class="family-relations-list"></div></details>' +
        '<div class="household-footprint"><span class="eyebrow">A RECENT TRACE</span>' +
       '<span class="household-last-action"></span></div>' +
