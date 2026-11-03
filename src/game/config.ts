@@ -68,8 +68,14 @@ export const SCENERY_CELLS: Cell[] = [
   { x: 16, y: 6 }, // fountain
   { x: 7, y: 7 }   // park notice
 ];
+// The reference landscape is not a permanent invisible obstruction. The run
+// decides which pieces can appear without touching a founding family's plot.
+let activeScenery: readonly Cell[] = SCENERY_CELLS;
+export function setActiveScenery(cells: readonly Cell[]): void {
+  activeScenery = cells.map(cell => ({ ...cell }));
+}
 export const isScenery = (x: number, y: number): boolean =>
-  SCENERY_CELLS.some((cell) => cell.x === x && cell.y === y);
+  activeScenery.some((cell) => cell.x === x && cell.y === y);
 
 export const manhattanDistance = (a: Cell, b: Cell): number =>
   Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
