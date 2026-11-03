@@ -2,7 +2,11 @@ import { adjacentToRoad, EFFECT_RADIUS, HOMES, isOnBoard, isRoad, isScenery, man
 import { householdProfile, modelReactionPerTile } from './households';
 import { foundingNeighbourHints, forecastNeighbourhoodPlacement, neighbourhoodSummary,
   type FoundingNeighbourHint, type NeighbourhoodPlacementForecast,
-  type NeighbourhoodSummary } from './founding';
+  type NeighbourhoodSummary, type NeighbourhoodForecastLine } from './founding';
+import {
+  BOUNDARY_MODELS, boundaryBetween, boundaryDefinition, boundaryKey, canShareBoundary,
+  type BoundaryKind, type BoundaryImprovement
+} from './boundaries';
 import { careName, FLOW_WINDOW_SECONDS, modelEffects, modelRepairCost,
   modelCondition, modelConditionFactor, normalizedCare, summarizeFlow,
   UPKEEP_INTERVAL_SECONDS, type CareLevel, type Cashflow, type CashflowEvent,
@@ -77,6 +81,21 @@ export interface PlacedModel extends Cell {
 export interface PermanentUpgrades { savings: number; patience: number; }
 export interface Legacy { blueprints: number; upgrades: PermanentUpgrades; }
 export interface TileInfo { kind: string; beauty: number; noise: number; crime: number; roadSafety: number; }
+export interface BoundaryPlacementPreview {
+  pair: {a:number;b:number};
+  kind:BoundaryKind;
+  cost:number;
+  existing:BoundaryImprovement | null;
+  allowed:boolean;
+  reason:string;
+  anchor:Cell | null;
+  /** True predicted, capped, per-circuit changes for BOTH households. */
+  affected:NeighbourhoodForecastLine[];
+}
+export interface BoundaryPairOption {
+  a:number;b:number;anchor:Cell;existing:BoundaryImprovement|null;
+  name:string;
+}
 export interface PlacementPreview {
   cell: Cell;
   modelId: ModelId;
@@ -91,6 +110,9 @@ export interface PlacementPreview {
   irritationChangePerLap: number;
   householdEffects: HouseholdEffect[];
   behaviourEffects: BehaviourPreviewRow[];
+  /** Separate from ordinary per-tile car reactions; added to per-circuit
+   * neighbour comfort only when the model meaningfully affects a family pair. */
+  neighbourEffects: NeighbourhoodForecastLine[];
 }
 
 const KEY = 'model-loop-legacy-v1';
@@ -135,6 +157,10 @@ export class GameStore {
   selected: Cell | null = null;
   hovered: Cell | null = null;
   placements: PlacedModel[] = [];
+  /** Boundary pieces sit between homes, never on a purchasable road verge. */
+  boundaryImprovements: BoundaryImprovement[] = [];
+  boundaryPair: {a:number;b:number} | null = null;
+  boundaryKind: BoundaryKind | null = null;
   residents: Resident[] = [];
   notice = 'Choose a boxed miniature, then place it beside the road.';
   workshopOpen = false;
@@ -322,6 +348,9 @@ export class GameStore {
     this.selected = null;
     this.hovered = null;
     this.placements = [];
+    this.boundaryImprovements = [];
+    this.boundaryPair = null;
+    this.boundaryKind = null;
     this.workshopOpen = false;
     this.selectedResident = null;
     this.reachedMilestone = 0;
@@ -370,7 +399,105 @@ export class GameStore {
    */
   neighbourhoodFor(residentId:number):NeighbourhoodSummary {
     const living=this.placedHomes.filter(home=>this.residents[home.id]?.occupied);
-    return neighbourhoodSummary(residentId,living);
+    return neighbourhoodSummary(residentId,living,this.boundaryImprovements,this.placements);
+  }
+
+  /** Every purchasable boundary has one precise, road-free anchor. Pair
+   * order is canonical; already-installed boundaries remain visible even
+   * after a family leaves, but cannot be repurchased while a house is empty.
+   */
+  get boundaryPairs():BoundaryPairOption[] {
+    const homes=this.placedHomes;
+    const pairs:BoundaryPairOption[]=[];
+    for(let i=0;i<homes.length;i++)for(let j=i+1;j<homes.length;j++){
+      const a=homes[i],b=homes[j];
+      if(!canShareBoundary(a,b,homes))continue;
+      const existing=this.boundaryImprovements.find(piece=>
+        piece.a===a.id&&piece.b===b.id)??null;
+      if(!existing && (!this.residents[a.id]?.occupied||!this.residents[b.id]?.occupied))continue;
+      pairs.push({a:a.id,b:b.id,anchor:boundaryBetween(a,b),existing,
+        name:a.name+' & '+b.name});
+    }
+    return pairs;
+  }
+  chooseBoundaryPair(a:number,b:number):boolean {
+    const pair=this.boundaryPairs.find(item=>item.a===a&&item.b===b);
+    if(this.phase!=='playing'||!pair)return false;
+    this.boundaryPair={a,b};
+    this.boundaryKind=pair.existing?.kind??'picket';
+    this.activeModel=null;
+    this.selected=null;
+    this.hovered=null;
+    this.notify();
+    return true;
+  }
+  chooseBoundaryKind(kind:BoundaryKind):boolean {
+    if(this.phase!=='playing'||!this.boundaryPair||
+        !BOUNDARY_MODELS.some(item=>item.kind===kind))return false;
+    this.boundaryKind=kind;
+    this.notify();
+    return true;
+  }
+  previewBoundaryInstallation(
+    a:number,b:number,kind:BoundaryKind
+  ):BoundaryPlacementPreview {
+    const pair=this.boundaryPairs.find(item=>item.a===a&&item.b===b);
+    const validKind=BOUNDARY_MODELS.some(item=>item.kind===kind);
+    const current=pair?.existing??null;
+    const cost=validKind?boundaryDefinition(kind).cost:0;
+    const living=this.placedHomes.filter(home=>this.residents[home.id]?.occupied);
+    let reason='Ready to install between these two houses.';
+    if(this.phase!=='playing'||!pair||!validKind)
+      reason='Choose an available shared boundary in the running town.';
+    else if(!this.residents[a]?.occupied||!this.residents[b]?.occupied)
+      reason='Both families must still be living here.';
+    else if(this.paused||this.workshopOpen)
+      reason='Resume the town and close the workshop before purchasing.';
+    else if(current?.kind===kind)reason='Already installed here. Choose another miniature to replace it.';
+    else if(this.money<cost)reason='Not enough coins for this miniature.';
+    const allowed=reason==='Ready to install between these two houses.';
+    const proposed=pair && validKind
+      ? [...this.boundaryImprovements.filter(item=>
+          boundaryKey(item.a,item.b)!==boundaryKey(a,b)),{a,b,kind}]
+      : this.boundaryImprovements;
+    const affected=pair && validKind ? [a,b].map(id=>{
+      const previousPerLap=neighbourhoodSummary(id,living,
+        this.boundaryImprovements,this.placements).irritationPerLap;
+      const predictedPerLap=neighbourhoodSummary(id,living,
+        proposed,this.placements).irritationPerLap;
+      return {residentId:id,name:this.residents[id].name,previousPerLap,predictedPerLap,
+        changePerLap:Math.round((predictedPerLap-previousPerLap)*100)/100};
+    }) : [];
+    return {pair:{a,b},kind,cost,existing:current,allowed,reason,
+      anchor:pair?.anchor??null,affected};
+  }
+  installBoundary(a:number,b:number,kind:BoundaryKind):boolean {
+    // Both selection and purchase use this exact server-independent guard.
+    if(!Number.isInteger(a)||!Number.isInteger(b)||a>=b)return false;
+    const preview=this.previewBoundaryInstallation(a,b,kind);
+    if(!preview.allowed)return false;
+    this.money-=preview.cost;
+    this.ledger.miniaturePurchases+=preview.cost;
+    this.boundaryImprovements=this.boundaryImprovements.filter(item=>
+      boundaryKey(item.a,item.b)!==boundaryKey(a,b));
+    this.boundaryImprovements.push({a,b,kind});
+    this.boundaryPair={a,b};
+    this.boundaryKind=kind;
+    this.notice=boundaryDefinition(kind).name+' placed between '+
+      this.residents[a].name+' and '+this.residents[b].name+'.';
+    this.notify();
+    return true;
+  }
+  removeBoundary(a:number,b:number):boolean {
+    if(this.phase!=='playing'||this.paused||this.workshopOpen||
+        !Number.isInteger(a)||!Number.isInteger(b)||a>=b)return false;
+    const index=this.boundaryImprovements.findIndex(item=>
+      item.a===a&&item.b===b);
+    if(index<0)return false;
+    this.boundaryImprovements.splice(index,1);
+    this.notice='The shared boundary has been cleared. Previous purchases are not refunded.';
+    this.notify();
+    return true;
   }
   /** Houses need an actual adjoining road and enough space for their artwork. */
   canPlaceHome(cell: Cell, id: number | null = this.foundingFamily): boolean {
@@ -919,6 +1046,17 @@ export class GameStore {
     const behaviourEffects = canPlace
       ? previewBehaviourInfluence(cell, id, this.placements, this.residents)
       : [];
+    const living=this.placedHomes.filter(home=>this.residents[home.id]?.occupied);
+    const neighbourEffects:NeighbourhoodForecastLine[]=canPlace
+      ? living.map(home=>{
+        const previousPerLap=neighbourhoodSummary(home.id,living,
+          this.boundaryImprovements,this.placements).irritationPerLap;
+        const predictedPerLap=neighbourhoodSummary(home.id,living,
+          this.boundaryImprovements,[...this.placements,{...cell,id}]).irritationPerLap;
+        return {residentId:home.id,name:home.name,previousPerLap,predictedPerLap,
+          changePerLap:Math.round((predictedPerLap-previousPerLap)*100)/100};
+      }).filter(effect=>Math.abs(effect.changePerLap)>=.005)
+      : [];
     const averageChange = householdEffects.length
       ? householdEffects.reduce((sum, effect) => sum + effect.irritationChangePerLap, 0) / householdEffects.length
       : 0;
@@ -927,7 +1065,7 @@ export class GameStore {
       before, after, affectedRoadTiles,
       affectedHouseholds: this.occupiedHomes,
       irritationChangePerLap: Math.round(averageChange * 10) / 10,
-      householdEffects, behaviourEffects
+      householdEffects, behaviourEffects, neighbourEffects
     };
   }
 
